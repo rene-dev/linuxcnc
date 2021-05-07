@@ -17,7 +17,7 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # general options
-option(BUILD_UDEV "deactivate this if udev is not available. Was previously named --disable-userspace-pci." ON)
+option(BUILD_UDEV "deactivate this if udev is not available. Was previously named --disable-userspace-pci." OFF)
 option(TOOL_NML "Use nml for tool data, default is mmap" OFF)
 
 # realtime options
@@ -30,6 +30,14 @@ option(USE_KBUILD "whether your kernel uses kbuild or not" OFF)
 # check if realtime options sane
 if((${USE_PREEMPT_RT} AND (${USE_RTAI} OR ${USE_XENOMAI})) OR (${USE_RTAI} AND ${USE_XENOMAI}))
     message(FATAL_ERROR "invalid realtime options, you may only choose one realtime layer!")
+endif()
+
+if(${USE_RTAI} AND ${USE_USPACE})
+    message(FATAL_ERROR "RTAI cannot be used in user space!")
+endif()
+
+if(NOT ${USE_RTAI} AND ${USE_KBUILD})
+    message(FATAL_ERROR "kbuild can only be used with RTAI!")
 endif()
 
 # configure files

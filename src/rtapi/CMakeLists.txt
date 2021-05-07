@@ -19,8 +19,16 @@ if(USE_PREEMPT_RT)
     set_source_files_properties(rtapi_pci.cc PROPERTIES COMPILE_FLAGS -O0)
 
     add_executable(rtapi_app ${RTAPI_SOURCES})
+    target_link_libraries(rtapi_app Threads::Threads)
+    target_link_libraries(rtapi_app ${CMAKE_DL_LIBS})
+    target_compile_options(rtapi_app PRIVATE -rdynamic)
     target_compile_definitions(rtapi_app PRIVATE SIM RTAPI)
     target_compile_definitions(mathstubs PRIVATE SIM RTAPI)
+
+    if(BUILD_UDEV)
+    else(BUILD_UDEV)
+        target_compile_definitions(rtapi_app PRIVATE NO_LIBUDEV)
+    endif(BUILD_UDEV)
 endif(USE_PREEMPT_RT)
 
 if(USE_XENOMAI)

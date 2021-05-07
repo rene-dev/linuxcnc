@@ -24,10 +24,10 @@
 using namespace std;
 
 #include "config.h"
-#include "rtapi.h"
-#include <rtapi_mutex.h>
-#include "hal.h"
-#include "hal_priv.h"
+#include "rtapi/rtapi.h"
+#include <rtapi/rtapi_mutex.h>
+#include "hal/hal.h"
+#include "hal/hal_priv.h"
 
 #if PY_VERSION_HEX < 0x02050000 && !defined(PY_SSIZE_T_MIN)
 typedef int Py_ssize_t;

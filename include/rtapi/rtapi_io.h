@@ -16,7 +16,7 @@
 #ifndef RTAPI_IO_H
 #define RTAPI_IO_H
 
-#include <rtapi.h>
+#include <rtapi/rtapi.h>
 
 #ifdef __KERNEL__
 #include <asm/io.h>

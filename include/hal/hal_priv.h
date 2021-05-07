@@ -92,8 +92,8 @@
     up a little.
 */
 
-#include <rtapi.h>
-#include <rtapi_mutex.h>
+#include <rtapi/rtapi.h>
+#include <rtapi/rtapi_mutex.h>
 RTAPI_BEGIN_DECLS
 
 /* SHMPTR(offset) converts 'offset' to a void pointer. */

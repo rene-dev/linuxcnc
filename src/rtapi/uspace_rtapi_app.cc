@@ -54,10 +54,10 @@
 
 #include "config.h"
 
-#include "rtapi.h"
+#include "rtapi/rtapi.h"
 #include "hal/hal.h"
 #include "hal/hal_priv.h"
-#include "rtapi_uspace.hh"
+#include "rtapi/rtapi_uspace.hh"
 
 #include <string.h>
 #include <boost/lockfree/queue.hpp>

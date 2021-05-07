@@ -16,8 +16,8 @@
 #ifndef RTAPI_PARPORT_H
 #define RTAPI_PARPORT_H
 
-#include <rtapi.h>
-#include <rtapi_io.h>
+#include <rtapi/rtapi.h>
+#include <rtapi/rtapi_io.h>
 #include <linux/parport.h>
 
 #define RTAPI_PARPORT_DATA_PORT(t) (t->base + 0)

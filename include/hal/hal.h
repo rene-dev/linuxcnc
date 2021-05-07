@@ -123,7 +123,7 @@
 
 */
 
-#include <rtapi.h>
+#include <rtapi/rtapi.h>
 RTAPI_BEGIN_DECLS
 
 #if ( !defined RTAPI ) && ( !defined ULAPI )
@@ -134,7 +134,7 @@ RTAPI_BEGIN_DECLS
 #include <signal.h>
 #endif
 
-#include <rtapi_errno.h>
+#include <rtapi/rtapi_errno.h>
 
 #define HAL_NAME_LEN     47	/* length for pin, signal, etc, names */
 
@@ -292,8 +292,8 @@ typedef enum {
 
 /* Use these for x86 machines, and anything else that can write to
    individual bytes in a machine word. */
-#include <rtapi_bool.h>
-#include <rtapi_stdint.h>
+#include <rtapi/rtapi_bool.h>
+#include <rtapi/rtapi_stdint.h>
 typedef volatile bool hal_bit_t;
 typedef volatile rtapi_u32 hal_u32_t;
 typedef volatile rtapi_s32 hal_s32_t;
