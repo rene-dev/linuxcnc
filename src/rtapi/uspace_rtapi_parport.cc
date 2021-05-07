@@ -17,9 +17,9 @@
 #include <fcntl.h>
 #include <linux/ppdev.h>
 #include <map>
-#include <rtapi.h>
-#include <rtapi_parport.h>
-#include "rtapi_uspace.hh"
+#include <rtapi/rtapi.h>
+#include <rtapi/rtapi_parport.h>
+#include "rtapi/rtapi_uspace.hh"
 #include <stdio.h>
 #include <string.h>
 #include <sys/ioctl.h>

@@ -24,9 +24,9 @@
 //
 
 
-#include <rtapi_ctype.h>
-#include <rtapi_slab.h>
-#include <rtapi_string.h>
+#include <rtapi/rtapi_ctype.h>
+#include <rtapi/rtapi_slab.h>
+#include <rtapi/rtapi_string.h>
 
 /**
  * rtapi_kstrndup - allocate space for and copy an existing string

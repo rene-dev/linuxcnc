@@ -1,5 +1,7 @@
 set(CMAKE_INCLUDE_CURRENT_DIR True)
 
+add_library(mathstubs mathstubs.c)
+
 if(USE_RTAI)
     find_package(RTAI REQUIRED)
     set(RTAI_SOURCES rtapi/uspace_rtai.cc)
@@ -14,8 +16,11 @@ if(USE_PREEMPT_RT)
             rtapi_pci.cc
             )
 
-    add_executable(rtapi_app ${RTAPI_SOURCES})
     set_source_files_properties(rtapi_pci.cc PROPERTIES COMPILE_FLAGS -O0)
+
+    add_executable(rtapi_app ${RTAPI_SOURCES})
+    target_compile_definitions(rtapi_app PRIVATE SIM RTAPI)
+    target_compile_definitions(mathstubs PRIVATE SIM RTAPI)
 endif(USE_PREEMPT_RT)
 
 if(USE_XENOMAI)
