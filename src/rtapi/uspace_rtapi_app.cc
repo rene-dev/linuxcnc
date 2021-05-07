@@ -55,7 +55,7 @@
 #include "config.h"
 
 #include "rtapi.h"
-#include "hal.h"
+#include "hal/hal.h"
 #include "hal/hal_priv.h"
 #include "rtapi_uspace.hh"
 
