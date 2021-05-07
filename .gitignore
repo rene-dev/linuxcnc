@@ -42,4 +42,7 @@ position.txt
 *.glade.h
 # Ignore test results
 *.result
-
+.idea
+build
+cmake-build-*
+*.swp
