@@ -31,10 +31,10 @@
 
 #include "config.h"
 
-#include <rtapi.h>
-#include <rtapi_pci.h>
-#include <rtapi_firmware.h>
-#include "rtapi_uspace.hh"
+#include <rtapi/rtapi.h>
+#include <rtapi/rtapi_pci.h>
+#include <rtapi/rtapi_firmware.h>
+#include "rtapi/rtapi_uspace.hh"
 
 #include <dirent.h>
 #include <errno.h>

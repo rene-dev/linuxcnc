@@ -30,11 +30,11 @@
 #define rtapi_release_firmware release_firmware
 
 #else
-#include <rtapi.h>
+#include <rtapi/rtapi.h>
 
 RTAPI_BEGIN_DECLS
 
-#include <rtapi_stdint.h>
+#include <rtapi/rtapi_stdint.h>
 #include <stddef.h>
 
 struct rtapi_device;

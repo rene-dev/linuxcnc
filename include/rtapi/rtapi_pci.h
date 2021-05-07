@@ -38,8 +38,8 @@
 #define rtapi_iounmap iounmap
 
 #else
-#include <rtapi.h>
-#include <rtapi_stdint.h>
+#include <rtapi/rtapi.h>
+#include <rtapi/rtapi_stdint.h>
 #define rtapi__iomem /* nothing */
 
 RTAPI_BEGIN_DECLS
