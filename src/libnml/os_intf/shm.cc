@@ -12,9 +12,9 @@
 * Last change: 
 ********************************************************************/
 
-#include "shm.hh"
-#include "_shm.h"		/* rcs_shm_open(), rcs_shm_close() */
-#include "rcs_print.hh"		// rcs_print_error()
+#include "libnml/os_intf/shm.hh"
+#include "libnml/os_intf/_shm.h"		/* rcs_shm_open(), rcs_shm_close() */
+#include "libnml/rcs/rcs_print.hh"		// rcs_print_error()
 
 extern "C" {
 #include <stdio.h>		/* fprintf(), stderr */

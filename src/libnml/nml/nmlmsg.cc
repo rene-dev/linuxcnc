@@ -20,9 +20,9 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-#include "cms.hh"
-#include "nmlmsg.hh"
-#include "rcs_print.hh"		/* rcs_error_print() */
+#include "libnml/cms/cms.hh"
+#include "libnml/nml/nmlmsg.hh"
+#include "libnml/rcs/rcs_print.hh"		/* rcs_error_print() */
 /* NMLmsg Functions. */ int NMLmsg::automatically_clear = 1;
 
 /* Constructor */

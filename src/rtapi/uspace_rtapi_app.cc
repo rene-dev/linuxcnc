@@ -17,9 +17,7 @@
 
 #include "config.h"
 
-#ifdef __linux__
 #include <sys/fsuid.h>
-#endif
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -39,15 +37,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
-#ifdef HAVE_SYS_IO_H
 #include <sys/io.h>
-#endif
 #include <sys/resource.h>
 #include <sys/mman.h>
-#ifdef __linux__
 #include <malloc.h>
 #include <sys/prctl.h>
-#endif
+
 #ifdef __FreeBSD__
 #include <pthread_np.h>
 #endif

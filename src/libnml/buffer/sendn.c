@@ -23,9 +23,9 @@
 #include <sys/socket.h>		/* send(), recv(), socket(), accept(),
 				   bind(), listen() */
 #include <sys/time.h>		/* struct timeval */
-#include "sendn.h"		/* sendn() */
-#include "rcs_print.hh"		/* rcs_print_error() */
-#include "_timer.h"		/* etime(), esleep() */
+#include "libnml/buffer/sendn.h"		/* sendn() */
+#include "libnml/rcs/rcs_print.hh"		/* rcs_print_error() */
+#include "libnml/os_intf/_timer.h"		/* etime(), esleep() */
 
 int sendn_timedout = 0;
 int print_sendn_timeout_errors = 1;

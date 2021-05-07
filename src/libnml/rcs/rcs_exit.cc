@@ -16,11 +16,11 @@
 ********************************************************************/
 
 /* Forward Function Prototypes */
-#include "rcs_exit.hh"
+#include "libnml/rcs/rcs_exit.hh"
 
-#include "linklist.hh"		// LinkedList
-#include "rcs_print.hh"		// rcs_print_error()
-#include "timer.hh"		// esleep()
+#include "libnml/linklist/linklist.hh"		// LinkedList
+#include "libnml/rcs/rcs_print.hh"		// rcs_print_error()
+#include "libnml/os_intf/timer.hh"		// esleep()
 
 #ifdef __cplusplus
 extern "C" {

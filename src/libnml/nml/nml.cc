@@ -15,7 +15,7 @@
 
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
-#include "rcsversion.h"
+#include "libnml/rcs/rcsversion.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,20 +30,20 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-#include <rtapi_string.h>
-#include "nml.hh"		/* class NML */
-#include "nmlmsg.hh"		/* class NMLmsg */
-#include "cms.hh"		/* class CMS */
-#include "timer.hh"		// esleep()
-#include "nml_srv.hh"		/* NML_Default_Super_Server */
-#include "cms_cfg.hh"		/* cms_config(), cms_copy() */
-#include "linklist.hh"		/* class LinkedList */
-#include "rcs_print.hh"		/* rcs_print_error() */
-#include "physmem.hh"
+#include <rtapi/rtapi_string.h>
+#include "libnml/nml/nml.hh"		/* class NML */
+#include "libnml/nml/nmlmsg.hh"		/* class NMLmsg */
+#include "libnml/cms/cms.hh"		/* class CMS */
+#include "libnml/os_intf/timer.hh"		// esleep()
+#include "libnml/nml/nml_srv.hh"		/* NML_Default_Super_Server */
+#include "libnml/cms/cms_cfg.hh"		/* cms_config(), cms_copy() */
+#include "libnml/linklist/linklist.hh"		/* class LinkedList */
+#include "libnml/rcs/rcs_print.hh"		/* rcs_print_error() */
+#include "libnml/buffer/physmem.hh"
 #ifndef MAXHOSTNAMELEN
 #define MAXHOSTNAMELEN 64
 #endif
-#include "nmldiag.hh"		// NML_DIAGNOSTICS_INFO
+#include "libnml/nml/nmldiag.hh"		// NML_DIAGNOSTICS_INFO
 /* Pointer to a global list of NML channels. */
 LinkedList *NML_Main_Channel_List = (LinkedList *) NULL;
 

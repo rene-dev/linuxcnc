@@ -21,7 +21,7 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-#include "linklist.hh"		/* class LinkedList */
+#include "libnml/linklist/linklist.hh"		/* class LinkedList */
 LinkedListNode::LinkedListNode(void *_data, size_t _size)
 {
     data = _data;

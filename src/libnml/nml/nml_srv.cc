@@ -27,18 +27,18 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-#include "nml.hh"
-#include "nmlmsg.hh"
-#include "cms.hh"
-#include "nml_srv.hh"
-#include "rem_msg.hh"		/* struct REMOTE_READ_REQUEST, */
-#include "rcs_print.hh"		/* rcs_print_error() */
-#include "timer.hh"		// esleep()
-#include "rcs_exit.hh"		// rcs_exit
-#include "linklist.hh"
-#include "physmem.hh"
-#include "cmsdiag.hh"
-#include "cmd_msg.hh" // layering violation ahoy
+#include "libnml/nml/nml.hh"
+#include "libnml/nml/nmlmsg.hh"
+#include "libnml/cms/cms.hh"
+#include "libnml/nml/nml_srv.hh"
+#include "libnml/buffer/rem_msg.hh"		/* struct REMOTE_READ_REQUEST, */
+#include "libnml/rcs/rcs_print.hh"		/* rcs_print_error() */
+#include "libnml/os_intf/timer.hh"		// esleep()
+#include "libnml/rcs/rcs_exit.hh"		// rcs_exit
+#include "libnml/linklist/linklist.hh"
+#include "libnml/buffer/physmem.hh"
+#include "libnml/cms/cmsdiag.hh"
+#include "libnml/nml/cmd_msg.hh" // layering violation ahoy
 NML_SERVER::NML_SERVER(NML * _nml, int _set_to_master):CMS_SERVER()
 {
     NML_SERVER_LOCAL_PORT *new_local_port = NULL;

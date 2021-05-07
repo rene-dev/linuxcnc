@@ -30,8 +30,8 @@ extern "C" {
 #include <sys/wait.h>		// waitpid()
 }
 
-#include "timer.hh"
-#include "_timer.h"
+#include "libnml/os_intf/timer.hh"
+#include "libnml/os_intf/_timer.h"
 
 /* RCS_TIMER class */
 RCS_TIMER::RCS_TIMER(const char *process_name, const char *config_file)

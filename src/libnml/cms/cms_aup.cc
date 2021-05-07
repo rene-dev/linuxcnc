@@ -35,9 +35,9 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-#include "cms.hh"		/* class CMS */
-#include "cms_aup.hh"		/* class CMS_ASCII_UPDATER */
-#include "rcs_print.hh"		/* rcs_print_error() */
+#include "libnml/cms/cms.hh"		/* class CMS */
+#include "libnml/cms/cms_aup.hh"		/* class CMS_ASCII_UPDATER */
+#include "libnml/rcs/rcs_print.hh"		/* rcs_print_error() */
 #define DEFAULT_WARNING_COUNT_MAX 100
 /* Member functions for CMS_ASCII_UPDATER Class */
 

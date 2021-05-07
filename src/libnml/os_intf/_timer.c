@@ -15,7 +15,7 @@
 * Last change: 
 ********************************************************************/
 
-#include "rcs_print.hh"		/* rcs_print_error */
+#include "libnml/rcs/rcs_print.hh"		/* rcs_print_error */
 
 #include <stdio.h>		/* NULL */
 #include <errno.h>		/* errno */
@@ -27,7 +27,7 @@
 				   itimerval, setitimer(), ITIMER_REAL */
 #include <sched.h>
 
-#include "_timer.h"
+#include "libnml/os_intf/_timer.h"
 
 /* number of seconds in a system clock tick */
 double clk_tck()

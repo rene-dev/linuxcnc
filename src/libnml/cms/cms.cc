@@ -16,7 +16,7 @@
 * Last change: 
 ********************************************************************/
 
-#include "rcsversion.h"
+#include "libnml/rcs/rcsversion.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,17 +32,17 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-#include <rtapi_string.h>
-#include "cms.hh"		/* class CMS */
-#include "cms_up.hh"		/* class CMS_UPDATER */
-#include "cms_xup.hh"		/* class CMS_XDR_UPDATER */
-#include "cms_aup.hh"		/* class CMS_ASCII_UPDATER */
-#include "cms_dup.hh"		/* class CMS_DISPLAY_ASCII_UPDATER */
-#include "rcs_print.hh"		/* rcs_print_error(), separate_words() */
+#include <rtapi/rtapi_string.h>
+#include "libnml/cms/cms.hh"		/* class CMS */
+#include "libnml/cms/cms_up.hh"		/* class CMS_UPDATER */
+#include "libnml/cms/cms_xup.hh"		/* class CMS_XDR_UPDATER */
+#include "libnml/cms/cms_aup.hh"		/* class CMS_ASCII_UPDATER */
+#include "libnml/cms/cms_dup.hh"		/* class CMS_DISPLAY_ASCII_UPDATER */
+#include "libnml/rcs/rcs_print.hh"		/* rcs_print_error(), separate_words() */
 				/* rcs_print_debug() */
-#include "cmsdiag.hh"
-#include "linklist.hh"          /* LinkedList */
-#include "physmem.hh"
+#include "libnml/cms/cmsdiag.hh"
+#include "libnml/linklist/linklist.hh"          /* LinkedList */
+#include "libnml/buffer/physmem.hh"
 
 LinkedList *cmsHostAliases = NULL;
 CMS_CONNECTION_MODE cms_connection_mode = CMS_NORMAL_CONNECTION_MODE;

@@ -19,7 +19,7 @@ extern "C" {
 #include <rpc/rpc.h>		/* struct XDR */
 
 }
-#include "cms_up.hh"		/* class CMS_UPDATER */
+#include "libnml/cms/cms_up.hh"		/* class CMS_UPDATER */
 class CMS_XDR_UPDATER:public CMS_UPDATER {
   public:
     CMS_STATUS update(bool &x);

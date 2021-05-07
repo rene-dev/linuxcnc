@@ -31,18 +31,18 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-#include "cms.hh"		/* class CMS */
-#include "rem_msg.hh"		/* struct REMOTE_READ_REQUEST, */
+#include "libnml/cms/cms.hh"		/* class CMS */
+#include "libnml/buffer/rem_msg.hh"		/* struct REMOTE_READ_REQUEST, */
 				/* struct REMOTE_WRITE_REQUEST, */
-#include "cms_srv.hh"		/* class CMS_SERVER */
-#include "cms_cfg.hh"		/* cms_config() */
-#include "rcs_print.hh"		/* rcs_print_error() */
+#include "libnml/cms/cms_srv.hh"		/* class CMS_SERVER */
+#include "libnml/cms/cms_cfg.hh"		/* cms_config() */
+#include "libnml/rcs/rcs_print.hh"		/* rcs_print_error() */
 #ifndef NO_DCE_RPC
 #define NO_DCE_RPC
 #endif
-#include "tcp_srv.hh"		/* CMS_SERVER_TCP_PORT */
-#include "timer.hh"		// etime()
-#include "cmsdiag.hh"
+#include "libnml/cms/tcp_srv.hh"		/* CMS_SERVER_TCP_PORT */
+#include "libnml/os_intf/timer.hh"		// etime()
+#include "libnml/cms/cmsdiag.hh"
 
 int cms_server_count = 0;
 int cms_server_task_priority = 100;

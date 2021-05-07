@@ -4,11 +4,14 @@ project(linuxcnc VERSION 2.9.0)
 
 include(CMakeDependentOption)
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
+
 include_directories("include/")
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+find_package(TIRPC REQUIRED)
 
 # specify the C++ standard
 # change to 20 as soon as possible
@@ -16,7 +19,15 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+set (CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED True)
+
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
 # general options
+option(RUN_IN_PLACE "activate this if you want to execute linuxcnc in place, instead of installing it." ON)
 option(BUILD_UDEV "deactivate this if udev is not available. Was previously named --disable-userspace-pci." OFF)
 option(TOOL_NML "Use nml for tool data, default is mmap" OFF)
 
@@ -38,6 +49,52 @@ endif()
 
 if(NOT ${USE_RTAI} AND ${USE_KBUILD})
     message(FATAL_ERROR "kbuild can only be used with RTAI!")
+endif()
+
+# configure variables
+if(${RUN_IN_PLACE})
+    set(EMC2_HOME ${CMAKE_BINARY_DIR})
+    add_compile_definitions(EMC2_HOME="${EMC2_HOME}")
+    #add_compile_definitions(EMC2_SUFFIX="(run-in-place)")
+    add_compile_definitions(EMC2_ICON="${EMC2_HOME}/linuxcncicon.png")
+    add_compile_definitions(EMC2_RTLIB_DIR="${EMC2_HOME}/modules")
+    add_compile_definitions(EMC2_BIN_DIR="${EMC2_HOME}/bin")
+    #    EMC2_LATENCY_SCRIPT=$EMC2_HOME/scripts/latency-test
+    #EMC2_SCRIPT=$EMC2_HOME/scripts/linuxcnc
+    #EMC2_ICON=$EMC2_HOME/linuxcncicon.png
+    #EMC2_BIN_DIR=$EMC2_HOME/bin
+    #EMC2_TCL_DIR=$EMC2_HOME/tcl
+    #EMC2_TCL_LIB_DIR=$EMC2_HOME/tcl
+    #EMC2_LANG_DIR=$EMC2_HOME/src/objects
+    #EMC2_PO_DIR=$EMC2_HOME/share/locale
+    #EMC2_HELP_DIR=$EMC2_HOME/docs/help
+    #EMC2_RTLIB_DIR=$EMC2_HOME/rtlib
+    #LINUXCNC_CONFIG_PATH="~/linuxcnc/configs:$EMC2_HOME/configs"
+    #EMC2_NCFILES_DIR=$EMC2_HOME/nc_files
+    #REALTIME=$EMC2_HOME/scripts/realtime
+    #EMC2_IMAGE_DIR=$EMC2_HOME
+    #HALLIB_DIR=$EMC2_HOME/lib/hallib
+else()
+    #EMC2_HOME=${prefix}
+    #EMC2_BIN_DIR=${prefix}/bin
+    #EMC2_LATENCY_SCRIPT=$EMC2_BIN_DIR/latency-test
+    #EMC2_SCRIPT=$EMC2_BIN_DIR/linuxcnc
+    #EMC2_SUFFIX=""
+    #EMC2_ICON=linuxcncicon
+    #EMC2_TCL_DIR=${prefix}/lib/tcltk/linuxcnc
+    #EMC2_TCL_LIB_DIR=${prefix}/lib/tcltk/linuxcnc
+    #EMC2_LANG_DIR=${prefix}/lib/tcltk/linuxcnc/msgs
+    #EMC2_PO_DIR=${prefix}/share/locale
+    #EMC2_HELP_DIR=${prefix}/share/doc/linuxcnc
+    #case $MODULE_DIR in
+    #*/linuxcnc*) EMC2_RTLIB_DIR=$MODULE_DIR ;;
+    #*) EMC2_RTLIB_DIR=$MODULE_DIR/linuxcnc
+    #esac
+    #LINUXCNC_CONFIG_PATH="~/linuxcnc/configs:/usr/local/etc/linuxcnc/configs:"$(eval echo $EMC2_HELP_DIR)"/examples/sample-configs"
+    #EMC2_NCFILES_DIR=${prefix}/share/linuxcnc/ncfiles
+    #REALTIME=/etc/init.d/realtime
+    #EMC2_IMAGE_DIR=$(fe "$datadir")/linuxcnc
+    #HALLIB_DIR=${prefix}/share/linuxcnc/hallib
 endif()
 
 # configure files

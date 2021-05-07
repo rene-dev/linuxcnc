@@ -61,11 +61,11 @@ extern "C"
 #endif
 
 
-#include <rtapi_string.h>
-#include "nml_mod.hh"
-#include "nml_oi.hh"		// NML_ERROR, NML_TEXT, NML_DISPLAY
-#include "rcs_print.hh"
-#include "rcs_exit.hh"
+#include <rtapi/rtapi_string.h>
+#include "libnml/nml/nml_mod.hh"
+#include "libnml/nml/nml_oi.hh"		// NML_ERROR, NML_TEXT, NML_DISPLAY
+#include "libnml/rcs/rcs_print.hh"
+#include "libnml/rcs/rcs_exit.hh"
 
 
 NML_MODULE::NML_MODULE (const char *inifile, const char *section)

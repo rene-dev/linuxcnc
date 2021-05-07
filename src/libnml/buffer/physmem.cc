@@ -25,8 +25,8 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-#include "physmem.hh"		/* class PHYSMEM_HANDLE */
-#include "rcs_print.hh"
+#include "libnml/buffer/physmem.hh"		/* class PHYSMEM_HANDLE */
+#include "libnml/rcs/rcs_print.hh"
 PHYSMEM_HANDLE::PHYSMEM_HANDLE()
 {
     size = 0;

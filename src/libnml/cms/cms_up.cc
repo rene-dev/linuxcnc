@@ -14,9 +14,9 @@
 * Last change: 
 ********************************************************************/
 
-#include "cms.hh"		/* class CMS */
-#include "cms_up.hh"		/* class CMS_UPDATER */
-#include "rcs_print.hh"		/* rcs_print_error() */
+#include "libnml/cms/cms.hh"		/* class CMS */
+#include "libnml/cms/cms_up.hh"		/* class CMS_UPDATER */
+#include "libnml/rcs/rcs_print.hh"		/* rcs_print_error() */
 
 #ifdef __cplusplus
 extern "C" {

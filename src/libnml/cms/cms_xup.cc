@@ -19,9 +19,9 @@ extern "C" {
 #include <stdlib.h>		/* malloc(), free() */
 }
 
-#include "cms.hh"		/* class CMS */
-#include "cms_xup.hh"		/* class CMS_XDR_UPDATER */
-#include "rcs_print.hh"		/* rcs_print_error() */
+#include "libnml/cms/cms.hh"		/* class CMS */
+#include "libnml/cms/cms_xup.hh"		/* class CMS_XDR_UPDATER */
+#include "libnml/rcs/rcs_print.hh"		/* rcs_print_error() */
 
 /* Member functions for CMS_XDR_UPDATER Class */
 CMS_XDR_UPDATER::CMS_XDR_UPDATER(CMS * _cms_parent):CMS_UPDATER(_cms_parent,

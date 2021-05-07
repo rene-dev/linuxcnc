@@ -12,8 +12,8 @@
 * Last change: 
 ********************************************************************/
 
-#include "tcp_opts.hh"
-#include "rcs_print.hh"		/* rcs_print_error() */
+#include "libnml/cms/tcp_opts.hh"
+#include "libnml/rcs/rcs_print.hh"		/* rcs_print_error() */
 
 #include <errno.h>		// errno
 #include <string.h>		// strerror

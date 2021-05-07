@@ -28,9 +28,9 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-#include <rtapi_string.h>
-#include "rcs_print.hh"
-#include "linklist.hh"
+#include <rtapi/rtapi_string.h>
+#include "libnml/rcs/rcs_print.hh"
+#include "libnml/linklist/linklist.hh"
 #ifndef _TIMER_H
 extern "C" double etime(void);
 #endif
