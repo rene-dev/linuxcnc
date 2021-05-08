@@ -15,14 +15,16 @@ find_package(TIRPC REQUIRED)
 find_package(TCL REQUIRED)
 find_package(Readline REQUIRED)
 
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED True)
+set(CMAKE_C_FLAGS -Wall)
+
 # specify the C++ standard
 # change to 20 as soon as possible
 # (need gcc8, gcc7 allows 17)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-
-set (CMAKE_C_STANDARD 99)
-set(CMAKE_C_STANDARD_REQUIRED True)
+set(CMAKE_CXX_FLAGS -Wall)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -105,4 +107,5 @@ endif()
 add_subdirectory(src/rtapi)
 add_subdirectory(src/hal)
 add_subdirectory(src/libnml)
+add_subdirectory(src/module_helper)
 

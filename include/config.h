@@ -9,4 +9,6 @@
 #define MM_PER_INCH 25.4
 #define INCH_PER_MM (1.0/25.4)
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif

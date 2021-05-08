@@ -1,0 +1,1 @@
+add_executable(linuxcnc_module_helper module_helper.c)
