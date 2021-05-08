@@ -33,3 +33,35 @@ else(USE_USPACE)
     target_compile_definitions(halmodule PRIVATE RTAPI)
 endif(USE_USPACE)
 target_link_libraries(halmodule PRIVATE rt)
+
+set(HALCMD_SOURCES
+        utils/halcmd.c
+        utils/halcmd_commands.c
+        utils/halcmd_main.c
+        )
+add_executable(halcmd ${HALCMD_SOURCES})
+target_include_directories(halcmd PRIVATE ${TCL_INCLUDE})
+target_link_libraries(halcmd PRIVATE ${TCL_LIBRARIES})
+
+if(USE_USPACE)
+    target_link_libraries(halcmd PRIVATE Threads::Threads)
+    target_compile_definitions(halcmd PRIVATE ULAPI)
+else(USE_USPACE)
+    target_compile_definitions(halcmd PRIVATE RTAPI)
+endif(USE_USPACE)
+
+set(HALSH_SOURCES
+        utils/halcmd.c
+        utils/halcmd_commands.c
+        utils/halsh.c
+        )
+add_library(halsh SHARED ${HALSH_SOURCES})
+target_include_directories(halsh PRIVATE ${READLINE_INCLUDE})
+target_link_libraries(halsh PRIVATE ${READLINE_LIBRARIES})
+
+if(USE_USPACE)
+    target_link_libraries(halsh PRIVATE Threads::Threads)
+    target_compile_definitions(halsh PRIVATE ULAPI)
+else(USE_USPACE)
+    target_compile_definitions(halsh PRIVATE RTAPI)
+endif(USE_USPACE)

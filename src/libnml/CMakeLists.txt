@@ -56,6 +56,6 @@ else(USE_USPACE)
     target_compile_definitions(nml PRIVATE RTAPI)
 endif(USE_USPACE)
 
-target_include_directories(nml PRIVATE ${TIRPC_INCLUDE_DIRS})
+target_include_directories(nml PRIVATE ${TIRPC_INCLUDE_PATH})
 
 set_property(TARGET nml PROPERTY POSITION_INDEPENDENT_CODE ON)

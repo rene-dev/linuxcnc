@@ -45,7 +45,7 @@
 #include "config.h"
 
 #ifndef NO_INI
-#include "inifile.h"		/* iniFind() from libnml */
+#include "libnml/inifile/inifile.h"		/* iniFind() from libnml */
 FILE *halcmd_inifile = NULL;
 #endif
 
@@ -63,10 +63,10 @@ FILE *halcmd_inifile = NULL;
 #include <fnmatch.h>
 #include <search.h>
 
-#include "rtapi.h"		/* RTAPI realtime OS API */
-#include "hal.h"		/* HAL public API decls */
-#include "../hal_priv.h"	/* private HAL decls */
-#include "halcmd_commands.h"
+#include "rtapi/rtapi.h"		/* RTAPI realtime OS API */
+#include "hal/hal.h"		/* HAL public API decls */
+#include "hal/hal_priv.h"	/* private HAL decls */
+#include "hal/utils/halcmd_commands.h"
 
 /***********************************************************************
 *                  LOCAL FUNCTION DECLARATIONS                         *

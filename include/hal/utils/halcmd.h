@@ -40,7 +40,7 @@
 #ifndef HALCMD_H
 #define HALCMD_H
 #include <stdio.h>
-#include "hal.h"
+#include "hal/hal.h"
 extern int halcmd_startup(int quiet);
 extern void halcmd_shutdown();
 extern int halcmd_parse_cmd(char * tokens[]);
