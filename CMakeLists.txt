@@ -35,7 +35,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # general options
 option(RUN_IN_PLACE "activate this if you want to execute linuxcnc in place, instead of installing it." ON)
 option(BUILD_UDEV "deactivate this if udev is not available. Was previously named --disable-userspace-pci." OFF)
-option(TOOL_NML "Use nml for tool data, default is mmap" OFF)
+option(TOOL_NML "Use nml for tool data, default is mmap" ON)
 
 # realtime options
 option(USE_PREEMPT_RT "realtime layer preempt_rt used" ON)
@@ -63,6 +63,10 @@ endif()
 
 if(${USE_USPACE})
     add_compile_definitions(RTAPI_USPACE)
+endif()
+
+if(${TOOL_NML})
+    add_compile_definitions(TOOL_NML)
 endif()
 
 add_compile_definitions(
@@ -131,4 +135,4 @@ add_subdirectory(src/hal/classicladder)
 add_subdirectory(src/libnml)
 add_subdirectory(src/libnml/inifile)
 add_subdirectory(src/module_helper)
-
+add_subdirectory(src/emc/tooldata)

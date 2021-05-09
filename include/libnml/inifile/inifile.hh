@@ -16,7 +16,7 @@
 #ifndef INIFILE_HH
 #define INIFILE_HH
 
-#include <libnml/inifile/inifile.h>
+#include <inifile.h>
 #include <string>
 #include <boost/lexical_cast.hpp>
 

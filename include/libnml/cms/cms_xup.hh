@@ -16,10 +16,10 @@
 #define CMS_XUP_HH
 
 extern "C" {
-#include <tirpc/rpc/rpc.h>		/* struct XDR */
+#include <rpc/rpc.h>		/* struct XDR */
 
 }
-#include "libnml/cms/cms_up.hh"		/* class CMS_UPDATER */
+#include "cms_up.hh"		/* class CMS_UPDATER */
 class CMS_XDR_UPDATER:public CMS_UPDATER {
   public:
     CMS_STATUS update(bool &x);

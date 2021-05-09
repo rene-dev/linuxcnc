@@ -23,8 +23,8 @@
 */
 #include <stdio.h>
 #include <string.h>
-#include <rtapi_string.h>
-#include "tooldata.hh"
+#include <rtapi/rtapi_string.h>
+#include "emc/tooldata/tooldata.hh"
 
 #define UNEXPECTED_MSG fprintf(stderr,"UNEXPECTED %s %d\n",__FILE__,__LINE__);
 

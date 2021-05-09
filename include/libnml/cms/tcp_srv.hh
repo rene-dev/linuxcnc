@@ -15,9 +15,9 @@
 #ifndef TCP_SRV_HH
 #define TCP_SRV_HH
 
-#include "libnml/cms/cms_srv.hh"		/* class CMS_SERVER_REMOTE_PORT */
-#include "libnml/linklist/linklist.hh"		/* class LinkedList */
-#include "libnml/buffer/rem_msg.hh"
+#include "cms_srv.hh"		/* class CMS_SERVER_REMOTE_PORT */
+#include "linklist.hh"		/* class LinkedList */
+#include "rem_msg.hh"
 
 #ifdef __cplusplus
 extern "C" {

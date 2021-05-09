@@ -30,8 +30,8 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-#include "libnml/cms/cms.hh"		/* class CMS */
-#include "libnml/os_intf/shm.hh"		/* class RCS_SHAREDMEM */
+#include "cms.hh"		/* class CMS */
+#include "shm.hh"		/* class RCS_SHAREDMEM */
 #include "memsem.hh"		/* struct mem_access_object */
 
 class SHMEM:public CMS {

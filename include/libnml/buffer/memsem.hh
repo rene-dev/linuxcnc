@@ -17,7 +17,7 @@
 #ifndef MEMSEM_HH
 #define MEMSEM_HH
 
-#include "libnml/os_intf/sem.hh"
+#include "sem.hh"
 
 /* Take the mutual exclusion semaphore. */
 struct mem_access_object {
