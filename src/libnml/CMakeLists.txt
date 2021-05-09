@@ -48,9 +48,7 @@ set(LIBNML_SOURCES
 add_library(nml SHARED ${LIBNML_SOURCES})
 target_link_libraries(nml PRIVATE hal)
 target_link_libraries(nml PRIVATE ${TIRPC_LIBRARIES})
-target_include_directories(nml PRIVATE ${TIRPC_INCLUDE_PATH})
-message(DEBUG "aAAAAAAAAAAAAAAAAAAAAaaaAAAAAAA")
-message(DEBUG ${TIRPC_INCLUDE_PATH})
+target_include_directories(nml PRIVATE ${TIRPC_INCLUDE_DIRS})
 get_uspace_config(nml)
 
 set_property(TARGET nml PROPERTY POSITION_INDEPENDENT_CODE ON)
