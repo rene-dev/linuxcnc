@@ -26,13 +26,13 @@
 
 namespace bp = boost::python;
 
-#include "rs274ngc.hh"
-#include "interp_internal.hh"
-#include "rs274ngc_interp.hh"
-#include "array1.hh"
+#include "emc/rs274ngc/rs274ngc.hh"
+#include "emc/rs274ngc/interp_internal.hh"
+#include "emc/rs274ngc/rs274ngc_interp.hh"
+#include "emc/rs274ngc/array1.hh"
 
 namespace pp = pyplusplus::containers::static_sized;
-#include "interp_array_types.hh"
+#include "emc/rs274ngc/interp_array_types.hh"
 
 static const char *get_comment(block &b) { return b.comment; };
 static const char *get_o_name(block &b) { return b.o_name; };

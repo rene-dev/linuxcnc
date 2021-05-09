@@ -31,13 +31,13 @@ extern int _task;  // zero in gcodemodule, 1 in milltask
 #include <string.h>
 #include <assert.h>
 
-#include "rs274ngc.hh"
-#include "interp_return.hh"
-#include "interp_internal.hh"
-#include "rs274ngc_interp.hh"
-#include "paramclass.hh"
+#include "emc/rs274ngc/rs274ngc.hh"
+#include "emc/nml_intf/interp_return.hh"
+#include "emc/rs274ngc/interp_internal.hh"
+#include "emc/rs274ngc/rs274ngc_interp.hh"
+#include "emc/rs274ngc/paramclass.hh"
 
-#include <interp_parameter_def.hh>
+#include <emc/rs274ngc/interp_parameter_def.hh>
 using namespace interp_param_global;
 
 #define IS_STRING(x) (PyStr_Check(x.ptr()))

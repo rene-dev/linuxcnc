@@ -16,15 +16,15 @@
 #include <string.h>		// strlen()
 #include <ctype.h>		// isspace()
 
-#include "emc.hh"
-#include "emcpos.h"             // EmcPose
-#include "rcs_print.hh"
-#include "posemath.h"		// PM_POSE, PM_RPY
-#include "emcIniFile.hh"
-#include "initraj.hh"		// these decls
-#include "emcglb.h"		/*! \todo TRAVERSE_RATE (FIXME) */
-#include "inihal.hh"
-#include <rtapi_string.h>
+#include "emc/nml_intf/emc.hh"
+#include "emc/nml_intf/emcpos.h"             // EmcPose
+#include "libnml/rcs/rcs_print.hh"
+#include "libnml/posemath/posemath.h"		// PM_POSE, PM_RPY
+#include "emc/ini/emcIniFile.hh"
+#include "emc/ini/initraj.hh"		// these decls
+#include "emc/nml_intf/emcglb.h"		/*! \todo TRAVERSE_RATE (FIXME) */
+#include "emc/ini/inihal.hh"
+#include <rtapi/rtapi_string.h>
 
 extern value_inihal_data old_inihal_data;
 

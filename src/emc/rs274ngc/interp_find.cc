@@ -22,13 +22,13 @@
 #include <ctype.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include "rtapi_math.h"
-#include "rs274ngc.hh"
-#include "interp_return.hh"
-#include "interp_internal.hh"
-#include "rs274ngc_interp.hh"
-#include "units.h"
-#include "tooldata.hh"
+#include "rtapi/rtapi_math.h"
+#include "emc/rs274ngc/rs274ngc.hh"
+#include "emc/nml_intf/interp_return.hh"
+#include "emc/rs274ngc/interp_internal.hh"
+#include "emc/rs274ngc/rs274ngc_interp.hh"
+#include "emc/rs274ngc/units.h"
+#include "emc/tooldata/tooldata.hh"
 
 /****************************************************************************/
 

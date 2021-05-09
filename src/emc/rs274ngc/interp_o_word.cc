@@ -27,14 +27,14 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <new>
-#include "rs274ngc.hh"
-#include "rs274ngc_return.hh"
-#include "interp_return.hh"
-#include "interp_internal.hh"
-#include "rs274ngc_interp.hh"
-#include "python_plugin.hh"
-#include "interp_python.hh"
-#include <rtapi_string.h>
+#include "emc/rs274ngc/rs274ngc.hh"
+#include "emc/rs274ngc/rs274ngc_return.hh"
+#include "emc/nml_intf/interp_return.hh"
+#include "emc/rs274ngc/interp_internal.hh"
+#include "emc/rs274ngc/rs274ngc_interp.hh"
+#include "emc/pythonplugin/python_plugin.hh"
+#include "emc/rs274ngc/interp_python.hh"
+#include <rtapi/rtapi_string.h>
 
 namespace bp = boost::python;
 

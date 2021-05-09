@@ -15,7 +15,7 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-#include "interp_base.hh"
+#include "emc/rs274ngc/interp_base.hh"
 #include <dlfcn.h>
 #include <limits.h>
 #include <config.h>
@@ -30,8 +30,8 @@ InterpBase *interp_from_shlib(const char *shlib) {
     if(!interp_lib) {
 	fprintf(stderr, "emcTaskInit: could not open interpreter '%s': %s\n", shlib, dlerror());
 	char relative_interp[PATH_MAX];
-	snprintf(relative_interp, sizeof(relative_interp), "%s/%s",
-	    EMC2_HOME "/lib/emc2", shlib);
+	snprintf(relative_interp, sizeof(relative_interp), "%s%s/%s",
+	    EMC2_HOME, "/lib/emc2", shlib);
 	interp_lib = dlopen(relative_interp, RTLD_NOW);
     }
     if(!interp_lib) {

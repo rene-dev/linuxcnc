@@ -12,7 +12,7 @@
 
 #include <math.h>
 #include <algorithm>
-#include "canon.hh"
+#include "emc/nml_intf/canon.hh"
 
 static void unit(PLANE_POINT &p) {
     double h = hypot(p.X, p.Y);

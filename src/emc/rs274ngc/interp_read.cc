@@ -23,13 +23,13 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sstream>
-#include "rs274ngc.hh"
-#include "rs274ngc_return.hh"
-#include "interp_internal.hh"
-#include "rs274ngc_interp.hh"
-#include "rtapi_math.h"
+#include "emc/rs274ngc/rs274ngc.hh"
+#include "emc/rs274ngc/rs274ngc_return.hh"
+#include "emc/rs274ngc/interp_internal.hh"
+#include "emc/rs274ngc/rs274ngc_interp.hh"
+#include "rtapi/rtapi_math.h"
 #include <cmath>
-#include <rtapi_string.h>
+#include <rtapi/rtapi_string.h>
 
 using namespace interp_param_global;
 

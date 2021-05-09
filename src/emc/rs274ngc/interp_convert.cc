@@ -28,16 +28,16 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string>
-#include "rtapi_math.h"
-#include "rs274ngc.hh"
-#include "rs274ngc_return.hh"
-#include "rs274ngc_interp.hh"
-#include "interp_internal.hh"
-#include "interp_queue.hh"
-#include "interp_parameter_def.hh"
-#include <rtapi_string.h>
+#include "rtapi/rtapi_math.h"
+#include "emc/rs274ngc/rs274ngc.hh"
+#include "emc/rs274ngc/rs274ngc_return.hh"
+#include "emc/rs274ngc/rs274ngc_interp.hh"
+#include "emc/rs274ngc/interp_internal.hh"
+#include "emc/rs274ngc/interp_queue.hh"
+#include "emc/rs274ngc/interp_parameter_def.hh"
+#include <rtapi/rtapi_string.h>
 
-#include "units.h"
+#include "emc/rs274ngc/units.h"
 #define TOOL_INSIDE_ARC(side, turn) (((side)==LEFT&&(turn)>0)||((side)==RIGHT&&(turn)<0))
 #define DEBUG_EMC
 

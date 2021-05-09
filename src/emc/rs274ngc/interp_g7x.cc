@@ -925,15 +925,15 @@ void g7x::add_distance(double distance) {
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string>
-#include "rtapi_math.h"
-#include "rs274ngc.hh"
-#include "rs274ngc_return.hh"
-#include "rs274ngc_interp.hh"
-#include "interp_internal.hh"
-#include "interp_queue.hh"
-#include "interp_parameter_def.hh"
+#include "rtapi/rtapi_math.h"
+#include "emc/rs274ngc/rs274ngc.hh"
+#include "emc/rs274ngc/rs274ngc_return.hh"
+#include "emc/rs274ngc/rs274ngc_interp.hh"
+#include "emc/rs274ngc/interp_internal.hh"
+#include "emc/rs274ngc/interp_queue.hh"
+#include "emc/rs274ngc/interp_parameter_def.hh"
 
-#include "units.h"
+#include "emc/rs274ngc/units.h"
 #include <iostream>
 
 class motion_machine:public motion_base {

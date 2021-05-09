@@ -32,4 +32,7 @@ set(RS274NGC_SOURCES
         )
 
 add_library(rs274ngc SHARED ${RS274NGC_SOURCES})
+target_link_libraries(rs274ngc PRIVATE Python3::Module)
+target_link_libraries(rs274ngc PRIVATE Boost::${BOOSTPYTHON})
+target_link_libraries(rs274ngc PRIVATE pythonplugin)
 get_uspace_config(rs274ngc)

@@ -24,8 +24,8 @@
 
 namespace bp = boost::python;
 
-#include "rs274ngc_interp.hh"
-#include "interp_queue.hh"
+#include "emc/rs274ngc/rs274ngc_interp.hh"
+#include "emc/rs274ngc/interp_queue.hh"
 
 static void wrap_canon_error(const char *s)
 {

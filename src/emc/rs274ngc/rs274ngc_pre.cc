@@ -66,7 +66,7 @@ include an option for suppressing superfluous commands.
 
 ****************************************************************************/
 #define BOOST_PYTHON_MAX_ARITY 4
-#include "python_plugin.hh"
+#include "emc/pythonplugin/python_plugin.hh"
 #include <boost/python/dict.hpp>
 #include <boost/python/extract.hpp>
 #include <boost/python/import.hpp>
@@ -89,21 +89,21 @@ include an option for suppressing superfluous commands.
 #include <set>
 #include <stdexcept>
 #include <new>
-#include <rtapi_string.h>
+#include <rtapi/rtapi_string.h>
 
-#include "rtapi.h"
-#include "inifile.hh"		// INIFILE
-#include "rs274ngc.hh"
-#include "rs274ngc_return.hh"
-#include "interp_internal.hh"	// interpreter private definitions
-#include "interp_queue.hh"
-#include "rs274ngc_interp.hh"
+#include "rtapi/rtapi.h"
+#include "libnml/inifile/inifile.hh"		// INIFILE
+#include "emc/rs274ngc/rs274ngc.hh"
+#include "emc/rs274ngc/rs274ngc_return.hh"
+#include "emc/rs274ngc/interp_internal.hh"	// interpreter private definitions
+#include "emc/rs274ngc/interp_queue.hh"
+#include "emc/rs274ngc/rs274ngc_interp.hh"
 
-#include "units.h"
+#include "emc/rs274ngc/units.h"
 
 #include <unordered_set>
 
-#include <interp_parameter_def.hh>
+#include <emc/rs274ngc/interp_parameter_def.hh>
 using namespace interp_param_global;
 
 namespace bp = boost::python;

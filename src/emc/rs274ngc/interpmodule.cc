@@ -32,7 +32,7 @@
 #include <boost/python/exception_translator.hpp>
 #include <boost/python/module.hpp>
 #include <boost/python/suite/indexing/map_indexing_suite.hpp>
-#include <boost_pyenum_macros.hh>
+#include <emc/rs274ngc/boost_pyenum_macros.hh>
 #include <map>
 
 namespace bp = boost::python;
@@ -42,21 +42,21 @@ extern int _task;  // zero in gcodemodule, 1 in milltask
 #include <string.h>
 #include <assert.h>
 
-#include "rs274ngc.hh"
-#include "interp_return.hh"
-#include "interp_internal.hh"
-#include "rs274ngc_interp.hh"
-#include "units.h"
-#include "array1.hh"
+#include "emc/rs274ngc/rs274ngc.hh"
+#include "emc/nml_intf/interp_return.hh"
+#include "emc/rs274ngc/interp_internal.hh"
+#include "emc/rs274ngc/rs274ngc_interp.hh"
+#include "emc/rs274ngc/units.h"
+#include "emc/rs274ngc/array1.hh"
 
 extern void export_Internals();
 extern void export_Arrays();
 extern void export_Block();
 extern void export_EmcTypes();
-#include "paramclass.hh"
+#include "emc/rs274ngc/paramclass.hh"
 
 namespace pp = pyplusplus::containers::static_sized;
-#include "interp_array_types.hh"
+#include "emc/rs274ngc/interp_array_types.hh"
 
 #define IS_STRING(x) (PyObject_IsInstance(x.ptr(), (PyObject*)&PyString_Type))
 #define IS_INT(x) (PyObject_IsInstance(x.ptr(), (PyObject*)&PyInt_Type))

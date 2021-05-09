@@ -13,11 +13,11 @@
 #include <stdlib.h>
 #include <math.h>
 
-#include "rs274ngc.hh"
-#include "rs274ngc_return.hh"
-#include "interp_queue.hh"
-#include "interp_internal.hh"
-#include "rs274ngc_interp.hh"
+#include "emc/rs274ngc/rs274ngc.hh"
+#include "emc/rs274ngc/rs274ngc_return.hh"
+#include "emc/rs274ngc/interp_queue.hh"
+#include "emc/rs274ngc/interp_internal.hh"
+#include "emc/rs274ngc/rs274ngc_interp.hh"
 
 static int debug_qc = 0;
 

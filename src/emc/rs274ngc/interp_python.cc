@@ -35,8 +35,8 @@
 
 #include "py3c/py3c.h"
 #define BOOST_PYTHON_MAX_ARITY 4
-#include "python_plugin.hh"
-#include "interp_python.hh"
+#include "emc/pythonplugin/python_plugin.hh"
+#include "emc/rs274ngc/interp_python.hh"
 #include <boost/python/extract.hpp>
 #include <boost/python/import.hpp>
 #include <boost/python/str.hpp>
@@ -52,11 +52,11 @@ namespace bp = boost::python;
 #include <sys/stat.h>
 #include <exception>
 
-#include "rs274ngc.hh"
-#include "interp_return.hh"
-#include "interp_internal.hh"
-#include "rs274ngc_interp.hh"
-#include "units.h"
+#include "emc/rs274ngc/rs274ngc.hh"
+#include "emc/nml_intf/interp_return.hh"
+#include "emc/rs274ngc/interp_internal.hh"
+#include "emc/rs274ngc/rs274ngc_interp.hh"
+#include "emc/rs274ngc/units.h"
 
 extern    PythonPlugin *python_plugin;
 

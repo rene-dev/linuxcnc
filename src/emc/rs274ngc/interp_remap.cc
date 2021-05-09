@@ -14,8 +14,8 @@
 #define _GNU_SOURCE
 #endif
 #define BOOST_PYTHON_MAX_ARITY 4
-#include "python_plugin.hh"
-#include "interp_python.hh"
+#include "emc/pythonplugin/python_plugin.hh"
+#include "emc/rs274ngc/interp_python.hh"
 #include <boost/python/list.hpp>
 namespace bp = boost::python;
 
@@ -26,11 +26,11 @@ namespace bp = boost::python;
 #include <ctype.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include "rs274ngc.hh"
-#include "rs274ngc_return.hh"
-#include "rs274ngc_interp.hh"
-#include "interp_internal.hh"
-#include <rtapi_string.h>
+#include "emc/rs274ngc/rs274ngc.hh"
+#include "emc/rs274ngc/rs274ngc_return.hh"
+#include "emc/rs274ngc/rs274ngc_interp.hh"
+#include "emc/rs274ngc/interp_internal.hh"
+#include <rtapi/rtapi_string.h>
 
 
 

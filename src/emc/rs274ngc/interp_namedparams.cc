@@ -23,7 +23,7 @@
 
 #include "py3c/py3c.h"
 #define BOOST_PYTHON_MAX_ARITY 4
-#include "python_plugin.hh"
+#include "emc/pythonplugin/python_plugin.hh"
 #include <boost/python/dict.hpp>
 #include <boost/python/extract.hpp>
 #include <boost/python/list.hpp>
@@ -41,14 +41,14 @@ namespace bp = boost::python;
 #include <sstream>
 #include <map>
 
-#include "rs274ngc.hh"
-#include "rs274ngc_return.hh"
-#include "interp_internal.hh"
-#include "rs274ngc_interp.hh"
-#include "inifile.hh"
+#include "emc/rs274ngc/rs274ngc.hh"
+#include "emc/rs274ngc/rs274ngc_return.hh"
+#include "emc/rs274ngc/interp_internal.hh"
+#include "emc/rs274ngc/rs274ngc_interp.hh"
+#include "libnml/inifile/inifile.hh"
 
 // for HAL pin variables
-#include "hal.h"
+#include "hal/hal.h"
 
 enum predefined_named_parameters {
     NP_LINE,
@@ -769,7 +769,7 @@ int Interp::init_named_parameters()
 // ------------ -------- ---------- -------------------------------------
 // M.N.m         M.N     0.m        normal format
 // M.N.m~xxx     M.N     0.m        pre-release format
-  const char *pkgversion = PACKAGE_VERSION;  //examples: 2.4.6, 2.5.0~pre
+  const char *pkgversion = EMC2_VERSION;  //examples: 2.4.6, 2.5.0~pre
   const char *version_major = "_vmajor";// named_parameter name (use lower case)
   const char *version_minor = "_vminor";// named_parameter name (use lower case)
   const char *metric_machine = "_metric_machine";// named_parameter name (use lower case)

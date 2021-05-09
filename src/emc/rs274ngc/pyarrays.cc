@@ -26,12 +26,12 @@
 #include <boost/python/return_internal_reference.hpp>
 namespace bp = boost::python;
 
-#include "rs274ngc.hh"
-#include "interp_internal.hh"
-#include "array1.hh"
+#include "emc/rs274ngc/rs274ngc.hh"
+#include "emc/rs274ngc/interp_internal.hh"
+#include "emc/rs274ngc/array1.hh"
 
 namespace pp = pyplusplus::containers::static_sized;
-#include "interp_array_types.hh"
+#include "emc/rs274ngc/interp_array_types.hh"
 
 
 void export_Arrays()

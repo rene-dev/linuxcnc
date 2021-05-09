@@ -1,5 +1,5 @@
-#include "interp_inspection.hh"
-#include "interp_internal.hh"
+#include "emc/rs274ngc/interp_inspection.hh"
+#include "emc/rs274ngc/interp_internal.hh"
 
 
 double &currentX(setup_pointer s)

@@ -15,4 +15,6 @@ set(NMLINTF_SOURCES
         )
 
 add_library(linuxcnc ${NMLINTF_SOURCES})
+target_link_libraries(linuxcnc PRIVATE Python3::Module)
+target_link_libraries(linuxcnc PRIVATE pythonplugin)
 get_uspace_config(linuxcnc)
