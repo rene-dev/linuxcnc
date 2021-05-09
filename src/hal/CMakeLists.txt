@@ -28,10 +28,14 @@ set(HALCMD_SOURCES
         utils/halcmd.c
         utils/halcmd_commands.c
         utils/halcmd_main.c
+        utils/halcmd_completion.c
         )
 add_executable(halcmd ${HALCMD_SOURCES})
 target_include_directories(halcmd PRIVATE ${TCL_INCLUDE})
+target_include_directories(halcmd PRIVATE ${READLINE_INCLUDE})
 target_link_libraries(halcmd PRIVATE ${TCL_LIBRARIES})
+target_link_libraries(halcmd PRIVATE ${READLINE_LIBRARIES})
+target_link_libraries(halcmd PRIVATE inifile)
 target_link_libraries(halcmd PRIVATE hal)
 target_link_libraries(halcmd PRIVATE rt)
 get_uspace_config(halcmd)

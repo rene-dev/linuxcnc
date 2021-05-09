@@ -55,51 +55,62 @@ if(NOT ${USE_RTAI} AND ${USE_KBUILD})
     message(FATAL_ERROR "kbuild can only be used with RTAI!")
 endif()
 
-# configure variables
-if(${RUN_IN_PLACE})
-    set(EMC2_HOME ${CMAKE_BINARY_DIR})
-    add_compile_definitions(EMC2_HOME="${EMC2_HOME}")
-    #add_compile_definitions(EMC2_SUFFIX="(run-in-place)")
-    add_compile_definitions(EMC2_ICON="${EMC2_HOME}/linuxcncicon.png")
-    add_compile_definitions(EMC2_RTLIB_DIR="${EMC2_HOME}/modules")
-    add_compile_definitions(EMC2_BIN_DIR="${EMC2_HOME}/bin")
-    #    EMC2_LATENCY_SCRIPT=$EMC2_HOME/scripts/latency-test
-    #EMC2_SCRIPT=$EMC2_HOME/scripts/linuxcnc
-    #EMC2_ICON=$EMC2_HOME/linuxcncicon.png
-    #EMC2_BIN_DIR=$EMC2_HOME/bin
-    #EMC2_TCL_DIR=$EMC2_HOME/tcl
-    #EMC2_TCL_LIB_DIR=$EMC2_HOME/tcl
-    #EMC2_LANG_DIR=$EMC2_HOME/src/objects
-    #EMC2_PO_DIR=$EMC2_HOME/share/locale
-    #EMC2_HELP_DIR=$EMC2_HOME/docs/help
-    #EMC2_RTLIB_DIR=$EMC2_HOME/rtlib
-    #LINUXCNC_CONFIG_PATH="~/linuxcnc/configs:$EMC2_HOME/configs"
-    #EMC2_NCFILES_DIR=$EMC2_HOME/nc_files
-    #REALTIME=$EMC2_HOME/scripts/realtime
-    #EMC2_IMAGE_DIR=$EMC2_HOME
-    #HALLIB_DIR=$EMC2_HOME/lib/hallib
-else()
-    #EMC2_HOME=${prefix}
-    #EMC2_BIN_DIR=${prefix}/bin
-    #EMC2_LATENCY_SCRIPT=$EMC2_BIN_DIR/latency-test
-    #EMC2_SCRIPT=$EMC2_BIN_DIR/linuxcnc
-    #EMC2_SUFFIX=""
-    #EMC2_ICON=linuxcncicon
-    #EMC2_TCL_DIR=${prefix}/lib/tcltk/linuxcnc
-    #EMC2_TCL_LIB_DIR=${prefix}/lib/tcltk/linuxcnc
-    #EMC2_LANG_DIR=${prefix}/lib/tcltk/linuxcnc/msgs
-    #EMC2_PO_DIR=${prefix}/share/locale
-    #EMC2_HELP_DIR=${prefix}/share/doc/linuxcnc
-    #case $MODULE_DIR in
-    #*/linuxcnc*) EMC2_RTLIB_DIR=$MODULE_DIR ;;
-    #*) EMC2_RTLIB_DIR=$MODULE_DIR/linuxcnc
-    #esac
-    #LINUXCNC_CONFIG_PATH="~/linuxcnc/configs:/usr/local/etc/linuxcnc/configs:"$(eval echo $EMC2_HELP_DIR)"/examples/sample-configs"
-    #EMC2_NCFILES_DIR=${prefix}/share/linuxcnc/ncfiles
-    #REALTIME=/etc/init.d/realtime
-    #EMC2_IMAGE_DIR=$(fe "$datadir")/linuxcnc
-    #HALLIB_DIR=${prefix}/share/linuxcnc/hallib
+if(${USE_RTAI})
+    add_compile_definitions(RTAPI_RTAI)
 endif()
+
+if(${USE_USPACE})
+    add_compile_definitions(RTAPI_USPACE)
+endif()
+
+add_compile_definitions(HAVE_READLINE)
+
+# configure variables
+#if(${RUN_IN_PLACE})
+#    set(EMC2_HOME ${CMAKE_BINARY_DIR})
+#    add_compile_definitions(EMC2_HOME="${EMC2_HOME}")
+#    #add_compile_definitions(EMC2_SUFFIX="(run-in-place)")
+#    add_compile_definitions(EMC2_ICON="${EMC2_HOME}/linuxcncicon.png")
+#    add_compile_definitions(EMC2_RTLIB_DIR="${EMC2_HOME}/modules")
+#    add_compile_definitions(EMC2_BIN_DIR="${EMC2_HOME}/bin")
+#    add_compile_definitions(RTDIR="${EMC2_HOME}/modules")
+#    #    EMC2_LATENCY_SCRIPT=$EMC2_HOME/scripts/latency-test
+#    #EMC2_SCRIPT=$EMC2_HOME/scripts/linuxcnc
+#    #EMC2_ICON=$EMC2_HOME/linuxcncicon.png
+#    #EMC2_BIN_DIR=$EMC2_HOME/bin
+#    #EMC2_TCL_DIR=$EMC2_HOME/tcl
+#    #EMC2_TCL_LIB_DIR=$EMC2_HOME/tcl
+#    #EMC2_LANG_DIR=$EMC2_HOME/src/objects
+#    #EMC2_PO_DIR=$EMC2_HOME/share/locale
+#    #EMC2_HELP_DIR=$EMC2_HOME/docs/help
+#    #EMC2_RTLIB_DIR=$EMC2_HOME/rtlib
+#    #LINUXCNC_CONFIG_PATH="~/linuxcnc/configs:$EMC2_HOME/configs"
+#    #EMC2_NCFILES_DIR=$EMC2_HOME/nc_files
+#    #REALTIME=$EMC2_HOME/scripts/realtime
+#    #EMC2_IMAGE_DIR=$EMC2_HOME
+#    #HALLIB_DIR=$EMC2_HOME/lib/hallib
+#else()
+#    #EMC2_HOME=${prefix}
+#    #EMC2_BIN_DIR=${prefix}/bin
+#    #EMC2_LATENCY_SCRIPT=$EMC2_BIN_DIR/latency-test
+#    #EMC2_SCRIPT=$EMC2_BIN_DIR/linuxcnc
+#    #EMC2_SUFFIX=""
+#    #EMC2_ICON=linuxcncicon
+#    #EMC2_TCL_DIR=${prefix}/lib/tcltk/linuxcnc
+#    #EMC2_TCL_LIB_DIR=${prefix}/lib/tcltk/linuxcnc
+#    #EMC2_LANG_DIR=${prefix}/lib/tcltk/linuxcnc/msgs
+#    #EMC2_PO_DIR=${prefix}/share/locale
+#    #EMC2_HELP_DIR=${prefix}/share/doc/linuxcnc
+#    #case $MODULE_DIR in
+#    #*/linuxcnc*) EMC2_RTLIB_DIR=$MODULE_DIR ;;
+#    #*) EMC2_RTLIB_DIR=$MODULE_DIR/linuxcnc
+#    #esac
+#    #LINUXCNC_CONFIG_PATH="~/linuxcnc/configs:/usr/local/etc/linuxcnc/configs:"$(eval echo $EMC2_HELP_DIR)"/examples/sample-configs"
+#    #EMC2_NCFILES_DIR=${prefix}/share/linuxcnc/ncfiles
+#    #REALTIME=/etc/init.d/realtime
+#    #EMC2_IMAGE_DIR=$(fe "$datadir")/linuxcnc
+#    #HALLIB_DIR=${prefix}/share/linuxcnc/hallib
+#endif()
 
 # configure files
 #configure_file(TutorialConfig.h.in TutorialConfig.h)
@@ -107,5 +118,6 @@ endif()
 add_subdirectory(src/rtapi)
 add_subdirectory(src/hal)
 add_subdirectory(src/libnml)
+add_subdirectory(src/libnml/inifile)
 add_subdirectory(src/module_helper)
 

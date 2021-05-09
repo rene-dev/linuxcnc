@@ -27,7 +27,7 @@
 #include <limits.h>
 
 #include "config.h"
-#include "inifile.hh"
+#include "libnml/inifile/inifile.hh"
 
 
 int main(int argc, char *argv[])

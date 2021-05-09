@@ -16,7 +16,7 @@
 #define CMS_XUP_HH
 
 extern "C" {
-#include <rpc/rpc.h>		/* struct XDR */
+#include <tirpc/rpc/rpc.h>		/* struct XDR */
 
 }
 #include "libnml/cms/cms_up.hh"		/* class CMS_UPDATER */

@@ -37,12 +37,12 @@
  *  information, go to www.linuxcnc.org.
  */
 
-#include "halcmd_completion.h"
+#include "hal/utils/halcmd_completion.h"
 #include "config.h"
-#include "rtapi.h"		/* RTAPI realtime OS API */
-#include "hal.h"		/* HAL public API decls */
-#include "../hal_priv.h"	/* private HAL decls */
-#include <rtapi_mutex.h>
+#include "rtapi/rtapi.h"		/* RTAPI realtime OS API */
+#include "hal/hal.h"		/* HAL public API decls */
+#include "hal/hal_priv.h"	/* private HAL decls */
+#include <rtapi/rtapi_mutex.h>
 
 static int argno;
 

@@ -21,7 +21,7 @@
 
 
 #include "config.h"
-#include "inifile.hh"
+#include "libnml/inifile/inifile.hh"
 
 #define MAX_EXTEND_LINES 20
 
