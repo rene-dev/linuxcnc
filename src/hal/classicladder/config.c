@@ -29,9 +29,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
-#include "classicladder.h"
-#include "global.h"
-#include <rtapi_string.h>
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include <rtapi/rtapi_string.h>
 
 #define TYPE_INT	1
 #define TYPE_STRING	2

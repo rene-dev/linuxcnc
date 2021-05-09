@@ -32,12 +32,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "classicladder.h"
-#include "global.h"
-#include "vars_access.h"
-#include "protocol_modbus_master.h"
-#include "socket_modbus_master.h"
-#include <rtapi_string.h>
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/vars_access.h"
+#include "hal/classicladder/protocol_modbus_master.h"
+#include "hal/classicladder/socket_modbus_master.h"
+#include <rtapi/rtapi_string.h>
 
 StrModbusMasterReq ModbusMasterReq[ NBR_MODBUS_MASTER_REQ ];
 // if '\0' => IP mode used for I/O modbus modules

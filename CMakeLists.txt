@@ -14,6 +14,8 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 find_package(TIRPC REQUIRED)
 find_package(TCL REQUIRED)
 find_package(Readline REQUIRED)
+find_package(GTK2 REQUIRED gtk)
+find_package(GTK3 REQUIRED gtk)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED True)
@@ -63,7 +65,15 @@ if(${USE_USPACE})
     add_compile_definitions(RTAPI_USPACE)
 endif()
 
-add_compile_definitions(HAVE_READLINE)
+add_compile_definitions(
+        HAVE_READLINE
+        SEQUENTIAL_SUPPORT
+        HAL_SUPPORT
+        DYNAMIC_PLCSIZE
+        RT_SUPPORT
+        OLD_TIMERS_MONOS_SUPPORT
+        MODBUS_IO_MASTER
+        )
 
 # configure variables
 #if(${RUN_IN_PLACE})
@@ -117,6 +127,7 @@ add_compile_definitions(HAVE_READLINE)
 
 add_subdirectory(src/rtapi)
 add_subdirectory(src/hal)
+add_subdirectory(src/hal/classicladder)
 add_subdirectory(src/libnml)
 add_subdirectory(src/libnml/inifile)
 add_subdirectory(src/module_helper)

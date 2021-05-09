@@ -32,26 +32,26 @@
 #endif
 
 //for emc next 2 lines
-#include "rtapi.h"
-#include "rtapi_string.h"
+#include "rtapi/rtapi.h"
+#include "rtapi/rtapi_string.h"
 //#include <linux/string.h>
 
-#include "classicladder.h"
+#include "hal/classicladder/classicladder.h"
 #ifndef RTAPI //for EMC :realtime has no directory access
-#include "files.h" 
+#include "hal/classicladder/files.h"
 #endif
-#include "calc.h"
-#include "vars_access.h"
-#include "vars_names.h"
-#include "manager.h"
-#include "calc_sequential.h"
-#include "symbols.h"
+#include "hal/classicladder/calc.h"
+#include "hal/classicladder/vars_access.h"
+#include "hal/classicladder/vars_names.h"
+#include "hal/classicladder/manager.h"
+#include "hal/classicladder/calc_sequential.h"
+#include "hal/classicladder/symbols.h"
 
 
 #ifdef GTK_INTERFACE
-#include "classicladder_gtk.h"
-#include "manager_gtk.h"
-#include "symbols_gtk.h"
+#include "hal/classicladder/classicladder_gtk.h"
+#include "hal/classicladder/manager_gtk.h"
+#include "hal/classicladder/symbols_gtk.h"
 //#include <gtk/gtk.h>/
 #endif
 
@@ -59,8 +59,8 @@
 
 
 #ifdef HAL_SUPPORT
-#include "rtapi.h"
-#include "hal.h"
+#include "rtapi/rtapi.h"
+#include "hal/hal.h"
 #define CL_SHMEM_KEY 0x434C522b // "CLR+"
 int compId;
 static int ShmemId;

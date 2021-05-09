@@ -24,11 +24,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "classicladder.h"
-#include "global.h"
-#include "vars_access.h"
-#include "protocol_modbus_slave.h"
-#include "protocol_modbus_master.h" // some Modbus defines shared
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/vars_access.h"
+#include "hal/classicladder/protocol_modbus_slave.h"
+#include "hal/classicladder/protocol_modbus_master.h" // some Modbus defines shared
 
 
 

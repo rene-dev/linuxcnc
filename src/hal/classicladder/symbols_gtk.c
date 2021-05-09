@@ -26,13 +26,13 @@
 #include <gtk/gtk.h>
 #include <stdio.h>
 #include <string.h>
-#include "classicladder.h"
-#include "global.h"
-#include "edit.h"
-#include "classicladder_gtk.h"
-#include "vars_names.h"
-#include "symbols_gtk.h"
-#include <rtapi_string.h>
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/edit.h"
+#include "hal/classicladder/classicladder_gtk.h"
+#include "hal/classicladder/vars_names.h"
+#include "hal/classicladder/symbols_gtk.h"
+#include <rtapi/rtapi_string.h>
 
 GtkWidget *SymbolsWindow;
 GtkListStore *ListStore;

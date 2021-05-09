@@ -28,14 +28,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "classicladder.h"
-#include "classicladder_gtk.h"
-#include "manager.h"
-#include "edit.h"
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/classicladder_gtk.h"
+#include "hal/classicladder/manager.h"
+#include "hal/classicladder/edit.h"
 //#include "hardware.h"
-#include "global.h"
-#include "config_gtk.h"
-#include <rtapi_string.h>
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/config_gtk.h"
+#include <rtapi/rtapi_string.h>
 
 #ifdef OLD_TIMERS_MONOS_SUPPORT
 #define NBR_OBJECTS 19

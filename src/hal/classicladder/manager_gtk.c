@@ -27,13 +27,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "classicladder.h"
-#include "global.h"
-#include "manager.h"
-#include "classicladder_gtk.h"
-#include "manager_gtk.h"
-#include "edit_gtk.h"
-#include <rtapi_string.h>
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/manager.h"
+#include "hal/classicladder/classicladder_gtk.h"
+#include "hal/classicladder/manager_gtk.h"
+#include "hal/classicladder/edit_gtk.h"
+#include <rtapi/rtapi_string.h>
 
 GtkWidget *ManagerWindow;
 GtkWidget *SectionsList;

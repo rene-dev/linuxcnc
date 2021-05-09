@@ -26,10 +26,10 @@
 #include <stdio.h>
 #include <string.h>
 #endif
-#include "classicladder.h"
-#include "global.h"
-#include "vars_access.h"
-#include "calc_sequential.h"
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/vars_access.h"
+#include "hal/classicladder/calc_sequential.h"
 
 void InitSequential( void )
 {

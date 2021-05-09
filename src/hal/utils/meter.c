@@ -57,15 +57,15 @@
 #include <ctype.h>
 #include <string.h>
 
-#include "rtapi.h"		/* RTAPI realtime OS API */
-#include "hal.h"		/* HAL public API decls */
-#include "../hal_priv.h"	/* private HAL decls */
-#include <rtapi_mutex.h>
+#include "rtapi/rtapi.h"		/* RTAPI realtime OS API */
+#include "hal/hal.h"		/* HAL public API decls */
+#include "hal/hal_priv.h"	/* private HAL decls */
+#include <rtapi/rtapi_mutex.h>
 
 #include <gtk/gtk.h>
-#include "miscgtk.h"		/* generic GTK stuff */
+#include "hal/utils/miscgtk.h"		/* generic GTK stuff */
 #include <gdk/gdkkeysyms.h>
-#include <rtapi_string.h>
+#include <rtapi/rtapi_string.h>
 
 /***********************************************************************
 *                            TYPEDEFS                                  *

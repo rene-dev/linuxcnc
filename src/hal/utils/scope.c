@@ -48,14 +48,14 @@ static char *license = \
 #include <unistd.h>	/* getopt() */
 
 #include "config.h"
-#include "rtapi.h"		/* RTAPI realtime OS API */
-#include "hal.h"		/* HAL public API decls */
-#include "../hal_priv.h"	/* HAL private API decls */
+#include "rtapi/rtapi.h"		/* RTAPI realtime OS API */
+#include "hal/hal.h"		/* HAL public API decls */
+#include "hal/hal_priv.h"	/* HAL private API decls */
 
 #include <gtk/gtk.h>
-#include "miscgtk.h"		/* generic GTK stuff */
-#include "scope_usr.h"		/* scope related declarations */
-#include <rtapi_string.h>
+#include "hal/utils/miscgtk.h"		/* generic GTK stuff */
+#include "hal/utils/scope_usr.h"		/* scope related declarations */
+#include <rtapi/rtapi_string.h>
 
 /***********************************************************************
 *                         GLOBAL VARIABLES                             *
@@ -148,8 +148,8 @@ int main(int argc, gchar * argv[])
 
     if (!halpr_find_funct_by_name("scope.sample")) {
 	char buf[1000];
-	snprintf(buf, sizeof(buf), EMC2_BIN_DIR "/halcmd loadrt scope_rt num_samples=%d",
-		num_samples);
+	snprintf(buf, sizeof(buf), "%s/halcmd loadrt scope_rt num_samples=%d", EMC2_BIN_DIR,
+        num_samples);
 	if(system(buf) != 0) {
 	    rtapi_print_msg(RTAPI_MSG_ERR, "loadrt scope_rt failed\n");
 	    hal_exit(comp_id);

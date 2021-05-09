@@ -26,11 +26,11 @@
 #include <gtk/gtk.h>
 #include <stdio.h>
 #include <string.h>
-#include "classicladder.h"
-#include "global.h"
-#include "editproperties_gtk.h"
-#include "edit.h"
-#include <rtapi_string.h>
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/editproperties_gtk.h"
+#include "hal/classicladder/edit.h"
+#include <rtapi/rtapi_string.h>
 
 GtkWidget *PropertiesWindow;
 GtkWidget *PropLabelParam[NBR_PARAMS_PER_OBJ],*PropEntryParam[NBR_PARAMS_PER_OBJ];

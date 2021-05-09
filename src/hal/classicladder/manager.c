@@ -20,17 +20,17 @@
 /* License along with this library; if not, write to the Free Software */
 /* Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 #ifdef HAL_SUPPORT
-#include "rtapi.h"
-#include "rtapi_string.h"
+#include "rtapi/rtapi.h"
+#include "rtapi/rtapi_string.h"
 #else
 #include <string.h>
 #endif
 
 
-#include "classicladder.h"
-#include "global.h"
-#include "edit.h"
-#include "manager.h"
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/edit.h"
+#include "hal/classicladder/manager.h"
 
 void InitSections( void )
 {

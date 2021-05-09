@@ -64,4 +64,44 @@ add_executable(halrmt utils/halrmt.c)
 target_link_libraries(halrmt PRIVATE hal)
 get_uspace_config(halrmt)
 
+set(HALMETER_SOURCES
+        utils/meter.c
+        utils/miscgtk.c
+        )
+add_executable(halmeter ${HALMETER_SOURCES})
+target_include_directories(halmeter PRIVATE ${GTK2_INCLUDE_DIRS})
+target_link_libraries(halmeter PRIVATE hal)
+target_link_libraries(halmeter PRIVATE ${GTK2_LIBRARIES})
+get_uspace_config(halmeter)
 
+set(HALSCOPE_SOURCES
+        utils/scope.c
+        utils/scope_horiz.c
+        utils/scope_vert.c
+        utils/scope_trig.c
+        utils/scope_disp.c
+        utils/scope_files.c
+        utils/miscgtk.c
+        )
+add_executable(halscope ${HALSCOPE_SOURCES})
+target_include_directories(halscope PRIVATE ${GTK2_INCLUDE_DIRS})
+target_link_libraries(halscope PRIVATE hal)
+target_link_libraries(halscope PRIVATE m)
+target_link_libraries(halscope PRIVATE ${GTK2_LIBRARIES})
+get_uspace_config(halscope)
+
+if(USE_RTAI)
+    set(PCIWRITE_SOURCES
+            utils/pci_write.c
+            utils/upci.c
+            )
+
+    add_executable(pci_write ${PCIWRITE_SOURCES})
+
+    set(PCIREAD_SOURCES
+            utils/pci_read.c
+            utils/upci.c
+            )
+
+    add_executable(pci_read ${PCIREAD_SOURCES})
+endif()

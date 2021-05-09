@@ -44,14 +44,14 @@
 #include <ctype.h>
 #include <string.h>
 
-#include "rtapi.h"		/* RTAPI realtime OS API */
-#include <rtapi_mutex.h>
-#include "hal.h"		/* HAL public API decls */
-#include "../hal_priv.h"	/* private HAL decls */
+#include "rtapi/rtapi.h"		/* RTAPI realtime OS API */
+#include <rtapi/rtapi_mutex.h>
+#include "hal/hal.h"		/* HAL public API decls */
+#include "hal/hal_priv.h"	/* private HAL decls */
 
 #include <gtk/gtk.h>
-#include "miscgtk.h"		/* generic GTK stuff */
-#include "scope_usr.h"		/* scope related declarations */
+#include "hal/utils/miscgtk.h"		/* generic GTK stuff */
+#include "hal/utils/scope_usr.h"		/* scope related declarations */
 
 #define BUFLEN 80		/* length for sprintf buffers */
 
@@ -450,7 +450,9 @@ static void dialog_realtime_not_loaded(void)
 
     if(first_time) {
         first_time = 0;
-        if(system(EMC2_BIN_DIR "/halcmd loadrt scope_rt") == 0) {
+        char s[1024];
+        snprintf(s, sizeof(s), "%s%s", EMC2_BIN_DIR, "/halcmd loadrt scope_rt");
+        if(system(s) == 0) {
 	    sleep(1);
 	    return;
 	}

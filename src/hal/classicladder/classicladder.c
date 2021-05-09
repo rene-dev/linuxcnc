@@ -25,7 +25,7 @@
 // it uses RTAPI realtime code and HAL code for memory allocation and input/output.
 // this adaptation was started Jan 2008 by Chris Morley  
 
-#include "../config.h"
+#include "config.h"
 #include <locale.h>
 #include <libintl.h>
 #define _(x) gettext(x)
@@ -38,23 +38,23 @@
 #include <unistd.h>
 #endif
 
-#include "hal.h"
-#include "classicladder.h"
-#include "global.h"
-#include "files_project.h"
-#include "calc.h"
-#include "vars_access.h"
-#include "manager.h"
-#include "calc_sequential.h"
-#include "files_sequential.h"
+#include "hal/hal.h"
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/files_project.h"
+#include "hal/classicladder/calc.h"
+#include "hal/classicladder/vars_access.h"
+#include "hal/classicladder/manager.h"
+#include "hal/classicladder/calc_sequential.h"
+#include "hal/classicladder/files_sequential.h"
 #include "config.h"
 // #include "hardware.h"
-#include "socket_server.h"
-#include "socket_modbus_master.h"
+#include "hal/classicladder/socket_server.h"
+#include "hal/classicladder/socket_modbus_master.h"
 
 #if !defined( MODULE )
-#include "classicladder_gtk.h"
-#include "manager_gtk.h"
+#include "hal/classicladder/classicladder_gtk.h"
+#include "hal/classicladder/manager_gtk.h"
 #include <sys/types.h>
 #include <dirent.h>
 #include <errno.h>
@@ -70,7 +70,7 @@
 #endif
 #endif
 
-#include <rtapi_string.h>
+#include <rtapi/rtapi_string.h>
 #ifdef GTK_INTERFACE
 #include <gtk/gtk.h>
 #endif

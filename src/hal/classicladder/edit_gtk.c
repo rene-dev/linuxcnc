@@ -25,13 +25,13 @@
 #define _(x) gettext(x)
 #include <gtk/gtk.h>
 #include <stdio.h>
-#include "classicladder.h"
-#include "global.h"
-#include "drawing.h"
-#include "edit.h"
-#include "classicladder_gtk.h"
-#include "edit_gtk.h"
-#include "editproperties_gtk.h"
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/drawing.h"
+#include "hal/classicladder/edit.h"
+#include "hal/classicladder/classicladder_gtk.h"
+#include "hal/classicladder/edit_gtk.h"
+#include "hal/classicladder/editproperties_gtk.h"
 
 static GtkWidget *EditorButtonOk,*EditorButtonCancel;
 static GtkWidget *EditorButtonAdd,*EditorButtonIns,*EditorButtonDel;
@@ -76,8 +76,8 @@ char * ToolBarToolTipsTextLadder[ ][NBR_ELE_TOOLBAR_X_MAX] =
 
 
 #ifdef SEQUENTIAL_SUPPORT
-#include "drawing_sequential.h"
-#include "edit_sequential.h"
+#include "hal/classicladder/drawing_sequential.h"
+#include "hal/classicladder/edit_sequential.h"
 static short int ToolBarElementsSequential[ ][NBR_ELE_TOOLBAR_X_MAX] =
             { {EDIT_POINTER , EDIT_ERASER , 0 , 0} ,
               {ELE_SEQ_STEP , EDIT_SEQ_INIT_STEP , 0 , 0} ,

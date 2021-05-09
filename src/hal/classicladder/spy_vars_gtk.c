@@ -32,17 +32,17 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "classicladder.h"
-#include "global.h"
-#include "vars_access.h"
-#include "drawing.h"
-#include "edit.h"
-#include "classicladder_gtk.h"
-#include "vars_names.h"
-#include "symbols.h"
-#include <rtapi_string.h>
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/vars_access.h"
+#include "hal/classicladder/drawing.h"
+#include "hal/classicladder/edit.h"
+#include "hal/classicladder/classicladder_gtk.h"
+#include "hal/classicladder/vars_names.h"
+#include "hal/classicladder/symbols.h"
+#include <rtapi/rtapi_string.h>
 
-#include "spy_vars_gtk.h"
+#include "hal/classicladder/spy_vars_gtk.h"
 
 #define NBR_BOOLS_VAR_SPY 15
 #define NBR_TYPE_BOOLS_SPY 3

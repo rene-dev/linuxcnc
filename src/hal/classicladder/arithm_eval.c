@@ -33,14 +33,14 @@
 #include <string.h>
 #endif
 
-#include "classicladder.h"
-#include "global.h"
-#include "vars_access.h"
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/vars_access.h"
 #ifdef GTK_INTERFACE
-#include "vars_names.h"
+#include "hal/classicladder/vars_names.h"
 #endif
-#include "arithm_eval.h"
-#include <rtapi_string.h>
+#include "hal/classicladder/arithm_eval.h"
+#include <rtapi/rtapi_string.h>
 
 
 char * Expr;

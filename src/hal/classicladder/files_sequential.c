@@ -27,11 +27,11 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include "classicladder.h"
-#include "global.h"
-#include "files.h"
-#include "files_sequential.h"
-#include <rtapi_string.h>
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/files.h"
+#include "hal/classicladder/files_sequential.h"
+#include <rtapi/rtapi_string.h>
 
 
 

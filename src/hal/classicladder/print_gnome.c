@@ -27,20 +27,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <rtapi_string.h>
+#include <rtapi/rtapi_string.h>
 
 #include <gtk/gtk.h>
 #include <libgnomeprint/gnome-print.h>
 #include <libgnomeprintui/gnome-print-job-preview.h>
 #include <libgnomeprintui/gnome-print-dialog.h>
 
-#include "classicladder.h"
-#include "global.h"
-#include "drawing.h"
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/drawing.h"
 #ifdef SEQUENTIAL_SUPPORT
-#include "drawing_sequential.h"
+#include "hal/classicladder/drawing_sequential.h"
 #endif
-#include "print_gnome.h"
+#include "hal/classicladder/print_gnome.h"
 
 /* Notes : */
 /* - Troubles (freeze for gnome_print_dialog_new) if gdk_threads_enter() & gdk_threads_leave() between gtk_main()

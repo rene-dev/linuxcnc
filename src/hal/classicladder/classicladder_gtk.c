@@ -32,11 +32,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "classicladder.h"
-#include "global.h"
-#include "classicladder_gtk.h"
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/classicladder_gtk.h"
 
-#include <rtapi_string.h>
+#include <rtapi/rtapi_string.h>
 
 GdkPixmap *pixmap = NULL;
 GtkWidget *drawing_area = NULL;
@@ -57,25 +57,25 @@ GtkWidget *StatusBar;
 GtkWidget *dialog,*label, *okay_button;
 gint StatusBarContextId;
 
-#include "drawing.h"
-#include "vars_access.h"
-#include "calc.h"
-#include "files_project.h"
-#include "edit.h"
-#include "edit_gtk.h"
-#include "editproperties_gtk.h"
-#include "manager_gtk.h"
-#include "config_gtk.h"
-#include "socket_server.h"
-#include "socket_modbus_master.h"
+#include "hal/classicladder/drawing.h"
+#include "hal/classicladder/vars_access.h"
+#include "hal/classicladder/calc.h"
+#include "hal/classicladder/files_project.h"
+#include "hal/classicladder/edit.h"
+#include "hal/classicladder/edit_gtk.h"
+#include "hal/classicladder/editproperties_gtk.h"
+#include "hal/classicladder/manager_gtk.h"
+#include "hal/classicladder/config_gtk.h"
+#include "hal/classicladder/socket_server.h"
+#include "hal/classicladder/socket_modbus_master.h"
 #ifdef SEQUENTIAL_SUPPORT
-#include "calc_sequential.h"
+#include "hal/classicladder/calc_sequential.h"
 #endif
 #ifdef GNOME_PRINT_USE
-#include "print_gnome.h"
+#include "hal/classicladder/print_gnome.h"
 #endif
-#include "symbols_gtk.h"
-#include "spy_vars_gtk.h"
+#include "hal/classicladder/symbols_gtk.h"
+#include "hal/classicladder/spy_vars_gtk.h"
 
 /* Create a new backing pixmap of the appropriate size */
 static gint configure_event( GtkWidget         *widget,

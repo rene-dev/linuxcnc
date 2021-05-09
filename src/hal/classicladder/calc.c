@@ -31,16 +31,16 @@
 #include <rtlinux_signal.h>
 #endif
 
-#include "classicladder.h"
-#include "global.h"
-#include "vars_access.h"
-#include "arithm_eval.h"
-#include "manager.h"
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/vars_access.h"
+#include "hal/classicladder/arithm_eval.h"
+#include "hal/classicladder/manager.h"
 #ifdef SEQUENTIAL_SUPPORT
-#include "calc_sequential.h"
+#include "hal/classicladder/calc_sequential.h"
 #endif
-#include "calc.h"
-#include <rtapi_string.h>
+#include "hal/classicladder/calc.h"
+#include <rtapi/rtapi_string.h>
 
 void InitRungs()
 {

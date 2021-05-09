@@ -26,6 +26,7 @@ static inline const char* get_linuxcnc_option(const char* name) {
 #define EMC2_ICON get_linuxcnc_option("EMC2_ICON")
 #define EMC2_RTLIB_DIR get_linuxcnc_option("EMC2_RTLIB_DIR")
 #define EMC2_BIN_DIR get_linuxcnc_option("EMC2_BIN_DIR")
+#define EMC2_PO_DIR get_linuxcnc_option("EMC2_PO_DIR")
 #define MODULE_EXT get_linuxcnc_option("MODULE_EXT")
 #define RTDIR get_linuxcnc_option("RTDIR")
 

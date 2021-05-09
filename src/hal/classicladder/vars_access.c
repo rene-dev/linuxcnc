@@ -22,7 +22,7 @@
 
 #ifdef GTK_INTERFACE
 #include <gtk/gtk.h>
-#include "classicladder_gtk.h"
+#include "hal/classicladder/classicladder_gtk.h"
 #endif
 
 #if defined(MODULE) && defined(RTAI)
@@ -33,8 +33,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #endif
-#include "classicladder.h"
-#include "global.h"
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
 
 
 void InitVars(void)

@@ -23,17 +23,17 @@
 #include <gtk/gtk.h>
 #include <stdio.h>
 #include <string.h>
-#include "classicladder.h"
-#include "global.h"
-#include "drawing.h"
-#include "vars_names.h"
-#include "drawing_sequential.h"
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/drawing.h"
+#include "hal/classicladder/vars_names.h"
+#include "hal/classicladder/drawing_sequential.h"
 
 #ifdef GTK2
 #include <pango/pango.h>
 #endif
 
-#include <rtapi_string.h>
+#include <rtapi/rtapi_string.h>
 void DrawSeqStep(GdkPixmap * DrawPixmap,int x,int y,int Size,StrStep * pStep,char DrawingOption)
 {
 	char BufTxt[50];
@@ -277,7 +277,7 @@ void DrawSeqTransition(GdkPixmap * DrawPixmap,int x,int y,int Size,StrTransition
 #else
 				DrawTextGTK2( DrawPixmap, drawing_area->style->black_gc, StepX+SizeDiv3+pStep->OffDrawCrossStep,StepY-SizeDiv4-7, -1, -1, BufTxt );
 #endif
-//printf("CrossStep n°=%d, offX=%d\n", pStep->StepNumber, pStep->OffDrawCrossStep );
+//printf("CrossStep nï¿½=%d, offX=%d\n", pStep->StepNumber, pStep->OffDrawCrossStep );
 				pStep->OffDrawCrossStep = pStep->OffDrawCrossStep+((pStep->OffDrawCrossStep!=0)?3:0)+15; // TODO: add length in pixels of the text written
 			}
 		}

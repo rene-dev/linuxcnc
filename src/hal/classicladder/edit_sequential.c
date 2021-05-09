@@ -30,16 +30,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "classicladder.h"
-#include "global.h"
-#include "drawing.h"
-#include "edit.h"
-#include "editproperties_gtk.h"
-#include "classicladder_gtk.h"
-#include "calc_sequential.h"
-#include "vars_names.h"
-#include "edit_sequential.h"
-#include <rtapi_string.h>
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/drawing.h"
+#include "hal/classicladder/edit.h"
+#include "hal/classicladder/editproperties_gtk.h"
+#include "hal/classicladder/classicladder_gtk.h"
+#include "hal/classicladder/calc_sequential.h"
+#include "hal/classicladder/vars_names.h"
+#include "hal/classicladder/edit_sequential.h"
+#include <rtapi/rtapi_string.h>
 
 /* We modify the datas in this variable. It is only
    after clicking on apply that they are used */

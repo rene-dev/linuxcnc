@@ -24,23 +24,23 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "classicladder.h"
-#include "global.h"
-#include "arithm_eval.h"
-#include "classicladder_gtk.h"
-#include "edit.h"
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/arithm_eval.h"
+#include "hal/classicladder/classicladder_gtk.h"
+#include "hal/classicladder/edit.h"
 #ifdef SEQUENTIAL_SUPPORT
-#include "drawing_sequential.h"
+#include "hal/classicladder/drawing_sequential.h"
 #endif
-#include "symbols.h"
-#include "vars_names.h"
-#include "drawing.h"
+#include "hal/classicladder/symbols.h"
+#include "hal/classicladder/vars_names.h"
+#include "hal/classicladder/drawing.h"
 
 #ifdef GTK2
 #include <pango/pango.h>
 #endif
 
-#include <rtapi_string.h>
+#include <rtapi/rtapi_string.h>
 char * DisplayArithmExpr(char * Expr,int NumCarMax)
 {
 	static char Buffer[ARITHM_EXPR_SIZE+30];

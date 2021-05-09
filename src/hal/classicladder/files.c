@@ -37,16 +37,16 @@
 #else
 #include <dir.h>
 #endif
-#include "classicladder.h"
-#include "global.h"
-#include "calc.h"
-#include "calc_sequential.h"
-#include "files_sequential.h"
-#include "files.h"
-#include "vars_access.h"
-#include "protocol_modbus_master.h"
-#include "emc_mods.h"
-#include <rtapi_string.h>
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/calc.h"
+#include "hal/classicladder/calc_sequential.h"
+#include "hal/classicladder/files_sequential.h"
+#include "hal/classicladder/files.h"
+#include "hal/classicladder/vars_access.h"
+#include "hal/classicladder/protocol_modbus_master.h"
+#include "hal/classicladder/emc_mods.h"
+#include <rtapi/rtapi_string.h>
 
 #ifdef debug
 #define dbg_printf printf

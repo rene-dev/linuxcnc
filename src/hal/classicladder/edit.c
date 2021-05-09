@@ -30,22 +30,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "classicladder.h"
-#include "global.h"
-#include "drawing.h"
-#include "edit.h"
-#include "editproperties_gtk.h"
-#include "calc.h"
-#include "files.h"
-#include "arithm_eval.h"
-#include "classicladder_gtk.h"
-#include "manager.h"
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/drawing.h"
+#include "hal/classicladder/edit.h"
+#include "hal/classicladder/editproperties_gtk.h"
+#include "hal/classicladder/calc.h"
+#include "hal/classicladder/files.h"
+#include "hal/classicladder/arithm_eval.h"
+#include "hal/classicladder/classicladder_gtk.h"
+#include "hal/classicladder/manager.h"
 #ifdef SEQUENTIAL_SUPPORT
-#include "edit_sequential.h"
+#include "hal/classicladder/edit_sequential.h"
 #endif
-#include "symbols.h"
-#include "vars_names.h"
-#include <rtapi_string.h>
+#include "hal/classicladder/symbols.h"
+#include "hal/classicladder/vars_names.h"
+#include <rtapi/rtapi_string.h>
 
 /* This array give for each special elements the size used */
 #define TYPEELERULE 0

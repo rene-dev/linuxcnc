@@ -21,17 +21,17 @@
 #include <locale.h>
 #include <libintl.h>
 #define _(x) gettext(x)
-#include "hal.h"
+#include "hal/hal.h"
 #include "hal/hal_priv.h"
 
 #include <stdio.h>
 #include <string.h>
-#include "classicladder.h"
-#include "global.h"
-#include "symbols.h"
-#include "vars_names.h"
-#include "emc_mods.h"
-#include <rtapi_string.h>
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/symbols.h"
+#include "hal/classicladder/vars_names.h"
+#include "hal/classicladder/emc_mods.h"
+#include <rtapi/rtapi_string.h>
 
 
 

@@ -31,10 +31,10 @@
 #include <string.h>
 #endif
 
-#include "classicladder.h"
-#include "global.h"
-#include "symbols.h"
-#include <rtapi_string.h>
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/symbols.h"
+#include <rtapi/rtapi_string.h>
 
 
 void InitSymbols( void )

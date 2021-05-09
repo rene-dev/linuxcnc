@@ -34,7 +34,7 @@
 #include <sys/ioctl.h>
 #include <errno.h>
 
-#include "serial_common.h"
+#include "hal/classicladder/serial_common.h"
 extern int ModbusSerialUseRtsToSend;
 extern int ModbusDebugLevel;
 extern int ModbusSerialDataBits;   // Number of data bits (7, 6, 7, 8)

@@ -34,15 +34,15 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #endif
-#include "classicladder.h"
-#include "global.h"
-#include "edit.h"
-#include "calc.h"
-#include "calc_sequential.h"
-#include "files.h"
-#include "files_sequential.h"
-#include "files_project.h"
-#include <rtapi_string.h>
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/edit.h"
+#include "hal/classicladder/calc.h"
+#include "hal/classicladder/calc_sequential.h"
+#include "hal/classicladder/files.h"
+#include "hal/classicladder/files_sequential.h"
+#include "hal/classicladder/files_project.h"
+#include <rtapi/rtapi_string.h>
 
 
 //#ifdef GTK_INTERFACE

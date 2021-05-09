@@ -26,12 +26,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "classicladder.h"
-#include "global.h"
-#include <rtapi_string.h>
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include <rtapi/rtapi_string.h>
 
-#include "symbols.h"
-#include "vars_names.h"
+#include "hal/classicladder/symbols.h"
+#include "hal/classicladder/vars_names.h"
 
 // include the var name table (not a header!)
 #include "vars_names_list.c"
