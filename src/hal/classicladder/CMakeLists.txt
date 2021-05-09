@@ -1,3 +1,5 @@
+if(USE_GTK2)
+
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set(CLASSICLADDER_SOURCES
@@ -41,3 +43,5 @@ target_link_libraries(classicladder PRIVATE Threads::Threads)
 target_link_libraries(classicladder PRIVATE ${GTK2_LIBRARIES})
 target_compile_definitions(classicladder PRIVATE GTK_INTERFACE GTK2)
 get_uspace_config(classicladder)
+
+endif(USE_GTK2)

@@ -64,6 +64,8 @@ add_executable(halrmt utils/halrmt.c)
 target_link_libraries(halrmt PRIVATE hal)
 get_uspace_config(halrmt)
 
+if(USE_GTK2)
+
 set(HALMETER_SOURCES
         utils/meter.c
         utils/miscgtk.c
@@ -105,3 +107,5 @@ if(USE_RTAI)
 
     add_executable(pci_read ${PCIREAD_SOURCES})
 endif()
+
+endif(USE_GTK2)

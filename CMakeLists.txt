@@ -18,7 +18,11 @@ find_package(Boost COMPONENTS ${BOOSTPYTHON} REQUIRED)
 find_package(TIRPC REQUIRED)
 find_package(TCL REQUIRED)
 find_package(Readline REQUIRED)
+
+option(USE_GTK2 "compile some legacy GTK2 libraries" ON)
+
 find_package(GTK2 REQUIRED gtk)
+
 find_package(GTK3 REQUIRED gtk)
 
 set(CMAKE_C_STANDARD 99)
