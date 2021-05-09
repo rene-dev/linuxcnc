@@ -18,16 +18,16 @@
 ********************************************************************/
 
 // Include all NML, CMS, and RCS classes and functions
-#include "rcs.hh"
+#include "libnml/rcs/rcs.hh"
 
 // Include command and status message definitions
-#include "canon.hh"
-#include "canon_position.hh"
-#include "emc.hh"
-#include "emc_nml.hh"
-#include "emcglb.h"
-#include "emcpos.h"
-#include "cms.hh"
+#include "emc/nml_intf/canon.hh"
+#include "emc/nml_intf/canon_position.hh"
+#include "emc/nml_intf/emc.hh"
+#include "emc/nml_intf/emc_nml.hh"
+#include "emc/nml_intf/emcglb.h"
+#include "emc/nml_intf/emcpos.h"
+#include "libnml/cms/cms.hh"
 
 // Forward Function Prototypes
 void EmcPose_update(CMS * cms, EmcPose * x);

@@ -22,9 +22,9 @@
 /**********************/
 
 #include <stdio.h>
-#include "canon.hh"
-#include "emc.hh"
-#include "debugflags.h"
+#include "emc/nml_intf/canon.hh"
+#include "emc/nml_intf/emc.hh"
+#include "emc/nml_intf/debugflags.h"
 #include "interp_fwd.hh"
 
 // Declare class so that we can use it in the typedef.

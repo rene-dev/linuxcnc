@@ -19,14 +19,14 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include "emc.hh"
-#include "rcs_print.hh"
-#include "emcIniFile.hh"
-#include "inijoint.hh"		// these decls
-#include "emcglb.h"		// EMC_DEBUG
-#include "emccfg.h"		// default values for globals
+#include "emc/nml_intf/emc.hh"
+#include "libnml/rcs/rcs_print.hh"
+#include "emc/ini/emcIniFile.hh"
+#include "emc/ini/inijoint.hh"		// these decls
+#include "emc/nml_intf/emcglb.h"		// EMC_DEBUG
+#include "emc/nml_intf/emccfg.h"		// default values for globals
 
-#include "inihal.hh"
+#include "emc/ini/inihal.hh"
 
 extern value_inihal_data old_inihal_data;
 /*

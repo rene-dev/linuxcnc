@@ -21,8 +21,8 @@
 
 #include <stdlib.h>
 #include <boost/noncopyable.hpp>
-#include <emcpos.h>
-#include <modal_state.hh>
+#include <emc/nml_intf/emcpos.h>
+#include <emc/rs274ngc/modal_state.hh>
 
 /* Size of certain arrays */
 #define ACTIVE_G_CODES 17

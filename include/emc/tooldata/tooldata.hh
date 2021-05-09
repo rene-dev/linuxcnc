@@ -24,8 +24,8 @@
 #ifndef TOOL_DATA_H
 #define TOOL_DATA_H
 
-#include "canon.hh"
-#include "emc_nml.hh"
+#include "emc/nml_intf/canon.hh"
+#include "emc/nml_intf/emc_nml.hh"
 
 #ifdef CPLUSPLUS
 extern"C" {

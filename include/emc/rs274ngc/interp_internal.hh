@@ -20,15 +20,15 @@
 #include <set>
 #include <map>
 #include <bitset>
-#include "canon.hh"
-#include "emcpos.h"
+#include "emc/nml_intf/canon.hh"
+#include "emc/nml_intf/emcpos.h"
 #include "libintl.h"
 #include <boost/python/object_fwd.hpp>
 #include <cmath>
 #include "interp_parameter_def.hh"
 #include "interp_fwd.hh"
 #include "interp_base.hh"
-#include "tooldata.hh"
+#include "emc/tooldata/tooldata.hh"
 
 
 #define _(s) gettext(s)

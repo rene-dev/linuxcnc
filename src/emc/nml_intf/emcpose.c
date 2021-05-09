@@ -12,9 +12,9 @@
 *
 ********************************************************************/
 
-#include "emcpose.h"
-#include "posemath.h"
-#include "rtapi_math.h"
+#include "emc/nml_intf/emcpose.h"
+#include "libnml/posemath/posemath.h"
+#include "rtapi/rtapi_math.h"
 
 //#define EMCPOSE_PEDANTIC
 

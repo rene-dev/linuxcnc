@@ -19,8 +19,8 @@
 #include "emcpos.h"
 #include "emctool.h"
 #include "canon_position.hh"
-#include "emcmotcfg.h" // Just for EMCMOT_NUM_SPINDLES
-#include "modal_state.hh"
+#include "emc/motion/emcmotcfg.h" // Just for EMCMOT_NUM_SPINDLES
+#include "emc/rs274ngc/modal_state.hh"
 
 /*
   This is the header file that all applications that use the

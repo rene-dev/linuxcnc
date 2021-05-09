@@ -30,7 +30,7 @@
  ******************************************************************************/
 
 #include <math.h>           // M_PI.
-#include "emcIniFile.hh"
+#include "emc/ini/emcIniFile.hh"
 
 
 IniFile::StrIntPair         EmcIniFile::jointTypeMap[] = {

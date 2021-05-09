@@ -23,11 +23,11 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <libintl.h>
-#include <rtapi_math.h>
-#include "rs274ngc.hh"
-#include "rs274ngc_return.hh"
-#include "rs274ngc_interp.hh"
-#include "interp_internal.hh"
+#include <rtapi/rtapi_math.h>
+#include "emc/rs274ngc/rs274ngc.hh"
+#include "emc/rs274ngc/rs274ngc_return.hh"
+#include "emc/rs274ngc/rs274ngc_interp.hh"
+#include "emc/rs274ngc/interp_internal.hh"
 
 #define _(s) gettext(s)
 

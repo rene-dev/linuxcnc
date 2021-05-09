@@ -17,7 +17,7 @@
 
 #include "config.h"             /* LINELEN */
 #include "math.h"		/* M_PI */
-#include "emcmotcfg.h"          /* EMCMOT_MAX_DIO */
+#include "emc/motion/emcmotcfg.h"          /* EMCMOT_MAX_DIO */
 #include "debugflags.h"
 
 #ifdef __cplusplus

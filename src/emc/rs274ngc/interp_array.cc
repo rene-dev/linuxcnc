@@ -18,10 +18,10 @@
 #include <ctype.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include "rs274ngc.hh"
-#include "rs274ngc_return.hh"
-#include "rs274ngc_interp.hh"
-#include "interp_parameter_def.hh"
+#include "emc/rs274ngc/rs274ngc.hh"
+#include "emc/rs274ngc/rs274ngc_return.hh"
+#include "emc/rs274ngc/rs274ngc_interp.hh"
+#include "emc/rs274ngc/interp_parameter_def.hh"
 
 using namespace interp_param_global;
 

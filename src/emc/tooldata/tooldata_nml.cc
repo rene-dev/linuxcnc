@@ -23,7 +23,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <string.h>
-#include "tooldata.hh"
+#include "emc/tooldata/tooldata.hh"
 
 static CANON_TOOL_TABLE *the_table;
 

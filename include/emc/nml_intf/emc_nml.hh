@@ -15,13 +15,13 @@
 #ifndef EMC_NML_HH
 #define EMC_NML_HH
 #include "emc.hh"
-#include "rcs.hh"
-#include "cmd_msg.hh"
-#include "stat_msg.hh"
+#include "libnml/rcs/rcs.hh"
+#include "libnml/nml/cmd_msg.hh"
+#include "libnml/nml/stat_msg.hh"
 #include "emcpos.h"
-#include "modal_state.hh"
+#include "emc/rs274ngc/modal_state.hh"
 #include "canon.hh"		// CANON_TOOL_TABLE, CANON_UNITS
-#include "rs274ngc.hh"		// ACTIVE_G_CODES, etc
+#include "emc/rs274ngc/rs274ngc.hh"		// ACTIVE_G_CODES, etc
 
 // ------------------
 // CLASS DECLARATIONS

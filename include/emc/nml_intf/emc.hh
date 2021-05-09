@@ -16,11 +16,11 @@
 #define EMC_HH
 
 #include "config.h"
-#include "emcmotcfg.h"		// EMC_JOINT_MAX, EMC_AXIS_MAX
-#include "nml_type.hh"
+#include "emc/motion/emcmotcfg.h"		// EMC_JOINT_MAX, EMC_AXIS_MAX
+#include "libnml/nml/nml_type.hh"
 #include "motion_types.h"
 #include <stdint.h>
-#include "modal_state.hh"
+#include "emc/rs274ngc/modal_state.hh"
 
 // Forward class declarations
 class EMC_JOINT_STAT;

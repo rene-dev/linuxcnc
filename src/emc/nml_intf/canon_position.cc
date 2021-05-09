@@ -12,9 +12,9 @@
  *
  ********************************************************************/
 
-#include "canon_position.hh"
+#include "emc/nml_intf/canon_position.hh"
 #include "math.h"
-#include "posemath.h"
+#include "libnml/posemath/posemath.h"
 
 static double noElement = 0.0;
 

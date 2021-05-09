@@ -19,8 +19,8 @@
 * along with this program; if not, write to the Free Software
 * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 ********************************************************************/
-#include "interp_base.hh"
-#include "modal_state.hh"
+#include "emc/rs274ngc/interp_base.hh"
+#include "emc/rs274ngc/modal_state.hh"
 #include <string.h>
 
 StateTag::StateTag(): flags(0)
