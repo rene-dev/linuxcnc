@@ -60,3 +60,8 @@ add_executable(hal_sampler components/sampler_usr.c)
 target_link_libraries(hal_sampler PRIVATE hal)
 get_uspace_config(hal_sampler)
 
+add_executable(halrmt utils/halrmt.c)
+target_link_libraries(halrmt PRIVATE hal)
+get_uspace_config(halrmt)
+
+
