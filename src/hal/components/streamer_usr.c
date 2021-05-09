@@ -65,9 +65,9 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "rtapi.h"		/* RTAPI realtime OS API */
-#include "hal.h"                /* HAL public API decls */
-#include "streamer.h"
+#include "rtapi/rtapi.h"		/* RTAPI realtime OS API */
+#include "hal/hal.h"                /* HAL public API decls */
+#include "hal/components/streamer.h"
 
 /***********************************************************************
 *                  LOCAL FUNCTION DECLARATIONS                         *

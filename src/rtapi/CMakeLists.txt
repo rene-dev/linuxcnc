@@ -2,10 +2,23 @@ set(CMAKE_INCLUDE_CURRENT_DIR True)
 
 add_library(mathstubs mathstubs.c)
 
+# use this function for everything that needs rtapi
+function(get_uspace_config tgt)
+    if(USE_USPACE)
+        target_link_libraries(${tgt} PRIVATE Threads::Threads)
+        target_compile_definitions(${tgt} PRIVATE ULAPI)
+    else(USE_USPACE)
+        target_compile_definitions(${tgt} PRIVATE RTAPI)
+    endif(USE_USPACE)
+endfunction()
+
 if(USE_RTAI)
     find_package(RTAI REQUIRED)
     set(RTAI_SOURCES rtapi/uspace_rtai.cc)
     add_library(uspace-rtai SHARED ${RTAI_SOURCES})
+    add_library(ulapi rtai_ulapi.c)
+    get_uspace_config(ulapi)
+    set_property(TARGET ulapi PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif(USE_RTAI)
 
 if(USE_PREEMPT_RT)
@@ -29,6 +42,10 @@ if(USE_PREEMPT_RT)
     else(BUILD_UDEV)
         target_compile_definitions(rtapi_app PRIVATE NO_LIBUDEV)
     endif(BUILD_UDEV)
+
+    add_library(ulapi uspace_ulapi.c)
+    get_uspace_config(ulapi)
+    set_property(TARGET ulapi PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif(USE_PREEMPT_RT)
 
 if(USE_XENOMAI)
@@ -38,4 +55,6 @@ if(USE_XENOMAI)
             )
     add_library(uspace-xenomai SHARED ${XENOMAI_SOURCES})
     set_property(TARGET uspace-xenomai PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+    add_library(ulapi rtapi/uspace_ulapi.c)
 endif(USE_XENOMAI)

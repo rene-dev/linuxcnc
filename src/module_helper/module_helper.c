@@ -51,7 +51,7 @@ char *module_whitelist[] = {
 /* module path must start with this. */
 
 char *path_whitelist[] = {
-    "/lib/modules", RTDIR, NULL,
+    "/lib/modules", NULL, NULL,
 
     NULL
 };
@@ -206,6 +206,8 @@ int main(int argc, char **argv) {
         perror("uname");
         return 1;
     }
+
+    path_whitelist[1] = RTDIR;
 
     res = snprintf(buf, sizeof(buf), "/usr/realtime-%s/modules", u.release);
     if(res < 0 || res >= sizeof(buf))

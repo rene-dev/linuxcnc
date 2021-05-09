@@ -17,8 +17,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <tcl.h>
-#include "halcmd.h"
+#include <tcl/tcl.h>
+#include "hal/utils/halcmd.h"
 
 Tcl_Interp *target_interp = NULL;
 static int pending_cr = 0;

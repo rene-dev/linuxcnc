@@ -1094,7 +1094,9 @@ int do_loadrt_cmd(char *mod_name, char *args[])
 #if defined(RTAPI_USPACE)
     argv[m++] = "-Wn";
     argv[m++] = mod_name;
-    argv[m++] = EMC2_BIN_DIR "/rtapi_app";
+    char s[1024];
+    snprintf(s, sizeof(s), "%s%s", EMC2_BIN_DIR, "/rtapi_app");
+    argv[m++] = s;
     argv[m++] = "load";
     argv[m++] = mod_name;
     /* loop thru remaining arguments */
@@ -1104,7 +1106,7 @@ int do_loadrt_cmd(char *mod_name, char *args[])
     argv[m++] = NULL;
     retval = do_loadusr_cmd(argv);
 #else
-    static char *rtmod_dir = EMC2_RTLIB_DIR;
+    const char *rtmod_dir = EMC2_RTLIB_DIR;
     struct stat stat_buf;
     char mod_path[MAX_CMD_LEN+1];
 
@@ -1137,8 +1139,9 @@ int do_loadrt_cmd(char *mod_name, char *args[])
         halcmd_error("Can't find module '%s' in %s\n", mod_name, rtmod_dir);
         return -1;
     }
-    
-    argv[0] = EMC2_BIN_DIR "/linuxcnc_module_helper";
+    char *bin_dir = malloc(1024*sizeof(char));
+    snprintf(bin_dir, 1024*sizeof(char), "%s%s", EMC2_BIN_DIR, "/linuxcnc_module_helper");
+    argv[0] = bin_dir;
     argv[1] = "insert";
     argv[2] = mod_path;
     /* loop thru remaining arguments */
@@ -1151,6 +1154,8 @@ int do_loadrt_cmd(char *mod_name, char *args[])
     argv[m] = NULL;
 
     retval = hal_systemv(argv);
+
+    free(bin_dir);
 #endif
 
     if ( retval != 0 ) {
@@ -1355,11 +1360,14 @@ static int unloadrt_comp(char *mod_name)
     int retval;
     char *argv[4];
 
+    char *s = malloc(1024*sizeof(char));
 #if defined(RTAPI_USPACE)
-    argv[0] = EMC2_BIN_DIR "/rtapi_app";
+    snprintf(s, 1024*sizeof(s), "%s%s", EMC2_BIN_DIR, "/rtapi_app");
+    argv[0] = s;
     argv[1] = "unload";
 #else
-    argv[0] = EMC2_BIN_DIR "/linuxcnc_module_helper";
+    snprintf(s, 1024*sizeof(char), "%s%s", EMC2_BIN_DIR, "/linuxcnc_module_helper");
+    argv[0] = s;
     argv[1] = "remove";
 #endif
     argv[2] = mod_name;
@@ -1375,6 +1383,8 @@ static int unloadrt_comp(char *mod_name)
     /* print success message */
     halcmd_info("Realtime module '%s' unloaded\n",
 	mod_name);
+
+    free(s);
     return 0;
 }
 

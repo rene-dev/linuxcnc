@@ -38,13 +38,13 @@
  */
 
 #include "config.h"
-#include "rtapi.h"
-#include "hal.h"
-#include "../hal_priv.h"
-#include "halcmd.h"
-#include "halcmd_commands.h"
-#include "halcmd_completion.h"
-#include <rtapi_mutex.h>
+#include "rtapi/rtapi.h"
+#include "hal/hal.h"
+#include "hal/hal_priv.h"
+#include "hal/utils/halcmd.h"
+#include "hal/utils/halcmd_commands.h"
+#include "hal/utils/halcmd_completion.h"
+#include <rtapi/rtapi_mutex.h>
 
 #include <stdio.h>
 #include <stdlib.h>
