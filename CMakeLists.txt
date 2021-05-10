@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.12)
 project(linuxcnc VERSION 2.9.0)
 
 include(CMakeDependentOption)
+include(CMakeDetermineSystem)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
@@ -20,14 +21,14 @@ set(BOOSTPYTHON CACHE STRING python${Python3_VERSION_MAJOR}${Python3_VERSION_MIN
 find_package(Boost COMPONENTS ${BOOSTPYTHON} REQUIRED)
 find_package(Intl REQUIRED)
 
-if(LINUX)
+if(${CMAKE_SYSTEM} MATCHES "Linux")
 find_package(TIRPC REQUIRED)
-else(LINUX)
+else()
 	# assume BSD
 	set(TIRPC_LIBRARIES "")
 	set(TIRPC_INCLUDE_DIRS "")
 	include_directories(/usr/local/include/)
-endif(LINUX)
+endif()
 
 find_package(Readline REQUIRED)
 find_package(TCL REQUIRED)
