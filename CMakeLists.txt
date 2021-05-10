@@ -157,6 +157,7 @@ add_compile_definitions(
 
 add_subdirectory(src/rtapi)
 add_subdirectory(src/hal)
+add_subdirectory(src/hal/components)
 add_subdirectory(src/hal/classicladder)
 add_subdirectory(src/libnml)
 add_subdirectory(src/libnml/inifile)
