@@ -17,7 +17,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <tcl/tcl.h>
+#include <tcl.h>
 #include "hal/utils/halcmd.h"
 
 Tcl_Interp *target_interp = NULL;

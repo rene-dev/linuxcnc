@@ -38,9 +38,11 @@ set(CLASSICLADDER_SOURCES
 
 add_executable(classicladder ${CLASSICLADDER_SOURCES})
 target_include_directories(classicladder PRIVATE ${GTK2_INCLUDE_DIRS})
+target_include_directories(classicladder PRIVATE ${Intl_INCLUDE_DIRS})
 target_link_libraries(classicladder PRIVATE hal)
 target_link_libraries(classicladder PRIVATE Threads::Threads)
 target_link_libraries(classicladder PRIVATE ${GTK2_LIBRARIES})
+target_link_libraries(classicladder PRIVATE ${Intl_LIBRARIES})
 target_compile_definitions(classicladder PRIVATE GTK_INTERFACE GTK2)
 get_uspace_config(classicladder)
 

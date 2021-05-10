@@ -27,6 +27,10 @@
 #include "emc/tooldata/tooldata.hh"
 #include <sys/poll.h>
 
+#ifdef __FreeBSD__
+#include <signal.h>
+#endif
+
 #define DB_VERSION "v1.0"
 #define UNEXPECTED_MSG fprintf(stderr,"UNEXPECTED %s %d\n",__FILE__,__LINE__);
 

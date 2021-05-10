@@ -47,9 +47,9 @@ set(HALSH_SOURCES
         )
 add_library(halsh SHARED ${HALSH_SOURCES})
 target_include_directories(halsh PRIVATE ${READLINE_INCLUDE})
-target_include_directories(halsh PRIVATE ${TCL_INCLUDE})
+target_include_directories(halsh PRIVATE ${TCL_INCLUDE_PATH})
 target_link_libraries(halsh PRIVATE ${READLINE_LIBRARIES})
-target_link_libraries(halsh PRIVATE ${TCL_LIBRARIES})
+target_link_libraries(halsh PRIVATE ${TCL_LIBRARY})
 get_uspace_config(halsh)
 
 add_executable(hal_streamer components/streamer_usr.c)
@@ -72,8 +72,10 @@ set(HALMETER_SOURCES
         )
 add_executable(halmeter ${HALMETER_SOURCES})
 target_include_directories(halmeter PRIVATE ${GTK2_INCLUDE_DIRS})
+target_include_directories(halmeter PRIVATE ${Intl_INCLUDE_DIRS})
 target_link_libraries(halmeter PRIVATE hal)
 target_link_libraries(halmeter PRIVATE ${GTK2_LIBRARIES})
+target_link_libraries(halmeter PRIVATE ${Intl_LIBRARIES})
 get_uspace_config(halmeter)
 
 set(HALSCOPE_SOURCES
@@ -87,9 +89,11 @@ set(HALSCOPE_SOURCES
         )
 add_executable(halscope ${HALSCOPE_SOURCES})
 target_include_directories(halscope PRIVATE ${GTK2_INCLUDE_DIRS})
+target_include_directories(halscope PRIVATE ${Intl_INCLUDE_DIRS})
 target_link_libraries(halscope PRIVATE hal)
 target_link_libraries(halscope PRIVATE m)
 target_link_libraries(halscope PRIVATE ${GTK2_LIBRARIES})
+target_link_libraries(halscope PRIVATE ${Intl_LIBRARIES})
 get_uspace_config(halscope)
 
 if(USE_RTAI)

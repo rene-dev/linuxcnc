@@ -8,34 +8,44 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
 include_directories("include/")
 
+# find external dependecies
+
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
+
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 
 set(BOOSTPYTHON CACHE STRING python${Python3_VERSION_MAJOR}${Python3_VERSION_MINOR})
 
 find_package(Boost COMPONENTS ${BOOSTPYTHON} REQUIRED)
+find_package(Intl REQUIRED)
+
 if(LINUX)
 find_package(TIRPC REQUIRED)
 else(LINUX)
+	# assume BSD
 	set(TIRPC_LIBRARIES "")
 	set(TIRPC_INCLUDE_DIRS "")
+	include_directories(/usr/local/include/)
 endif(LINUX)
-find_package(TCL REQUIRED)
+
 find_package(Readline REQUIRED)
+find_package(TCL REQUIRED)
 
 option(USE_GTK2 "compile some legacy GTK2 libraries" ON)
-
+if(USE_GTK2)
 find_package(GTK2 REQUIRED gtk)
-
+endif(USE_GTK2)
 find_package(GTK3 REQUIRED gtk)
+
+# specify default C compiler options
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED True)
 set(CMAKE_C_FLAGS -Wall)
 
-# specify the C++ standard
-# change to 20 as soon as possible
+# specify the default C++ compiler options
+# change standard to 20 as soon as possible
 # (need gcc8, gcc7 allows 17)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -49,6 +59,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 option(RUN_IN_PLACE "activate this if you want to execute linuxcnc in place, instead of installing it." ON)
 option(BUILD_UDEV "deactivate this if udev is not available. Was previously named --disable-userspace-pci." OFF)
 option(TOOL_NML "Use nml for tool data, default is mmap" ON)
+option(BUILD_PARPORT "whether to build parallel port support or not" ON)
 
 # realtime options
 option(USE_PREEMPT_RT "realtime layer preempt_rt used" ON)

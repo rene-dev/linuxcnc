@@ -17,7 +17,6 @@
 
 #include "config.h"
 
-#include <sys/fsuid.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -37,14 +36,16 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
-#include <sys/io.h>
 #include <sys/resource.h>
 #include <sys/mman.h>
 #include <malloc.h>
-#include <sys/prctl.h>
 
 #ifdef __FreeBSD__
 #include <pthread_np.h>
+#else
+#include <sys/fsuid.h>
+#include <sys/io.h>
+#include <sys/prctl.h>
 #endif
 
 #include "config.h"

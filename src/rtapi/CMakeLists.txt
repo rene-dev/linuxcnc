@@ -24,7 +24,6 @@ endif(USE_RTAI)
 if(USE_PREEMPT_RT)
     set(RTAPI_SOURCES
             uspace_rtapi_app.cc
-            uspace_rtapi_parport.cc
             uspace_rtapi_string.c
             rtapi_pci.cc
             )
@@ -37,6 +36,10 @@ if(USE_PREEMPT_RT)
     target_compile_options(rtapi_app PRIVATE -rdynamic)
     target_compile_definitions(rtapi_app PRIVATE SIM RTAPI)
     target_compile_definitions(mathstubs PRIVATE SIM RTAPI)
+            
+    if(BUILD_PARPORT)
+	    target_sources(rtapi_app PRIVATE uspace_rtapi_parport.cc)
+    endif(BUILD_PARPORT)
 
     if(BUILD_UDEV)
     else(BUILD_UDEV)

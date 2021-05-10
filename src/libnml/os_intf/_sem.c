@@ -30,6 +30,7 @@
    on Linux System V semaphores will be used instead.
 */
 
+#define _WANT_SEMUN
 #include <sys/sem.h>		/* struct sembuf */
 #include <math.h>		/* fmod() */
 #include <signal.h>
