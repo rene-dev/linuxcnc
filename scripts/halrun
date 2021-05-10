@@ -1,8 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 PATH=.:${PATH}
 THIS=$(basename $0)
 
+export EMC2_HOME_DIR=..
+export EMC2_BIN_DIR=.
+export EMC2_RTLIB_DIR=../lib/
 export HAL_RTMOD_DIR=../rtmodules/
 
 help () {
