@@ -12,10 +12,15 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 
-set(BOOSTPYTHON python${Python3_VERSION_MAJOR}${Python3_VERSION_MINOR})
+set(BOOSTPYTHON CACHE STRING python${Python3_VERSION_MAJOR}${Python3_VERSION_MINOR})
 
 find_package(Boost COMPONENTS ${BOOSTPYTHON} REQUIRED)
+if(LINUX)
 find_package(TIRPC REQUIRED)
+else(LINUX)
+	set(TIRPC_LIBRARIES "")
+	set(TIRPC_INCLUDE_DIRS "")
+endif(LINUX)
 find_package(TCL REQUIRED)
 find_package(Readline REQUIRED)
 
