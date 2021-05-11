@@ -440,7 +440,7 @@ static int master(int fd, vector<string> args) {
         perror("pthread_create (queue function)");
         return -1;
     }
-    do_load_cmd("libhal", vector<string>()); instance_count = 0;
+    do_load_cmd("libhal_rt", vector<string>()); instance_count = 0;
     App(); // force rtapi_app to be created
     int result=0;
     if(args.size()) {

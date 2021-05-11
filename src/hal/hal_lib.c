@@ -61,7 +61,7 @@
 #include "rtapi/rtapi_atomic.h"
 
 #ifdef RTAPI
-#include "rtapi_app.h"
+#include "rtapi/rtapi_app.h"
 /* module information */
 MODULE_AUTHOR("John Kasunich");
 MODULE_DESCRIPTION("Hardware Abstraction Layer for EMC");

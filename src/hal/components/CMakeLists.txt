@@ -22,7 +22,7 @@ function(build_component name src)
     # add_custom_command()
 endfunction()
 
-
+build_component(hal_rt ../hal_lib.c)
 build_component(boss_plc boss_plc.c)
 build_component(debounce debounce.c)
 build_component(encoder encoder.c)
