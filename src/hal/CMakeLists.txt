@@ -5,9 +5,8 @@ set(LIBHAL_SOURCES
         )
 
 add_library(hal SHARED ${LIBHAL_SOURCES})
-
+set_property(TARGET hal PROPERTY POSITION_INDEPENDENT_CODE ON)
 get_uspace_config(hal)
-target_link_libraries(hal PRIVATE rt)
 target_link_libraries(hal PRIVATE ulapi)
 
 set_property(TARGET hal PROPERTY POSITION_INDEPENDENT_CODE ON)

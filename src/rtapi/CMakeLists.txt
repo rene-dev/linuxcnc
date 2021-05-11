@@ -29,13 +29,19 @@ if(USE_PREEMPT_RT)
             )
 
     set_source_files_properties(rtapi_pci.cc PROPERTIES COMPILE_FLAGS -O0)
+    
+    add_library(rtapi_lib ${RTAPI_SOURCES})
+    target_link_libraries(rtapi_lib Threads::Threads)
+    target_link_libraries(rtapi_lib ${CMAKE_DL_LIBS})
+    target_compile_options(rtapi_lib PRIVATE -rdynamic)
+    target_compile_definitions(rtapi_lib PRIVATE SIM RTAPI)
+    set_property(TARGET rtapi_lib PROPERTY POSITION_INDEPENDENT_CODE ON)
 
     add_executable(rtapi_app ${RTAPI_SOURCES})
     target_link_libraries(rtapi_app Threads::Threads)
     target_link_libraries(rtapi_app ${CMAKE_DL_LIBS})
     target_compile_options(rtapi_app PRIVATE -rdynamic)
     target_compile_definitions(rtapi_app PRIVATE SIM RTAPI)
-    target_compile_definitions(mathstubs PRIVATE SIM RTAPI)
             
     if(BUILD_PARPORT)
 	    target_sources(rtapi_app PRIVATE uspace_rtapi_parport.cc)
@@ -49,6 +55,9 @@ if(USE_PREEMPT_RT)
     add_library(ulapi uspace_ulapi.c)
     get_uspace_config(ulapi)
     set_property(TARGET ulapi PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+    target_compile_definitions(mathstubs PRIVATE SIM RTAPI)
+    set_property(TARGET mathstubs PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif(USE_PREEMPT_RT)
 
 if(USE_XENOMAI)

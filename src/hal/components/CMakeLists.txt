@@ -3,7 +3,7 @@
 function(build_component name src)
     add_library(obj-${name} OBJECT ${src})
     set_property(TARGET obj-${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
-    target_compile_definitions(obj-${name} PRIVATE RTAPI)
+    target_compile_definitions(obj-${name} PRIVATE RTAPI USPACE __MODULE__)
 
     add_custom_command(OUTPUT ${name}.tmp
             COMMAND ld -r -s -o ${name}.tmp $<TARGET_OBJECTS:obj-${name}>
@@ -15,8 +15,8 @@ function(build_component name src)
     add_custom_target(${name}-ver ALL DEPENDS ${name}.ver)
 
     add_library(${name} SHARED $<TARGET_OBJECTS:obj-${name}>)
+    target_link_libraries(${name} PRIVATE rtapi_lib)
     add_dependencies(${name} ${name}-ver)
-    target_compile_definitions(${name} PRIVATE RTAPI)
     set_target_properties(${name} PROPERTIES LINK_FLAGS "-Bsymbolic -Wl,--version-script='${name}.ver'")
 
     # add_custom_command()
