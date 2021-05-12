@@ -17,9 +17,10 @@ function(build_component name src)
     add_library(${name} SHARED $<TARGET_OBJECTS:obj-${name}>)
     target_link_libraries(${name} PRIVATE rtapi_lib)
     add_dependencies(${name} ${name}-ver)
+    
+    set_target_properties(${name} PROPERTIES PREFIX "")
     set_target_properties(${name} PROPERTIES LINK_FLAGS "-Bsymbolic -Wl,--version-script='${name}.ver'")
-
-    # add_custom_command()
+    set_target_properties(${name} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/rtlib)
 endfunction()
 
 build_component(hal_rt ../hal_lib.c)

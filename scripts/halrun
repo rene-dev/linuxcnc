@@ -5,8 +5,8 @@ THIS=$(basename $0)
 
 export EMC2_HOME_DIR=..
 export EMC2_BIN_DIR=.
-export EMC2_RTLIB_DIR=../lib/
-export HAL_RTMOD_DIR=../rtmodules/
+export EMC2_RTLIB_DIR=../rtlib/
+export HAL_RTMOD_DIR=../rtlib/
 
 help () {
 halcmd -h

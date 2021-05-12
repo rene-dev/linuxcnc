@@ -131,10 +131,10 @@ static int instance_count = 0;
 static int force_exit = 0;
 
 static int do_newinst_cmd(string type, string name, string arg) {
-    void *module = modules["libhal_rt"];
+    void *module = modules["hal_rt"];
     if(!module) {
         rtapi_print_msg(RTAPI_MSG_ERR,
-                "newinst: libhal_rt is required, but not loaded\n");
+                "newinst: hal_rt is required, but not loaded\n");
         return -1;
     }
 
@@ -440,7 +440,7 @@ static int master(int fd, vector<string> args) {
         perror("pthread_create (queue function)");
         return -1;
     }
-    do_load_cmd("libhal_rt", vector<string>()); instance_count = 0;
+    do_load_cmd("hal_rt", vector<string>()); instance_count = 0;
     App(); // force rtapi_app to be created
     int result=0;
     if(args.size()) {
