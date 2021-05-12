@@ -131,10 +131,10 @@ static int instance_count = 0;
 static int force_exit = 0;
 
 static int do_newinst_cmd(string type, string name, string arg) {
-    void *module = modules["hal_lib"];
+    void *module = modules["libhal_rt"];
     if(!module) {
         rtapi_print_msg(RTAPI_MSG_ERR,
-                "newinst: hal_lib is required, but not loaded\n");
+                "newinst: libhal_rt is required, but not loaded\n");
         return -1;
     }
 
