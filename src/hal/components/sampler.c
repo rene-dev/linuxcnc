@@ -53,12 +53,12 @@
     information, go to www.linuxcnc.org.
 */
 
-#include "rtapi.h"              /* RTAPI realtime OS API */
-#include "rtapi_app.h"          /* RTAPI realtime module decls */
-#include "hal.h"                /* HAL public API decls */
-#include "streamer.h"		/* decls and such for fifos */
-#include "rtapi_errno.h"
-#include "rtapi_string.h"
+#include "rtapi/rtapi.h"              /* RTAPI realtime OS API */
+#include "rtapi/rtapi_app.h"          /* RTAPI realtime module decls */
+#include "hal/hal.h"                /* HAL public API decls */
+#include "hal/components/streamer.h"		/* decls and such for fifos */
+#include "rtapi/rtapi_errno.h"
+#include "rtapi/rtapi_string.h"
 
 /* module information */
 MODULE_AUTHOR("John Kasunich");

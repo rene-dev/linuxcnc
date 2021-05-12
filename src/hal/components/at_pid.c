@@ -120,10 +120,10 @@
  *
  ******************************************************************************/
 
-#include "rtapi.h"                      // RTAPI realtime OS API.
-#include "rtapi_app.h"                  // RTAPI realtime module decls.
-#include "rtapi_math.h"
-#include "hal.h"                        // HAL public API decls.
+#include "rtapi/rtapi.h"                      // RTAPI realtime OS API.
+#include "rtapi/rtapi_app.h"                  // RTAPI realtime module decls.
+#include "rtapi/rtapi_math.h"
+#include "hal/hal.h"                        // HAL public API decls.
 
 
 // Module information.

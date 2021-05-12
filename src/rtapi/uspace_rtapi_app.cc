@@ -530,6 +530,7 @@ become_master:
     if(get_fifo_path(addr.sun_path, sizeof(addr.sun_path)) < 0)
        exit(1);
     int result = ::bind(fd, (sockaddr*)&addr, sizeof(addr));
+    printf("fifopath %s result %d\n", addr.sun_path, result);
 
     if(result == 0) {
         int result = listen(fd, 10);

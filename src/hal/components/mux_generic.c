@@ -17,10 +17,10 @@
 
 // A generic/configurable multiplexer component
 
-#include "rtapi.h"
-#include "rtapi_app.h"
-#include "hal.h"
-#include "hal_priv.h"
+#include "rtapi/rtapi.h"
+#include "rtapi/rtapi_app.h"
+#include "hal/hal.h"
+#include "hal/hal_priv.h"
 
 #if !defined(__KERNEL__)
 #include <stdio.h>

@@ -1622,6 +1622,7 @@ static int doLoadUsr(char *args[])
 	exit(-1);
     }
     hal_ready(comp_id);
+
     if ( wait_comp_flag ) {
         int ready = 0, count=0;
         int next;
@@ -1634,6 +1635,8 @@ static int doLoadUsr(char *args[])
             rtapi_mutex_get(&(hal_data->mutex));
             next = hal_data->comp_list_ptr;
             while(next) {
+		fprintf(stderr, "next\n");
+		fflush(stderr);
                 hal_comp_t *comp = SHMPTR(next);
                 next = comp->next_ptr;
                 if(strcmp(comp->name, new_comp_name) == 0 && comp->ready) {
