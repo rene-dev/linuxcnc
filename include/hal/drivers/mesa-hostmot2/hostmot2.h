@@ -20,10 +20,10 @@
 #ifndef __HOSTMOT2_H
 #define __HOSTMOT2_H
 
-#include <rtapi_list.h>
+#include <rtapi/rtapi_list.h>
 
-#include "rtapi.h"
-#include "hal.h"
+#include "rtapi/rtapi.h"
+#include "hal/hal.h"
 #include "sserial.h"
 
 #include "hostmot2-lowlevel.h"

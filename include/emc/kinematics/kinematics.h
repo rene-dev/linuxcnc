@@ -15,7 +15,7 @@
 #ifndef KINEMATICS_H
 #define KINEMATICS_H
 
-#include "emcpos.h"		/* EmcPose */
+#include "emc/nml_intf/emcpos.h"		/* EmcPose */
 
 /*
   The type of kinematics used.

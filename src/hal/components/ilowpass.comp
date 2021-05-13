@@ -34,7 +34,7 @@ function _ "Update the output based on the input and parameters";
 license "GPL";
 author "Jeff Epler <jepler@unpythonic.net>";
 ;;
-#include <rtapi_math.h>
+#include <rtapi/rtapi_math.h>
 
 FUNCTION(_) {
     value += (in - value) * gain;

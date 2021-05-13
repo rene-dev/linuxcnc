@@ -32,7 +32,7 @@
 #define RTAPI_INIT_LIST_HEAD INIT_LIST_HEAD
 #else
 
-#include <rtapi.h>
+#include <rtapi/rtapi.h>
 
 RTAPI_BEGIN_DECLS
 

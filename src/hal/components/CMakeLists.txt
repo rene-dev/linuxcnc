@@ -1,34 +1,34 @@
 
 function(build_component name src)
-    add_library(obj-${name} OBJECT ${src})
-    set_property(TARGET obj-${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
-    target_compile_definitions(obj-${name} PRIVATE RTAPI USPACE __MODULE__)
+	add_library(obj-${name} OBJECT ${src})
+	set_property(TARGET obj-${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+	target_compile_definitions(obj-${name} PRIVATE RTAPI USPACE __MODULE__)
 
-    add_custom_command(OUTPUT ${name}.tmp
-            COMMAND ld -r -s -o ${name}.tmp $<TARGET_OBJECTS:obj-${name}>
-            DEPENDS obj-${name})
-    add_custom_command(OUTPUT ${name}.ver
-            COMMAND sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/generate_version_script.sh ${name}.tmp > ${name}.ver
-            DEPENDS ${name}.tmp scripts)
+	add_custom_command(OUTPUT ${name}.tmp
+		COMMAND ld -r -s -o ${name}.tmp $<TARGET_OBJECTS:obj-${name}>
+		DEPENDS obj-${name})
+	add_custom_command(OUTPUT ${name}.ver
+		COMMAND sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/generate_version_script.sh ${name}.tmp > ${name}.ver
+		DEPENDS ${name}.tmp scripts)
 
-    add_custom_target(${name}-ver ALL DEPENDS ${name}.ver)
+	add_custom_target(${name}-ver ALL DEPENDS ${name}.ver)
 
-    add_library(${name} SHARED $<TARGET_OBJECTS:obj-${name}>)
-    target_link_libraries(${name} PRIVATE rtapi_lib)
-    add_dependencies(${name} ${name}-ver)
-    
-    set_target_properties(${name} PROPERTIES PREFIX "")
-    set_target_properties(${name} PROPERTIES LINK_FLAGS "-Bsymbolic -Wl,--version-script='${name}.ver'")
-    set_target_properties(${name} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/rtlib)
+	add_library(${name} SHARED $<TARGET_OBJECTS:obj-${name}>)
+	target_link_libraries(${name} PRIVATE rtapi_lib)
+	add_dependencies(${name} ${name}-ver)
+
+	set_target_properties(${name} PROPERTIES PREFIX "")
+	set_target_properties(${name} PROPERTIES LINK_FLAGS "-Bsymbolic -Wl,--version-script='${name}.ver'")
+	set_target_properties(${name} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/rtlib)
 endfunction()
 
 function(compile_component name src)
-    get_filename_component(SRC_NAME ${src} NAME_WE)
-    add_custom_command(OUTPUT ${SRC_NAME}.c
-            COMMAND halcompile --preprocess -o ${SRC_NAME}.c ${src}
-            DEPENDS halcompile)
+	get_filename_component(SRC_NAME ${src} NAME_WE)
+	add_custom_command(OUTPUT ${SRC_NAME}.c
+		COMMAND ${Python3_EXECUTABLE} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/halcompile.py --preprocess -o ${SRC_NAME}.c ${CMAKE_CURRENT_SOURCE_DIR}/${src}
+		DEPENDS halcompile ${src})
 
-    build_component(${name} ${SRC_NAME})
+	build_component(${name} ${SRC_NAME})
 endfunction()
 
 build_component(hal_rt ../hal_lib.c)
@@ -56,32 +56,142 @@ build_component(streamer streamer.c)
 build_component(sampler sampler.c)
 
 set(CLASSICLADDER_RT_SOURCES
-        ../classicladder/module_hal.c
-        ../classicladder/arithm_eval.c
-        ../classicladder/arrays.c
-        ../classicladder/calc.c
-        ../classicladder/calc_sequential.c
-        ../classicladder/manager.c
-        ../classicladder/symbols.c
-        ../classicladder/vars_access.c
-        )
+	../classicladder/module_hal.c
+	../classicladder/arithm_eval.c
+	../classicladder/arrays.c
+	../classicladder/calc.c
+	../classicladder/calc_sequential.c
+	../classicladder/manager.c
+	../classicladder/symbols.c
+	../classicladder/vars_access.c
+	)
 
 build_component(classicladder_rt ${CLASSICLADDER_RT_SOURCES})
 
 if(${BUILD_PARPORT})
-    build_component(hal_parport ../drivers/hal_parport.c)
+	build_component(hal_parport ../drivers/hal_parport.c)
 endif()
 
 # drivers
 if(${CMAKE_SYSTEM} MATCHES "Linux")
-build_component(pci_8255 ../drivers/pci_8255.c)
-build_component(hal_tiro ../drivers/hal_tiro.c)
-build_component(hal_stg ../drivers/hal_stg.c)
-build_component(hal_vti ../drivers/hal_vti.c)
-build_component(hal_evoreg ../drivers/hal_evoreg.c)
-build_component(hal_motenc ../drivers/hal_motenc.c)
-build_component(hal_ax5214h ../drivers/hal_ax5214h.c)
-build_component(hal_speaker ../drivers/hal_speaker.c)
-build_component(hal_skeleton ../drivers/hal_skeleton.c)
-build_component(opto_ac5 ../drivers/opto_ac5.c)
+	build_component(pci_8255 ../drivers/pci_8255.c)
+	build_component(hal_tiro ../drivers/hal_tiro.c)
+	build_component(hal_stg ../drivers/hal_stg.c)
+	build_component(hal_vti ../drivers/hal_vti.c)
+	build_component(hal_evoreg ../drivers/hal_evoreg.c)
+	build_component(hal_motenc ../drivers/hal_motenc.c)
+	build_component(hal_ax5214h ../drivers/hal_ax5214h.c)
+	build_component(hal_speaker ../drivers/hal_speaker.c)
+	build_component(hal_skeleton ../drivers/hal_skeleton.c)
+	build_component(opto_ac5 ../drivers/opto_ac5.c)
 endif()
+
+compile_component(abs_s32 abs_s32.comp)
+compile_component(abs abs.comp)
+compile_component(and2 and2.comp)
+compile_component(axistest axistest.comp)
+compile_component(bin2gray bin2gray.comp)
+compile_component(biquad biquad.comp)
+compile_component(bitslice bitslice.comp)
+compile_component(bbitwise bitwise.comp)
+compile_component(bbldc bldc.comp)
+compile_component(bblend blend.comp)
+compile_component(bcarousel carousel.comp)
+compile_component(bcharge_pump charge_pump.comp)
+compile_component(bclarke2 clarke2.comp)
+compile_component(bclarke3 clarke3.comp)
+compile_component(bclarkeinv clarkeinv.comp)
+compile_component(bcomp comp.comp)
+compile_component(bconstant constant.comp)
+compile_component(bconv_bit_float conv_bit_float.comp)
+compile_component(bconv_bit_s32 conv_bit_s32.comp)
+compile_component(bconv_bit_u32 conv_bit_u32.comp)
+compile_component(bconv_float_s32 conv_float_s32.comp)
+compile_component(bconv_float_u32 conv_float_u32.comp)
+compile_component(bconv_s32_bit conv_s32_bit.comp)
+compile_component(bconv_s32_float conv_s32_float.comp)
+compile_component(bconv_s32_u32 conv_s32_u32.comp)
+compile_component(bconv_u32_bit conv_u32_bit.comp)
+compile_component(bconv_u32_float conv_u32_float.comp)
+compile_component(bconv_u32_s32 conv_u32_s32.comp)
+compile_component(bcorexy_by_hal corexy_by_hal.comp)
+compile_component(bdbounce dbounce.comp)
+compile_component(bddt ddt.comp)
+compile_component(bdeadzone deadzone.comp)
+compile_component(bdemux demux.comp)
+compile_component(bdifferential differential.comp)
+compile_component(bedge edge.comp)
+compile_component(beoffset_per_angle eoffset_per_angle.comp)
+compile_component(bestop_latch estop_latch.comp)
+compile_component(bfeedcomp feedcomp.comp)
+compile_component(bfilter_kalman filter_kalman.comp)
+compile_component(bflipflop flipflop.comp)
+compile_component(bgantry gantry.comp)
+compile_component(bgearchange gearchange.comp)
+compile_component(bgray2bin gray2bin.comp)
+compile_component(bhistobins histobins.comp)
+compile_component(bhypot hypot.comp)
+compile_component(bilowpass ilowpass.comp)
+compile_component(binteg integ.comp)
+compile_component(binvert invert.comp)
+compile_component(bjoyhandle joyhandle.comp)
+compile_component(bknob2float knob2float.comp)
+compile_component(blatencybins latencybins.comp)
+compile_component(blimit1 limit1.comp)
+compile_component(blimit2 limit2.comp)
+compile_component(blimit3 limit3.comp)
+compile_component(blincurve lincurve.comp)
+compile_component(blogic logic.comp)
+compile_component(blowpass lowpass.comp)
+compile_component(blut5 lut5.comp)
+compile_component(bmaj3 maj3.comp)
+compile_component(bmatch8 match8.comp)
+compile_component(bmax31855 max31855.comp)
+compile_component(bmesa_pktgyro_test mesa_pktgyro_test.comp)
+compile_component(bmessage message.comp)
+compile_component(bminmax minmax.comp)
+compile_component(bmoveoff moveoff.comp)
+compile_component(bmult2 mult2.comp)
+compile_component(bmulticlick multiclick.comp)
+compile_component(bmultiswitch multiswitch.comp)
+compile_component(bmux16 mux16.comp)
+compile_component(bmux2 mux2.comp)
+compile_component(bmux4 mux4.comp)
+compile_component(bmux8 mux8.comp)
+compile_component(bnear near.comp)
+compile_component(bnot not.comp)
+compile_component(boffset offset.comp)
+compile_component(bohmic ohmic.comp)
+compile_component(boneshot oneshot.comp)
+compile_component(bor2 or2.comp)
+compile_component(borient orient.comp)
+compile_component(bplasmac plasmac.comp)
+compile_component(bsample_hold sample_hold.comp)
+compile_component(bscale scale.comp)
+compile_component(bselect8 select8.comp)
+compile_component(bsim_axis_hardware sim_axis_hardware.comp)
+compile_component(bsim_home_switch sim_home_switch.comp)
+compile_component(bsim_matrix_kb sim_matrix_kb.comp)
+compile_component(bsim_parport sim_parport.comp)
+compile_component(bsim_spindle sim_spindle.comp)
+compile_component(bsimple_tp simple_tp.comp)
+compile_component(bsphereprobe sphereprobe.comp)
+compile_component(bspindle_monitor spindle_monitor.comp)
+compile_component(bspindle spindle.comp)
+compile_component(bsteptest steptest.comp)
+compile_component(bsum2 sum2.comp)
+compile_component(bthc thc.comp)
+compile_component(bthcud thcud.comp)
+compile_component(bthreadtest threadtest.comp)
+compile_component(btime time.comp)
+compile_component(btimedelay timedelay.comp)
+compile_component(btimedelta timedelta.comp)
+compile_component(btoggle toggle.comp)
+compile_component(btoggle2nist toggle2nist.comp)
+compile_component(btristate_bit tristate_bit.comp)
+compile_component(btristate_float tristate_float.comp)
+compile_component(bupdown updown.comp)
+compile_component(buserkins userkins.comp)
+compile_component(bwcomp wcomp.comp)
+compile_component(bxhc_hb04_util xhc_hb04_util.comp)
+compile_component(bxor2.comp xor2.comp)

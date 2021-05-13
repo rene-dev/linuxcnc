@@ -46,7 +46,7 @@ author "Joseph Calderon";
 
 ;;
 
-#include "rtapi_math.h"
+#include "rtapi/rtapi_math.h"
 
 static float accpoly(float *v, size_t n, float p) {
   int i;

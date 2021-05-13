@@ -31,7 +31,7 @@
 
 #else
 
-#include <rtapi.h>
+#include <rtapi/rtapi.h>
 #include <stdio.h>
 #include <stdarg.h>
 

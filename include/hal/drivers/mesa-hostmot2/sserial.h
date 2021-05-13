@@ -19,7 +19,7 @@
 #ifndef __SSERIAL_H
 #define __SSERIAL_H
 
-#include <rtapi_stdint.h>
+#include <rtapi/rtapi_stdint.h>
 #include "hostmot2.h"
 
 #define HM2_SSERIAL_TYPE_8I20               0x30324938  // '8i20' as 4 ascii

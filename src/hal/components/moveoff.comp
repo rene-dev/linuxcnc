@@ -158,7 +158,7 @@ function write_outputs "Write computed offset outputs\n(offset-current-M, pos-pl
 license "GPL";
 ;;
 
-#include "rtapi_math.h"
+#include "rtapi/rtapi_math.h"
 #define NCHANNELS         9
 #define NWAYPOINTS     1000
 #define TST_NWAYPOINTS   50

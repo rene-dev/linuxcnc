@@ -87,7 +87,7 @@ error:
     return -1;
 }
 
-#include "kinematics.h"
+#include "emc/kinematics/kinematics.h"
 EXPORT_SYMBOL(kinematicsType);
 EXPORT_SYMBOL(kinematicsInverse);
 EXPORT_SYMBOL(kinematicsForward);

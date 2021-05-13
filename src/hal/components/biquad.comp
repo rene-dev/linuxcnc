@@ -74,7 +74,7 @@ license "GPL";
 
 
 #include <float.h>
-#include <rtapi_math.h>
+#include <rtapi/rtapi_math.h>
 
 
 #define PI                      3.141592653589

@@ -18,7 +18,7 @@
 #ifndef RTAPI_MATH64_H
 #define RTAPI_MATH64_H
 
-#include <rtapi_stdint.h>
+#include <rtapi/rtapi_stdint.h>
 
 #ifdef __KERNEL__
 #include <linux/math64.h>

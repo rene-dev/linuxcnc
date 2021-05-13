@@ -103,7 +103,7 @@ function _;
 license "GPL";
 ;;
 
-#include <rtapi_math.h>
+#include <rtapi/rtapi_math.h>
 
 #define FINISH_DELAY 0
 #define TO_RAD       M_PI/180
