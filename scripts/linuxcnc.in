@@ -18,11 +18,11 @@
 ################################################################################
 
 # -1. Get all rip-environment items if we are RIP
-if test "xyes" = "x@RUN_IN_PLACE@"; then
-    if test "${EMC2_HOME:-}" != "@EMC2_HOME@"; then
-        exec @EMC2_HOME@/scripts/rip-environment linuxcnc "$@"
-    fi
-fi
+#if test "yes" = "@RUN_IN_PLACE@"; then
+#    if test "${EMC2_HOME:-}" != "@EMC2_HOME@"; then
+#        exec @EMC2_HOME@/scripts/rip-environment linuxcnc "$@"
+#    fi
+#fi
 
 ################################################################################
 # 0. Values that come from configure
@@ -30,12 +30,12 @@ fi
 prefix=@prefix@
 exec_prefix=@exec_prefix@
 
-PIDOF="@PIDOF@ -x"
-PS=@PS@
-AWK=@AWK@
-GREP=@GREP@
-IPCS=@IPCS@
-KILL=@KILL@
+PIDOF="pidof -x"
+PS=ps
+AWK=awk
+GREP=grep
+IPCS=ipcs
+KILL=kill
 
 LINUXCNC_HOME=@EMC2_HOME@; export LINUXCNC_HOME
 
@@ -148,25 +148,25 @@ do
 done
 shift $(($OPTIND-1))
 
-case "@KERNEL_VERS@" in
-"") ;;
-*)
-    if [ `uname -r` != "@KERNEL_VERS@" ]; then
-        if tty -s || [ -z "$DISPLAY" ]; then
-            echo "LinuxCNC requires the real-time kernel @KERNEL_VERS@ to run."
-            echo "Before running LinuxCNC, reboot and choose this kernel at the boot menu."
-        else
-            @WISH@ <<EOF
-                wm wi .
-                tk_messageBox -type ok \
-                    -title LinuxCNC -icon error -title "Realtime Kernel Required" \
-                    -message {LinuxCNC requires the real-time kernel @KERNEL_VERS@ to run.  Before running LinuxCNC, reboot and choose this kernel at the boot menu.}
-                exit
-EOF
-        fi
-        exit
-    fi
-esac
+#case "@KERNEL_VERS@" in
+#"") ;;
+#*)
+#    if [ `uname -r` != "@KERNEL_VERS@" ]; then
+#        if tty -s || [ -z "$DISPLAY" ]; then
+#            echo "LinuxCNC requires the real-time kernel @KERNEL_VERS@ to run."
+#            echo "Before running LinuxCNC, reboot and choose this kernel at the boot menu."
+#        else
+#            @WISH@ <<EOF
+#                wm wi .
+#                tk_messageBox -type ok \
+#                    -title LinuxCNC -icon error -title "Realtime Kernel Required" \
+#                    -message {LinuxCNC requires the real-time kernel @KERNEL_VERS@ to run.  Before running LinuxCNC, reboot and choose this kernel at the boot menu.}
+#                exit
+#EOF
+#        fi
+#        exit
+#    fi
+#esac
 
 if [ -z $RUNTESTS ]; then
 if ! tty -s; then
