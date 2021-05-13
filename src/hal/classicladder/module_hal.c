@@ -24,15 +24,15 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
-#include "rtapi.h"
-#include "rtapi_app.h"
-#include "rtapi_errno.h"
-#include "hal.h"
+#include "rtapi/rtapi.h"
+#include "rtapi/rtapi_app.h"
+#include "rtapi/rtapi_errno.h"
+#include "hal/hal.h"
 
-#include "classicladder.h"
-#include "global.h"
-#include "calc.h"
-#include "vars_access.h"
+#include "hal/classicladder/classicladder.h"
+#include "hal/classicladder/global.h"
+#include "hal/classicladder/calc.h"
+#include "hal/classicladder/vars_access.h"
 
 MODULE_LICENSE("LGPL");
 MODULE_AUTHOR("Marc Le Douarain");

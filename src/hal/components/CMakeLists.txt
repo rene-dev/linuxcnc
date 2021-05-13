@@ -1,5 +1,4 @@
 
-
 function(build_component name src)
     add_library(obj-${name} OBJECT ${src})
     set_property(TARGET obj-${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -24,9 +23,12 @@ function(build_component name src)
 endfunction()
 
 function(compile_component name src)
-    add_custom_command(OUTPUT ${name}.c
-            COMMAND halcompile -o ${src}.c ${src}
+    get_filename_component(SRC_NAME ${src} NAME_WE)
+    add_custom_command(OUTPUT ${SRC_NAME}.c
+            COMMAND halcompile -o ${SRC_NAME}.c ${src}
             DEPENDS halcompile)
+
+    build_component(${name} ${SRC_NAME})
 endfunction()
 
 build_component(hal_rt ../hal_lib.c)
@@ -52,46 +54,33 @@ build_component(modmath modmath.c)
 build_component(streamer streamer.c)
 build_component(sampler sampler.c)
 
+set(CLASSICLADDER_RT_SOURCES
+        ../classicladder/module_hal.c
+        ../classicladder/arithm_eval.c
+        ../classicladder/arrays.c
+        ../classicladder/calc.c
+        ../classicladder/calc_sequential.c
+        ../classicladder/manager.c
+        ../classicladder/symbols.c
+        ../classicladder/vars_access.c
+        )
 
-#obj-$(CONFIG_BOSS_PLC) += boss_plc.o
-#boss_plc-objs := hal/components/boss_plc.o $(MATHSTUB)
-#obj-$(CONFIG_DEBOUNCE) += debounce.o
-#debounce-objs := hal/components/debounce.o $(MATHSTUB)
-#obj-$(CONFIG_ENCODER) += encoder.o
-#encoder-objs := hal/components/encoder.o $(MATHSTUB)
-#obj-$(CONFIG_COUNTER) += counter.o
-#counter-objs := hal/components/counter.o $(MATHSTUB)
-#obj-$(CONFIG_ENCODER_RATIO) += encoder_ratio.o
-#encoder_ratio-objs := hal/components/encoder_ratio.o $(MATHSTUB)
-#obj-$(CONFIG_STEPGEN) += stepgen.o
-#stepgen-objs := hal/components/stepgen.o $(MATHSTUB)
-#obj-$(CONFIG_LCD) += lcd.o
-#lcd-objs := hal/components/lcd.o $(MATHSTUB)
-#obj-$(CONFIG_MATRIX_KB) += matrix_kb.o
-#matrix_kb-objs := hal/components/matrix_kb.o $(MATHSTUB)
-#obj-$(CONFIG_MUX_GENERIC) += mux_generic.o
-#mux_generic-objs := hal/components/mux_generic.o $(MATHSTUB)
-#obj-$(CONFIG_PWMGEN) += pwmgen.o
-#pwmgen-objs := hal/components/pwmgen.o $(MATHSTUB)
-#obj-$(CONFIG_SIGGEN) += siggen.o
-#siggen-objs := hal/components/siggen.o $(MATHSTUB)
-#obj-$(CONFIG_PID) += pid.o
-#pid-objs := hal/components/pid.o $(MATHSTUB)
-#obj-$(CONFIG_AT_PID) += at_pid.o
-#at_pid-objs := hal/components/at_pid.o $(MATHSTUB)
-#obj-$(CONFIG_PID) += threads.o
-#threads-objs := hal/components/threads.o $(MATHSTUB)
-#obj-$(CONFIG_SUPPLY) += supply.o
-#supply-objs := hal/components/supply.o $(MATHSTUB)
-#obj-$(CONFIG_SIM_ENCODER) += sim_encoder.o
-#sim_encoder-objs := hal/components/sim_encoder.o $(MATHSTUB)
-#obj-$(CONFIG_WEIGHTED_SUM) += weighted_sum.o
-#weighted_sum-objs := hal/components/weighted_sum.o $(MATHSTUB)
-#obj-$(CONFIG_WATCHDOG) += watchdog.o
-#watchdog-objs := hal/components/watchdog.o $(MATHSTUB)
-#obj-$(CONFIG_MODMATH) += modmath.o
-#modmath-objs := hal/components/modmath.o $(MATHSTUB)
-#obj-$(CONFIG_STREAMER) += streamer.o
-#streamer-objs := hal/components/streamer.o $(MATHSTUB)
-#obj-$(CONFIG_SAMPLER) += sampler.o
-#sampler-objs := hal/components/sampler.o $(MATHSTUB)
+build_component(classicladder_rt ${CLASSICLADDER_RT_SOURCES})
+
+if(${BUILD_PARPORT})
+    build_component(hal_parport ../drivers/hal_parport.c)
+endif()
+
+# drivers
+if(${CMAKE_SYSTEM} MATCHES "Linux")
+build_component(pci_8255 ../drivers/pci_8255.c)
+build_component(hal_tiro ../drivers/hal_tiro.c)
+build_component(hal_stg ../drivers/hal_stg.c)
+build_component(hal_vti ../drivers/hal_vti.c)
+build_component(hal_evoreg ../drivers/hal_evoreg.c)
+build_component(hal_motenc ../drivers/hal_motenc.c)
+build_component(hal_ax5214h ../drivers/hal_ax5214h.c)
+build_component(hal_speaker ../drivers/hal_speaker.c)
+build_component(hal_skeleton ../drivers/hal_skeleton.c)
+build_component(opto_ac5 ../drivers/opto_ac5.c)
+endif()
