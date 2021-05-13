@@ -25,13 +25,14 @@ endfunction()
 function(compile_component name src)
     get_filename_component(SRC_NAME ${src} NAME_WE)
     add_custom_command(OUTPUT ${SRC_NAME}.c
-            COMMAND halcompile -o ${SRC_NAME}.c ${src}
+            COMMAND halcompile --preprocess -o ${SRC_NAME}.c ${src}
             DEPENDS halcompile)
 
     build_component(${name} ${SRC_NAME})
 endfunction()
 
 build_component(hal_rt ../hal_lib.c)
+build_component(scope_rt ../utils/scope_rt.c)
 build_component(boss_plc boss_plc.c)
 build_component(debounce debounce.c)
 build_component(encoder encoder.c)
