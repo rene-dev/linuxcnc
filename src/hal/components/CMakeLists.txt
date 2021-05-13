@@ -68,24 +68,6 @@ set(CLASSICLADDER_RT_SOURCES
 
 build_component(classicladder_rt ${CLASSICLADDER_RT_SOURCES})
 
-if(${BUILD_PARPORT})
-	build_component(hal_parport ../drivers/hal_parport.c)
-endif()
-
-# drivers
-if(${CMAKE_SYSTEM} MATCHES "Linux")
-	build_component(pci_8255 ../drivers/pci_8255.c)
-	build_component(hal_tiro ../drivers/hal_tiro.c)
-	build_component(hal_stg ../drivers/hal_stg.c)
-	build_component(hal_vti ../drivers/hal_vti.c)
-	build_component(hal_evoreg ../drivers/hal_evoreg.c)
-	build_component(hal_motenc ../drivers/hal_motenc.c)
-	build_component(hal_ax5214h ../drivers/hal_ax5214h.c)
-	build_component(hal_speaker ../drivers/hal_speaker.c)
-	build_component(hal_skeleton ../drivers/hal_skeleton.c)
-	build_component(opto_ac5 ../drivers/opto_ac5.c)
-endif()
-
 compile_component(abs_s32 abs_s32.comp)
 compile_component(abs abs.comp)
 compile_component(and2 and2.comp)
@@ -195,3 +177,21 @@ compile_component(buserkins userkins.comp)
 compile_component(bwcomp wcomp.comp)
 compile_component(bxhc_hb04_util xhc_hb04_util.comp)
 compile_component(bxor2.comp xor2.comp)
+
+if(${BUILD_PARPORT})
+	build_component(hal_parport ../drivers/hal_parport.c)
+endif()
+
+# drivers
+if(${CMAKE_SYSTEM} MATCHES "Linux")
+	build_component(pci_8255 ../drivers/pci_8255.c)
+	build_component(hal_tiro ../drivers/hal_tiro.c)
+	build_component(hal_stg ../drivers/hal_stg.c)
+	build_component(hal_vti ../drivers/hal_vti.c)
+	build_component(hal_evoreg ../drivers/hal_evoreg.c)
+	build_component(hal_motenc ../drivers/hal_motenc.c)
+	build_component(hal_ax5214h ../drivers/hal_ax5214h.c)
+	build_component(hal_speaker ../drivers/hal_speaker.c)
+	build_component(hal_skeleton ../drivers/hal_skeleton.c)
+	build_component(opto_ac5 ../drivers/opto_ac5.c)
+endif()

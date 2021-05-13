@@ -105,6 +105,10 @@ add_compile_definitions(
         MODBUS_IO_MASTER
         )
 
+if(NOT ${BUILD_UDEV})
+    add_compile_definitions(NO_LIBUDEV)
+endif()
+
 # configure variables
 #if(${RUN_IN_PLACE})
 #    set(EMC2_HOME ${CMAKE_BINARY_DIR})
