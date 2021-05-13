@@ -23,6 +23,12 @@ function(build_component name src)
     set_target_properties(${name} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/rtlib)
 endfunction()
 
+function(compile_component name src)
+    add_custom_command(OUTPUT ${name}.c
+            COMMAND halcompile -o ${src}.c ${src}
+            DEPENDS halcompile)
+endfunction()
+
 build_component(hal_rt ../hal_lib.c)
 build_component(boss_plc boss_plc.c)
 build_component(debounce debounce.c)
