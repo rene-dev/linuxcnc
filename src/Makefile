@@ -178,7 +178,7 @@ SUBDIRS := \
     hal/user_comps/huanyang-vfd \
 	hal/user_comps/xhc-whb04b-6 \
     \
-    emc/usr_intf/axis emc/usr_intf/touchy emc/usr_intf/stepconf emc/usr_intf/pncconf \
+    emc/usr_intf/axis emc/usr_intf/touchy ../lib/python/stepconf emc/usr_intf/pncconf \
     emc/usr_intf/gremlin ../lib/python/gscreen emc/usr_intf/pyui emc/usr_intf/qtvcp \
     emc/usr_intf/gmoccapy emc/usr_intf/qtplasmac emc/usr_intf/mdro\
     emc/usr_intf emc/nml_intf emc/task emc/kinematics emc/tp emc/canterp \
