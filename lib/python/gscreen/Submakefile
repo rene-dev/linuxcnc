@@ -1,0 +1,14 @@
+GSCREEN_MODULES = mdi emc_interface preferences keybindings
+
+PYTARGETS += ../bin/gscreen ../lib/python/gscreen/__init__.py $(patsubst %,../lib/python/gscreen/%.py,$(GSCREEN_MODULES)) \
+	../share/linuxcnc/gscreen.glade \
+	../share/linuxcnc/gscreen2.glade
+PYI18NSRCS += emc/usr_intf/gscreen/gscreen.py $(patsubst %,../lib/python/gscreen/%.py,$(GSCREEN_MODULES)) \
+	emc/usr_intf/gscreen/gscreen.glade \
+	emc/usr_intf/gscreen/gscreen2.glade
+
+../bin/gscreen: ../lib/python/gscreen/gscreen.py
+	@$(ECHO) Syntax checking python script $(notdir $@)
+	$(Q)$(PYTHON) -m py_compile $<
+	$(ECHO) Copying python script $(notdir $@)
+	$(Q)(echo '#!$(PYTHON)'; sed '1 { /^#!/d; }' $<) > $@.tmp && chmod +x $@.tmp && mv -f $@.tmp $@
