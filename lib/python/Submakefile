@@ -1,0 +1,8 @@
+PYTARGETS += ../bin/gremlin ../lib/python/gremlin.py ../lib/python/qt5_graphics.py
+PYI18NSRCS += ../lib/python/gremlin.py
+
+../bin/gremlin: ../lib/python/gremlin_run.py
+        @$(ECHO) Syntax checking python script $(notdir $@)
+        $(Q)$(PYTHON) -m py_compile $<
+        $(ECHO) Copying python script $(notdir $@)
+        $(Q)(echo '#!$(PYTHON)'; sed '1 { /^#!/d; }' $<) > $@.tmp && chmod +x $@.tmp && mv -f $@.tmp $@
