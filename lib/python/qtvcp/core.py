@@ -5,7 +5,6 @@ import linuxcnc
 from gi.repository import GObject
 
 import inspect
-import _hal
 import hal
 import traceback
 from PyQt5.QtCore import QObject, QTimer, pyqtSignal
@@ -36,7 +35,7 @@ class Info(IStatParent):
 # Now that the class is defined create a reference to it for the other classes
 INI = Info()
 
-class QPin(hal.Pin, QObject):
+class QPin(QObject):
 
     value_changed = pyqtSignal('PyQt_PyObject')
     pinValueChanged = pyqtSignal('PyQt_PyObject','PyQt_PyObject')
@@ -44,11 +43,23 @@ class QPin(hal.Pin, QObject):
     REGISTRY = []
     UPDATE = False
 
-    def __init__(self, *a, **kw):
-        super(QPin, self).__init__(*a, **kw)
+    def set(self, value):
+        self.pin.set(value)
+
+    def get(self):
+        return self.pin.get()
+    
+    @property
+    def name(self):
+        return self.pin.name
+
+    @property
+    def value(self):
+        return self.pin.value
+
+    def __init__(self, pin):
         QObject.__init__(self, None)
-        self.hal = hal
-        self._item_wrap(self._item)
+        self.pin = pin
         self._prev = None
         self._prevDriven = None
         self.REGISTRY.append(self)
@@ -148,9 +159,9 @@ class _QHal(object):
 
     HAL_IN = hal.HAL_IN
     HAL_OUT = hal.HAL_OUT
-    HAL_IO = hal.HAL_IO
-    HAL_RO = hal.HAL_RO
-    HAL_RW = hal.HAL_RW
+    #HAL_IO = hal.HAL_IO
+    #HAL_RO = hal.HAL_RO
+    #HAL_RW = hal.HAL_RW
 
     def __new__(cls, *a, **kw):
         instance = super(_QHal, cls).__new__(cls)
@@ -169,7 +180,7 @@ class _QHal(object):
 
     def newpin(self, *a, **kw):
         try:
-            p = QPin(_hal.component.newpin(self.comp, *a, **kw))
+            p = QPin(hal.component.newpin(self.comp, *a, **kw))
         except ValueError as e:
             # if pin is already made, find a new name
             if 'Duplicate pin name' in '{}'.format(e):
@@ -181,10 +192,10 @@ class _QHal(object):
                     # this late in the game, component is probably already 'ready'
                     if self.hal.component_is_ready(self.comp.getprefix()):
                         self.comp.unready()
-                        p = QPin(_hal.component.newpin(self.comp, *a, **kw))
+                        p = QPin(hal.component.newpin(self.comp, *a, **kw))
                         self.comp.ready()
                     else:
-                        p = QPin(_hal.component.newpin(self.comp, *a, **kw))
+                        p = QPin(hal.component.newpin(self.comp, *a, **kw))
                 except Exception as e:
                     raise
         except Exception as e:
@@ -198,7 +209,7 @@ class _QHal(object):
         p.prefix = self.comp.getprefix()
         return p
 
-    def getpin(self, *a, **kw): return QPin(_hal.component.getpin(self.comp, *a, **kw))
+    def getpin(self, *a, **kw): return QPin(hal.component.getpin(self.comp, *a, **kw))
 
     def getvalue(self, name):
         try:
