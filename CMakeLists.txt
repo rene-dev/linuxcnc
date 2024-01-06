@@ -96,12 +96,6 @@ add_compile_definitions(
         EMC2_VERSION="3.0.0"
         PACKAGE_VERSION="3.0.0"
         HAVE_READLINE
-        SEQUENTIAL_SUPPORT
-        HAL_SUPPORT
-        DYNAMIC_PLCSIZE
-        RT_SUPPORT
-        OLD_TIMERS_MONOS_SUPPORT
-        MODBUS_IO_MASTER
 )
 
 if(NOT ${BUILD_UDEV})
