@@ -25,18 +25,6 @@ build_component(NAME sampler SOURCES sampler.c LIBS ulapi hal)
 
 #todo: userkfuncs
 
-build_component(NAME classicladder_rt SOURCES
-		../classicladder/module_hal.c
-		../classicladder/arithm_eval.c
-		../classicladder/arrays.c
-		../classicladder/calc.c
-		../classicladder/calc_sequential.c
-		../classicladder/manager.c
-		../classicladder/symbols.c
-		../classicladder/vars_access.c
-		LIBS ulapi hal
-		)
-
 compile_component(abs_s32 abs_s32.comp ON)
 compile_component(abs abs.comp ON)
 compile_component(and2 and2.comp ON)
