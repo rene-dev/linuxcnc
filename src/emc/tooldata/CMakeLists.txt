@@ -10,9 +10,11 @@ set_property(TARGET emc_tooldata PROPERTY POSITION_INDEPENDENT_CODE ON)
 if(${TOOL_NML})
     target_sources(emc_tooldata PRIVATE
             tooldata_nml.cc
-            )
+    )
 else()
-	#    message(FATAL_ERROR "unimplemented, please use nml.")
+    target_sources(emc_tooldata PRIVATE
+            tooldata_mmap.cc
+    )
 endif()
 
 add_executable(tooldata_watch tool_watch.cc)
