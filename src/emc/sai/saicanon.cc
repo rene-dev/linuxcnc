@@ -163,12 +163,12 @@ void SET_G92_OFFSET(double x, double y, double z,
 
 void USE_LENGTH_UNITS(CANON_UNITS in_unit)
 {
-  if (in_unit == CANON_UNITS_INCHES)
+  if (in_unit == CANON_UNITS::INCHES)
     {
       PRINT("USE_LENGTH_UNITS(CANON_UNITS_INCHES)\n");
-      if (_sai._length_unit_type == CANON_UNITS_MM)
+      if (_sai._length_unit_type == CANON_UNITS::MM)
         {
-          _sai._length_unit_type = CANON_UNITS_INCHES;
+          _sai._length_unit_type = CANON_UNITS::INCHES;
           _sai._length_unit_factor = 25.4;
 
           _sai._program_position_x /= 25.4;
@@ -184,12 +184,12 @@ void USE_LENGTH_UNITS(CANON_UNITS in_unit)
           _sai._g92_z /= 25.4;
         }
     }
-  else if (in_unit == CANON_UNITS_MM)
+  else if (in_unit == CANON_UNITS::MM)
     {
       PRINT("USE_LENGTH_UNITS(CANON_UNITS_MM)\n");
-      if (_sai._length_unit_type == CANON_UNITS_INCHES)
+      if (_sai._length_unit_type == CANON_UNITS::INCHES)
         {
-          _sai._length_unit_type = CANON_UNITS_MM;
+          _sai._length_unit_type = CANON_UNITS::MM;
           _sai._length_unit_factor = 1.0;
 
           _sai._program_position_x *= 25.4;
@@ -441,7 +441,7 @@ void STRAIGHT_PROBE(int line_number,
   _sai._probe_position_c = c; /*CC*/
   if (distance != 0)
     {
-      backoff = ((_sai._length_unit_type == CANON_UNITS_MM) ? 0.254 : 0.01);
+      backoff = ((_sai._length_unit_type == CANON_UNITS::MM) ? 0.254 : 0.01);
       _sai._program_position_x = (x + (backoff * (dx / distance)));
       _sai._program_position_y = (y + (backoff * (dy / distance)));
       _sai._program_position_z = (z + (backoff * (dz / distance)));
@@ -1144,7 +1144,7 @@ StandaloneInterpInternals::StandaloneInterpInternals() :
   _feed_rate(0.0),
   _flood(0),
   _length_unit_factor(1), /* 1 for MM 25.4 for inch */
-  _length_unit_type(CANON_UNITS_MM),
+  _length_unit_type(CANON_UNITS::MM),
   _line_number(1),
   _mist(0),
   _motion_mode(CANON_CONTINUOUS),

@@ -51,9 +51,9 @@ BOOST_PYTHON_MODULE(emccanon) {
             .export_values();
 
     enum_<CANON_UNITS>("CANON_UNITS")
-            .value("CANON_UNITS_INCHES", CANON_UNITS_INCHES)
-            .value("CANON_UNITS_MM", CANON_UNITS_MM)
-            .value("CANON_UNITS_CM", CANON_UNITS_CM)
+            .value("CANON_UNITS_INCHES", CANON_UNITS::INCHES)
+            .value("CANON_UNITS_MM", CANON_UNITS::MM)
+            .value("CANON_UNITS_CM", CANON_UNITS::CM)
             .export_values();
 
     enum_<CANON_MOTION_MODE>("CANON_MOTION_MODE")

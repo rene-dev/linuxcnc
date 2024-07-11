@@ -145,7 +145,7 @@ EMC_TASK_STAT_MSG(EMC_TASK_STAT_TYPE, sizeof(EMC_TASK_STAT))
     for (t = 0; t < ACTIVE_SETTINGS; t++)
 	activeSettings[t] = 0.0;
 
-    programUnits = CANON_UNITS_MM;
+    programUnits = CANON_UNITS::MM;
     interpreter_errcode = 0;
     task_paused = 0;
     delayLeft = 0.0;

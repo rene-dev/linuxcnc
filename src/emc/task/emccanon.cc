@@ -107,11 +107,11 @@ void UPDATE_TAG(StateTag tag) {
 #define FROM_EXT_ANG(ext) ((ext) / GET_EXTERNAL_ANGLE_UNITS())
 
 /* macros for converting internal (mm/deg) units to program units */
-#define TO_PROG_LEN(mm) ((mm) / (canon.lengthUnits == CANON_UNITS_INCHES ? 25.4 : canon.lengthUnits == CANON_UNITS_CM ? 10.0 : 1.0))
+#define TO_PROG_LEN(mm) ((mm) / (canon.lengthUnits == CANON_UNITS::INCHES ? 25.4 : canon.lengthUnits == CANON_UNITS::CM ? 10.0 : 1.0))
 #define TO_PROG_ANG(deg) (deg)
 
 /* macros for converting program units to internal (mm/deg) units */
-#define FROM_PROG_LEN(prog) ((prog) * (canon.lengthUnits == CANON_UNITS_INCHES ? 25.4 : canon.lengthUnits == CANON_UNITS_CM ? 10.0 : 1.0))
+#define FROM_PROG_LEN(prog) ((prog) * (canon.lengthUnits == CANON_UNITS::INCHES ? 25.4 : canon.lengthUnits == CANON_UNITS::CM ? 10.0 : 1.0))
 #define FROM_PROG_ANG(prog) (prog)
 
 /* Certain axes are periodic.  Hardcode this for now */
@@ -2713,7 +2713,7 @@ auto SPINDLE_SPEED_(int s, int dir, double speed)
 
     emc_spindle_msg->spindle = s;
     if(canon.spindle[s].css_maximum) {
-        if(canon.lengthUnits == CANON_UNITS_INCHES){
+        if(canon.lengthUnits == CANON_UNITS::INCHES){
             canon.spindle[s].css_factor = 12 / (2 * M_PI) * canon.spindle[s].speed * TO_EXT_LEN(25.4);
         } else {
             canon.spindle[s].css_factor = 1000 / (2 * M_PI) * canon.spindle[s].speed * TO_EXT_LEN(1);
@@ -3366,16 +3366,16 @@ void INIT_CANON()
        accordingly. If it doesn't match, we have an error. */
     units = GET_EXTERNAL_LENGTH_UNITS();
     if (fabs(units - 1.0 / 25.4) < 1.0e-3) {
-	canon.lengthUnits = CANON_UNITS_INCHES;
+	canon.lengthUnits = CANON_UNITS::INCHES;
     } else if (fabs(units - 1.0) < 1.0e-3) {
-	canon.lengthUnits = CANON_UNITS_MM;
+	canon.lengthUnits = CANON_UNITS::MM;
     } else {
 	CANON_ERROR
 	    ("non-standard length units, setting interpreter to mm");
-	canon.lengthUnits = CANON_UNITS_MM;
+	canon.lengthUnits = CANON_UNITS::MM;
     }
     /* Set blending tolerance default depending on units machine is based on*/
-    if (canon.lengthUnits == CANON_UNITS_INCHES) {
+    if (canon.lengthUnits == CANON_UNITS::INCHES) {
         SET_MOTION_CONTROL_MODE(CANON_CONTINUOUS, .001);
     } else {
         SET_MOTION_CONTROL_MODE(CANON_CONTINUOUS,  .001 * MM_PER_INCH);

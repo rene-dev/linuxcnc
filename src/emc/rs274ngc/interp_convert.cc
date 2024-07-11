@@ -1128,11 +1128,11 @@ int Interp::convert_arc2(int move,       //!< either G_2 (cw arc) or G_3 (ccw ar
   CANON_PLANE plane = settings->plane;
 
   // Spiral tolerance is the amount of "spiral" allowed in a given arc segment, or (r2-r1)/theta
-  double spiral_abs_tolerance = (settings->length_units == CANON_UNITS_INCHES) ?
+  double spiral_abs_tolerance = (settings->length_units == CANON_UNITS::INCHES) ?
     settings->center_arc_radius_tolerance_inch : settings->center_arc_radius_tolerance_mm;
 
   // Radius tolerance allows a bit of leeway on the minimum radius for a radius defined arc.
-  double radius_tolerance = (settings->length_units == CANON_UNITS_INCHES) ?
+  double radius_tolerance = (settings->length_units == CANON_UNITS::INCHES) ?
     RADIUS_TOLERANCE_INCH : RADIUS_TOLERANCE_MM;
 
   if (block->r_flag) {
@@ -1213,8 +1213,8 @@ int Interp::convert_arc_comp1(int move,  //!< either G_2 (cw arc) or G_3 (ccw ar
     side = settings->cutter_comp_side;
     tool_radius = settings->cutter_comp_radius;   /* always is positive */
 
-    double spiral_abs_tolerance = (settings->length_units == CANON_UNITS_INCHES) ? settings->center_arc_radius_tolerance_inch : settings->center_arc_radius_tolerance_mm;
-    double radius_tolerance = (settings->length_units == CANON_UNITS_INCHES) ? RADIUS_TOLERANCE_INCH : RADIUS_TOLERANCE_MM;
+    double spiral_abs_tolerance = (settings->length_units == CANON_UNITS::INCHES) ? settings->center_arc_radius_tolerance_inch : settings->center_arc_radius_tolerance_mm;
+    double radius_tolerance = (settings->length_units == CANON_UNITS::INCHES) ? RADIUS_TOLERANCE_INCH : RADIUS_TOLERANCE_MM;
 
     comp_get_current(settings, &cx, &cy, &cz);
 
@@ -1369,8 +1369,8 @@ int Interp::convert_arc_comp2(int move,  //!< either G_2 (cw arc) or G_3 (ccw ar
     double cx, cy, cz;
     double new_end_x, new_end_y;
 
-    double spiral_abs_tolerance = (settings->length_units == CANON_UNITS_INCHES) ? settings->center_arc_radius_tolerance_inch : settings->center_arc_radius_tolerance_mm;
-    double radius_tolerance = (settings->length_units == CANON_UNITS_INCHES) ? RADIUS_TOLERANCE_INCH : RADIUS_TOLERANCE_MM;
+    double spiral_abs_tolerance = (settings->length_units == CANON_UNITS::INCHES) ? settings->center_arc_radius_tolerance_inch : settings->center_arc_radius_tolerance_mm;
+    double radius_tolerance = (settings->length_units == CANON_UNITS::INCHES) ? RADIUS_TOLERANCE_INCH : RADIUS_TOLERANCE_MM;
 
     /* find basic arc data: center_x, center_y, and turn */
 
@@ -3258,9 +3258,9 @@ int Interp::convert_length_units(int g_code,     //!< g_code being executed (mus
                                 setup_pointer settings) //!< pointer to machine settings
 {
   if (g_code == G_20) {
-    USE_LENGTH_UNITS(CANON_UNITS_INCHES);
-    if (settings->length_units != CANON_UNITS_INCHES) {
-      settings->length_units = CANON_UNITS_INCHES;
+    USE_LENGTH_UNITS(CANON_UNITS::INCHES);
+    if (settings->length_units != CANON_UNITS::INCHES) {
+      settings->length_units = CANON_UNITS::INCHES;
       settings->current_x = (settings->current_x * INCH_PER_MM);
       settings->current_y = (settings->current_y * INCH_PER_MM);
       settings->current_z = (settings->current_z * INCH_PER_MM);
@@ -3301,9 +3301,9 @@ int Interp::convert_length_units(int g_code,     //!< g_code being executed (mus
 	  GET_EXTERNAL_MOTION_CONTROL_NAIVECAM_TOLERANCE();
     }
   } else if (g_code == G_21) {
-    USE_LENGTH_UNITS(CANON_UNITS_MM);
-    if (settings->length_units != CANON_UNITS_MM) {
-      settings->length_units = CANON_UNITS_MM;
+    USE_LENGTH_UNITS(CANON_UNITS::MM);
+    if (settings->length_units != CANON_UNITS::MM) {
+      settings->length_units = CANON_UNITS::MM;
       settings->current_x = (settings->current_x * MM_PER_INCH);
       settings->current_y = (settings->current_y * MM_PER_INCH);
       settings->current_z = (settings->current_z * MM_PER_INCH);

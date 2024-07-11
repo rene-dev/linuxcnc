@@ -27,7 +27,7 @@
 #include "posemath.h"		// PM_POSE, TO_RAD
 #include "emc.hh"		// EMC NML
 #include "emc_nml.hh"		// EMC NML
-#include "canon.hh"		// CANON_UNITS, CANON_UNITS_INCHES,MM,CM
+#include "canon.hh"		// CANON_UNITS, CANON_UNITS::INCHES,MM,CM
 #include "emcglb.h"		// EMC_NMLFILE, TRAJ_MAX_VELOCITY, etc.
 #include "emccfg.h"		// DEFAULT_TRAJ_MAX_VELOCITY
 #include "inifile.hh"		// INIFILE
@@ -2372,17 +2372,17 @@ static int emc_program_linear_units(ClientData clientdata,
     }
 
     switch (emcStatus->task.programUnits) {
-    case CANON_UNITS_INCHES:
+    case CANON_UNITS::INCHES:
 	setresult(interp,"inch");
 	return TCL_OK;
 	break;
 
-    case CANON_UNITS_MM:
+    case CANON_UNITS::MM:
 	setresult(interp,"mm");
 	return TCL_OK;
 	break;
 
-    case CANON_UNITS_CM:
+    case CANON_UNITS::CM:
 	setresult(interp,"cm");
 	return TCL_OK;
 	break;
@@ -2516,13 +2516,13 @@ static int emc_display_linear_units(ClientData clientdata,
 	break;
     case LINEAR_UNITS_AUTO:
 	switch (emcStatus->task.programUnits) {
-	case CANON_UNITS_MM:
+	case CANON_UNITS::MM:
 	    setresult(interp,"(mm)");
 	    break;
-	case CANON_UNITS_INCHES:
+	case CANON_UNITS::INCHES:
 	    setresult(interp,"(inch)");
 	    break;
-	case CANON_UNITS_CM:
+	case CANON_UNITS::CM:
 	    setresult(interp,"(cm)");
 	    break;
 	}

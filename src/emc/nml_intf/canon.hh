@@ -80,11 +80,11 @@ enum class CANON_PLANE {
     UW,
 };
 
-enum CANON_UNITS
+enum class CANON_UNITS
 {
-    CANON_UNITS_INCHES = 1,
-    CANON_UNITS_MM,
-    CANON_UNITS_CM,
+    INCHES = 1,
+    MM,
+    CM,
 };
 
 enum CANON_MOTION_MODE

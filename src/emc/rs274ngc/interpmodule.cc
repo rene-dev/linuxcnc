@@ -690,7 +690,7 @@ static inline int get_input_index (Interp &interp)  {
 static inline void set_input_index(Interp &interp, int value)  {
     interp._setup.input_index = value;
 }
-static inline int get_length_units (Interp &interp)  {
+static inline CANON_UNITS get_length_units (Interp &interp)  {
     return interp._setup.length_units;
 }
 static inline void set_length_units(Interp &interp, int value)  {

@@ -309,15 +309,15 @@ int Canterp::execute(const char *line) {
 
     if (!strcmp(the_command_name, "USE_LENGTH_UNITS")) {
 	if (!strcmp(the_command_args, "CANON_UNITS_MM")) {
-	    USE_LENGTH_UNITS(CANON_UNITS_MM);
+	    USE_LENGTH_UNITS(CANON_UNITS::MM);
 	    return 0;
 	}
 	if (!strcmp(the_command_args, "CANON_UNITS_CM")) {
-	    USE_LENGTH_UNITS(CANON_UNITS_MM);
+	    USE_LENGTH_UNITS(CANON_UNITS::MM);
 	    return 0;
 	}
 	if (!strcmp(the_command_args, "CANON_UNITS_INCHES")) {
-	    USE_LENGTH_UNITS(CANON_UNITS_INCHES);
+	    USE_LENGTH_UNITS(CANON_UNITS::INCHES);
 	    return 0;
 	}
 	return INTERP_ERROR;

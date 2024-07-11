@@ -89,7 +89,7 @@ setup::setup() :
     filename{},
     file_pointer(NULL),
     flood(0),
-    length_units(CANON_UNITS_INCHES),
+    length_units(CANON_UNITS::INCHES),
     line_length(0),
     linetext{},
     mist(0),

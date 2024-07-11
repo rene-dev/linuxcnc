@@ -99,7 +99,7 @@ int Interp::write_g_codes(block_pointer block,   //!< pointer to a block of RS27
   settings->active_g_codes[4] =
     (settings->cutter_comp_side == CUTTER_COMP::RIGHT) ? G_42 :
     (settings->cutter_comp_side == CUTTER_COMP::LEFT) ? G_41 : G_40;
-  settings->active_g_codes[5] = (settings->length_units == CANON_UNITS_INCHES) ? G_20 : G_21;
+  settings->active_g_codes[5] = (settings->length_units == CANON_UNITS::INCHES) ? G_20 : G_21;
   settings->active_g_codes[6] = (settings->distance_mode == DISTANCE_MODE::ABSOLUTE) ? G_90 : G_91;
   settings->active_g_codes[7] = (settings->feed_mode == FEED_MODE::INVERSE_TIME) ? G_93 :
 	                        (settings->feed_mode == FEED_MODE::UNITS_PER_MINUTE) ? G_94 : G_95;
@@ -259,7 +259,7 @@ int Interp::write_state_tag(block_pointer block,
 	(settings->cutter_comp_side == CUTTER_COMP::LEFT) ? G_41 : G_40;
 
     state.flags[GM_FLAG_UNITS] =
-	(settings->length_units == CANON_UNITS_INCHES);
+	(settings->length_units == CANON_UNITS::INCHES);
 
     state.flags[GM_FLAG_DISTANCE_MODE] =
 	(settings->distance_mode == DISTANCE_MODE::ABSOLUTE);

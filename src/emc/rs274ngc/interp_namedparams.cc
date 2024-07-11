@@ -541,11 +541,11 @@ int Interp::lookup_named_param(const char *nameBuf,
 	break;
 
     case NP_METRIC: // _metric
-	*value = (_setup.length_units == CANON_UNITS_MM);
+	*value = (_setup.length_units == CANON_UNITS::MM);
 	break;
 
     case NP_IMPERIAL: // _imperial
-	*value = (_setup.length_units == CANON_UNITS_INCHES);
+	*value = (_setup.length_units == CANON_UNITS::INCHES);
 	break;
 
     case NP_ABSOLUTE: // _absolute - distance mode

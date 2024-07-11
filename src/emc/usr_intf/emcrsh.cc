@@ -2381,9 +2381,9 @@ static cmdResponseType getJointUnits(connectionRecType *context)
 static cmdResponseType getProgramLinearUnits(connectionRecType *context)
 {
   switch (emcStatus->task.programUnits) {
-    case CANON_UNITS_INCHES: OUT("PROGRAM_UNITS INCH"); break;
-    case CANON_UNITS_MM: OUT("PROGRAM_UNITS MM"); break;
-    case CANON_UNITS_CM: OUT("PROGRAM_UNITS CM"); break;
+    case CANON_UNITS::INCHES: OUT("PROGRAM_UNITS INCH"); break;
+    case CANON_UNITS::MM: OUT("PROGRAM_UNITS MM"); break;
+    case CANON_UNITS::CM: OUT("PROGRAM_UNITS CM"); break;
     default: OUT("PROGRAM_UNITS CUSTOM"); break;
     }
   return rtNoError;
@@ -2433,9 +2433,9 @@ static cmdResponseType getDisplayLinearUnits(connectionRecType *context)
       case LINEAR_UNITS_CM: OUT("DISPLAY_LINEAR_UNITS CM"); break;
       case LINEAR_UNITS_AUTO: 
         switch (emcStatus->task.programUnits) {
-	        case CANON_UNITS_MM: OUT("DISPLAY_LINEAR_UNITS MM"); break;
-	        case CANON_UNITS_INCHES: OUT("DISPLAY_LINEAR_UNITS INCH"); break;
-	        case CANON_UNITS_CM: OUT("DISPLAY_LINEAR_UNITS CM"); break;
+	        case CANON_UNITS::MM: OUT("DISPLAY_LINEAR_UNITS MM"); break;
+	        case CANON_UNITS::INCHES: OUT("DISPLAY_LINEAR_UNITS INCH"); break;
+	        case CANON_UNITS::CM: OUT("DISPLAY_LINEAR_UNITS CM"); break;
 	        default: OUT("DISPLAY_LINEAR_UNITS CUSTOM");
 	      }
         break;

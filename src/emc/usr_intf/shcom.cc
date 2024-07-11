@@ -32,7 +32,7 @@
 #include "posemath.h"		// PM_POSE, TO_RAD
 #include "emc.hh"		// EMC NML
 #include "emc_nml.hh"
-#include "canon.hh"		// CANON_UNITS, CANON_UNITS_INCHES,MM,CM
+#include "canon.hh"		// CANON_UNITS, CANON_UNITS::INCHES,MM,CM
 #include "emcglb.h"		// EMC_NMLFILE, TRAJ_MAX_VELOCITY, etc.
 #include "emccfg.h"		// DEFAULT_TRAJ_MAX_VELOCITY
 #include "inifile.hh"		// INIFILE
@@ -378,13 +378,13 @@ double convertLinearUnits(double u)
 	break;
     case LINEAR_UNITS_AUTO:
 	switch (emcStatus->task.programUnits) {
-	case CANON_UNITS_MM:
+	case CANON_UNITS::MM:
 	    return in_mm;
 	    break;
-	case CANON_UNITS_INCHES:
+	case CANON_UNITS::INCHES:
 	    return in_mm * INCH_PER_MM;
 	    break;
-	case CANON_UNITS_CM:
+	case CANON_UNITS::CM:
 	    return in_mm * CM_PER_MM;
 	    break;
 	}
