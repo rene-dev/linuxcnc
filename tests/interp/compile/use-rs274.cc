@@ -198,7 +198,7 @@ int UNLOCK_ROTARY(int line_no, int axis) { return 0; }
 int LOCK_ROTARY(int line_no, int axis) { return 0; }
 double GET_EXTERNAL_FEED_RATE() { return 0.0; }
 int GET_EXTERNAL_FLOOD() { return 0; }
-CANON_UNITS GET_EXTERNAL_LENGTH_UNIT_TYPE() { return CANON_UNITS_MM; }
+CANON_UNITS GET_EXTERNAL_LENGTH_UNIT_TYPE() { return CANON_UNITS::MM; }
 double GET_EXTERNAL_LENGTH_UNITS() { return 0.0; }
 double GET_EXTERNAL_ANGLE_UNITS() { return 0.0; }
 int GET_EXTERNAL_MIST() { return 0; }
