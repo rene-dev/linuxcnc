@@ -648,15 +648,15 @@ int Canterp::execute(const char *line) {
 
     if (!strcmp(the_command_name, "SET_MOTION_CONTROL_MODE")) {
 	if (!strcmp(the_command_args, "CANON_EXACT_PATH")) {
-	    SET_MOTION_CONTROL_MODE(CANON_EXACT_PATH, 0);
+	    SET_MOTION_CONTROL_MODE(CANON_MOTION_MODE::EXACT_PATH, 0);
 	    return 0;
 	}
 	if (!strcmp(the_command_args, "CANON_EXACT_STOP")) {
-	    SET_MOTION_CONTROL_MODE(CANON_EXACT_STOP, 0);
+	    SET_MOTION_CONTROL_MODE(CANON_MOTION_MODE::EXACT_STOP, 0);
 	    return 0;
 	}
 	if (!strcmp(the_command_args, "CANON_CONTINUOUS")) {
-	    SET_MOTION_CONTROL_MODE(CANON_CONTINUOUS, 0);
+	    SET_MOTION_CONTROL_MODE(CANON_MOTION_MODE::CONTINUOUS, 0);
 	    return 0;
 	}
 	return INTERP_ERROR;

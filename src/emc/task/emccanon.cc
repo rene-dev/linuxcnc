@@ -961,7 +961,7 @@ linkable(double x, double y, double z,
          double a, double b, double c, 
          double u, double v, double w) {
     struct pt &pos = chained_points.back();
-    if(canon.motionMode != CANON_CONTINUOUS || canon.naivecamTolerance == 0)
+    if(canon.motionMode != CANON_MOTION_MODE::CONTINUOUS || canon.naivecamTolerance == 0)
         return false;
     //FIXME make this length controlled elsewhere?
     if(chained_points.size() > 100) return false;
@@ -1187,15 +1187,15 @@ void SET_MOTION_CONTROL_MODE(CANON_MOTION_MODE mode, double tolerance)
     canon.motionTolerance =  FROM_PROG_LEN(tolerance);
 
     switch (mode) {
-    case CANON_CONTINUOUS:
+    case CANON_MOTION_MODE::CONTINUOUS:
         setTermCondMsg->cond = EMC_TRAJ_TERM_COND_BLEND;
         setTermCondMsg->tolerance = TO_EXT_LEN(canon.motionTolerance);
         break;
-    case CANON_EXACT_PATH:
+    case CANON_MOTION_MODE::EXACT_PATH:
         setTermCondMsg->cond = EMC_TRAJ_TERM_COND_EXACT;
         break;
 
-    case CANON_EXACT_STOP:
+    case CANON_MOTION_MODE::EXACT_STOP:
     default:
         setTermCondMsg->cond = EMC_TRAJ_TERM_COND_STOP;
         break;
@@ -2325,7 +2325,7 @@ void ARC_FEED(int line_number,
 	canon_debug("line = %d\n", line_number);
 	canon_debug("first_end = %f, second_end = %f\n", first_end,second_end);
 
-    if( canon.activePlane == CANON_PLANE::XY && canon.motionMode == CANON_CONTINUOUS) {
+    if( canon.activePlane == CANON_PLANE::XY && canon.motionMode == CANON_MOTION_MODE::CONTINUOUS) {
 		double mx, my;
 		double lx, ly, lz;
 		double unused = 0;
@@ -3376,9 +3376,9 @@ void INIT_CANON()
     }
     /* Set blending tolerance default depending on units machine is based on*/
     if (canon.lengthUnits == CANON_UNITS::INCHES) {
-        SET_MOTION_CONTROL_MODE(CANON_CONTINUOUS, .001);
+        SET_MOTION_CONTROL_MODE(CANON_MOTION_MODE::CONTINUOUS, .001);
     } else {
-        SET_MOTION_CONTROL_MODE(CANON_CONTINUOUS,  .001 * MM_PER_INCH);
+        SET_MOTION_CONTROL_MODE(CANON_MOTION_MODE::CONTINUOUS,  .001 * MM_PER_INCH);
     }
 }
 

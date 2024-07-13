@@ -61,7 +61,7 @@ setup::setup() :
     blocks{},
     remap_level(0),
     blocktext{},
-    control_mode(CANON_EXACT_STOP),
+    control_mode(CANON_MOTION_MODE::EXACT_STOP),
     current_pocket(0),
 
     current_x (0.0),

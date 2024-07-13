@@ -262,21 +262,21 @@ void SET_FEED_REFERENCE(CANON_FEED_REFERENCE reference)
 extern void SET_MOTION_CONTROL_MODE(CANON_MOTION_MODE mode, double tolerance)
 {
   _sai.motion_tolerance = 0;
-  if (mode == CANON_EXACT_STOP)
+  if (mode == CANON_MOTION_MODE::EXACT_STOP)
     {
       PRINT("SET_MOTION_CONTROL_MODE(CANON_EXACT_STOP)\n");
-      _sai._motion_mode = CANON_EXACT_STOP;
+      _sai._motion_mode = CANON_MOTION_MODE::EXACT_STOP;
     }
-  else if (mode == CANON_EXACT_PATH)
+  else if (mode == CANON_MOTION_MODE::EXACT_PATH)
     {
       PRINT("SET_MOTION_CONTROL_MODE(CANON_EXACT_PATH)\n");
-      _sai._motion_mode = CANON_EXACT_PATH;
+      _sai._motion_mode = CANON_MOTION_MODE::EXACT_PATH;
     }
-  else if (mode == CANON_CONTINUOUS)
+  else if (mode == CANON_MOTION_MODE::CONTINUOUS)
     {
       _sai.motion_tolerance = tolerance;
       PRINT("SET_MOTION_CONTROL_MODE(CANON_CONTINUOUS, %f)\n", tolerance);
-      _sai._motion_mode = CANON_CONTINUOUS;
+      _sai._motion_mode = CANON_MOTION_MODE::CONTINUOUS;
     }
   else
     PRINT("SET_MOTION_CONTROL_MODE(UNKNOWN)\n");
@@ -1147,7 +1147,7 @@ StandaloneInterpInternals::StandaloneInterpInternals() :
   _length_unit_type(CANON_UNITS::MM),
   _line_number(1),
   _mist(0),
-  _motion_mode(CANON_CONTINUOUS),
+  _motion_mode(CANON_MOTION_MODE::CONTINUOUS),
   _probe_position_a(0), /*AA*/
   _probe_position_b(0), /*BB*/
   _probe_position_c(0), /*CC*/

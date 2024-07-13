@@ -114,8 +114,8 @@ int Interp::write_g_codes(block_pointer block,   //!< pointer to a block of RS27
   settings->active_g_codes[10] = (settings->retract_mode == RETRACT_MODE::OLD_Z) ? G_98 : G_99;
   // Three modes:  G_64, G_61, G_61_1 or CANON_CONTINUOUS/EXACT_PATH/EXACT_STOP
   settings->active_g_codes[11] =
-    (settings->control_mode == CANON_CONTINUOUS) ? G_64 :
-    (settings->control_mode == CANON_EXACT_PATH) ? G_61 : G_61_1;
+    (settings->control_mode == CANON_MOTION_MODE::CONTINUOUS) ? G_64 :
+    (settings->control_mode == CANON_MOTION_MODE::EXACT_PATH) ? G_61 : G_61_1;
   settings->active_g_codes[12] = -1;
   settings->active_g_codes[13] = //I don't even know how to display the mode of an arbitrary number of spindles (andypugh 17/6/16)
     (settings->spindle_mode[0] == SPINDLE_MODE::CONSTANT_RPM) ? G_97 : G_96;
@@ -290,9 +290,9 @@ int Interp::write_state_tag(block_pointer block,
 	(settings->retract_mode == RETRACT_MODE::OLD_Z);
 
     state.flags[GM_FLAG_BLEND] =
-	(settings->control_mode == CANON_CONTINUOUS);
+	(settings->control_mode == CANON_MOTION_MODE::CONTINUOUS);
     state.flags[GM_FLAG_EXACT_STOP] =
-	(settings->control_mode == CANON_EXACT_STOP);
+	(settings->control_mode == CANON_MOTION_MODE::EXACT_STOP);
     state.fields_float[GM_FIELD_FLOAT_PATH_TOLERANCE] =
 	settings->tolerance;
     state.fields_float[GM_FIELD_FLOAT_NAIVE_CAM_TOLERANCE] =

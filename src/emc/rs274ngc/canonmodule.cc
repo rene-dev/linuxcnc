@@ -57,9 +57,9 @@ BOOST_PYTHON_MODULE(emccanon) {
             .export_values();
 
     enum_<CANON_MOTION_MODE>("CANON_MOTION_MODE")
-            .value("CANON_EXACT_STOP", CANON_EXACT_STOP)
-            .value("CANON_EXACT_PATH", CANON_EXACT_PATH)
-            .value("CANON_CONTINUOUS", CANON_CONTINUOUS)
+            .value("CANON_EXACT_STOP", CANON_MOTION_MODE::EXACT_STOP)
+            .value("CANON_EXACT_PATH", CANON_MOTION_MODE::EXACT_PATH)
+            .value("CANON_CONTINUOUS", CANON_MOTION_MODE::CONTINUOUS)
             .export_values();
 
     enum_<CANON_SPEED_FEED_MODE>("CANON_FEED_SPEED_MODE")

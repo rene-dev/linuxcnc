@@ -2189,19 +2189,19 @@ int Interp::convert_control_mode(
   CHKS((settings->cutter_comp_side != CUTTER_COMP::OFF),
        (_("Cannot change control mode with cutter radius compensation on")));
   if (g_code == G_61) {
-    SET_MOTION_CONTROL_MODE(CANON_EXACT_PATH, 0);
-    settings->control_mode = CANON_EXACT_PATH;
+    SET_MOTION_CONTROL_MODE(CANON_MOTION_MODE::EXACT_PATH, 0);
+    settings->control_mode = CANON_MOTION_MODE::EXACT_PATH;
   } else if (g_code == G_61_1) {
-    SET_MOTION_CONTROL_MODE(CANON_EXACT_STOP, 0);
-    settings->control_mode = CANON_EXACT_STOP;
+    SET_MOTION_CONTROL_MODE(CANON_MOTION_MODE::EXACT_STOP, 0);
+    settings->control_mode = CANON_MOTION_MODE::EXACT_STOP;
   } else if (g_code == G_64) {
       if (tolerance_in >= 0)
 	  tolerance = tolerance_in;
       else
 	  tolerance = 0;
-      settings->control_mode = CANON_CONTINUOUS;
+      settings->control_mode = CANON_MOTION_MODE::CONTINUOUS;
       settings->tolerance = tolerance;
-      SET_MOTION_CONTROL_MODE(CANON_CONTINUOUS, tolerance);
+      SET_MOTION_CONTROL_MODE(CANON_MOTION_MODE::CONTINUOUS, tolerance);
 
       if (naivecam_tolerance_in >= 0)
 	  naivecam_tolerance = naivecam_tolerance_in;
@@ -5493,8 +5493,8 @@ int Interp::issue_straight_index(int axis, int jnum, double target, int lineno, 
     save_mode = GET_EXTERNAL_MOTION_CONTROL_MODE();
     save_tolerance = GET_EXTERNAL_MOTION_CONTROL_TOLERANCE();
     save_cam_tolerance = GET_EXTERNAL_MOTION_CONTROL_NAIVECAM_TOLERANCE();
-    if (save_mode != CANON_EXACT_PATH)
-        SET_MOTION_CONTROL_MODE(CANON_EXACT_PATH, 0);
+    if (save_mode != CANON_MOTION_MODE::EXACT_PATH)
+        SET_MOTION_CONTROL_MODE(CANON_MOTION_MODE::EXACT_PATH, 0);
 
     double AA_end = axis == 3? target: settings->AA_current;
     double BB_end = axis == 4? target: settings->BB_current;
@@ -5508,7 +5508,7 @@ int Interp::issue_straight_index(int axis, int jnum, double target, int lineno, 
     LOCK_ROTARY(lineno, jnum);
 
     // restore path mode
-    if(save_mode != CANON_EXACT_PATH) {
+    if(save_mode != CANON_MOTION_MODE::EXACT_PATH) {
         SET_MOTION_CONTROL_MODE(save_mode, save_tolerance);
 	SET_NAIVECAM_TOLERANCE(save_cam_tolerance);
     }
