@@ -1209,7 +1209,7 @@ int Interp::init()
 //_setup.selected_tool_slot set in Interp::synch
   _setup.sequence_number = 0;   /*DOES THIS NEED TO BE AT TOP? */
 //_setup.speed set in Interp::synch
-  _setup.speed_feed_mode = CANON_INDEPENDENT;
+  _setup.speed_feed_mode = CANON_SPEED_FEED_MODE::INDEPENDENT;
 // setup.spindle_mode  set in interp_synch;
 //_setup.speed_override set in Interp::synch
 //_setup.spindle_turning set in Interp::synch

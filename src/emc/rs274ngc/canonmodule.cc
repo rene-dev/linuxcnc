@@ -63,8 +63,8 @@ BOOST_PYTHON_MODULE(emccanon) {
             .export_values();
 
     enum_<CANON_SPEED_FEED_MODE>("CANON_FEED_SPEED_MODE")
-            .value("CANON_SYNCHED", CANON_SYNCHED)
-            .value("CANON_INDEPENDENT", CANON_INDEPENDENT)
+            .value("CANON_SYNCHED", CANON_SPEED_FEED_MODE::SYNCHED)
+            .value("CANON_INDEPENDENT", CANON_SPEED_FEED_MODE::INDEPENDENT)
             .export_values();
 
     enum_<CANON_DIRECTION>("CANON_DIRECTION")

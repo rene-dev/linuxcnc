@@ -125,7 +125,7 @@ setup::setup() :
     sequence_number(0),
     speed {0.0},
     spindle_mode{SPINDLE_MODE::CONSTANT_RPM},
-    speed_feed_mode{CANON_INDEPENDENT},
+    speed_feed_mode{CANON_SPEED_FEED_MODE::INDEPENDENT},
     speed_override{false},
     spindle_turning{CANON_STOPPED},
     stack{},

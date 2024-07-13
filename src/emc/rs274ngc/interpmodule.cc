@@ -756,7 +756,7 @@ static inline int get_sequence_number (Interp &interp)  {
 static inline void set_sequence_number(Interp &interp, int value)  {
     interp._setup.sequence_number = value;
 }
-static inline int get_speed_feed_mode (Interp &interp)  {
+static inline CANON_SPEED_FEED_MODE get_speed_feed_mode (Interp &interp)  {
     return interp._setup.speed_feed_mode;
 }
 static inline void set_speed_feed_mode(Interp &interp, int value)  {
