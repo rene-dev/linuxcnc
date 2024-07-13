@@ -469,7 +469,7 @@ int Task::emcToolPrepare(int toolno)
     iocontrol_data.tool_prepare = 1;
     // the feedback logic is done inside read_hal_inputs()
     // we only need to set RCS_EXEC if RCS_DONE is not already set by the above logic
-    if (tool_status != 10) //set above to 10 in case PREP already finished (HAL loopback machine)
+    if (tool_status != TOOL_STATUS::PREP_FINISH) //set above to 10 in case PREP already finished (HAL loopback machine)
         emcioStatus.status = RCS_STATUS::EXEC;
     return 0;
 }
@@ -497,7 +497,7 @@ int Task::emcToolLoad()//EMC_TOOL_LOAD_TYPE
         // the feedback logic is done inside read_hal_inputs() we only
         // need to set RCS_EXEC if RCS_DONE is not already set by the
         // above logic
-        if (tool_status != 11)
+        if (tool_status != TOOL_STATUS::CHANGE_FINISH)
             // set above to 11 in case LOAD already finished (HAL
             // loopback machine)
             emcioStatus.status = RCS_STATUS::EXEC;
@@ -606,13 +606,13 @@ int Task::emcToolSetNumber(int number)//EMC_TOOL_SET_NUMBER
 *
 * Called By: main every CYCLE
 ********************************************************************/
-int Task::read_tool_inputs(void)
+TOOL_STATUS Task::read_tool_inputs(void)
 {
     if (iocontrol_data.tool_prepare && iocontrol_data.tool_prepared) {
         emcioStatus.tool.pocketPrepped = iocontrol_data.tool_prep_index; //check if tool has been (idx) prepared
         iocontrol_data.tool_prepare = 0;
         emcioStatus.status = RCS_STATUS::DONE;  // we finally finished to do tool-changing, signal task with RCS_DONE
-        return 10; //prepped finished
+        return TOOL_STATUS::PREP_FINISH; //prepped finished
     }
 
     if (iocontrol_data.tool_change && iocontrol_data.tool_changed) {
@@ -623,7 +623,7 @@ int Task::read_tool_inputs(void)
             // the tool now in the spindle is the one that was prepared
             CANON_TOOL_TABLE tdata;
             if (tooldata_get(&tdata,emcioStatus.tool.pocketPrepped) != IDX_OK) {
-                UNEXPECTED_MSG; return -1;
+                UNEXPECTED_MSG; return TOOL_STATUS::ERROR;
             }
             emcioStatus.tool.toolInSpindle = tdata.toolno;
             emcioStatus.tool.toolFromPocket = iocontrol_data.tool_from_pocket = tdata.pocketno;
@@ -639,9 +639,9 @@ int Task::read_tool_inputs(void)
         iocontrol_data.tool_prep_index = 0; //likewise in HAL
         iocontrol_data.tool_change = 0; //also reset the tool change signal
         emcioStatus.status = RCS_STATUS::DONE;        // we finally finished to do tool-changing, signal task with RCS_DONE
-        return 11; //change finished
+        return TOOL_STATUS::CHANGE_FINISH; //change finished
     }
-    return 0;
+    return TOOL_STATUS::NONE;
 }
 
 void Task::run(){ // called periodically from emctaskmain.cc

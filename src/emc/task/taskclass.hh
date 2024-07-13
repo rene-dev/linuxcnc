@@ -49,6 +49,13 @@ struct iocontrol_str {
     // note: spindle control has been moved to motion
 };                        //pointer to the HAL-struct
 
+enum class TOOL_STATUS{
+    PREP_FINISH,
+    CHANGE_FINISH,
+    NONE,
+    ERROR,
+};
+
 class Task {
 public:
     Task(EMC_IO_STAT &emcioStatus_in);
@@ -74,7 +81,7 @@ public:
     void reload_tool_number(int toolno);
     void load_tool(int idx);
     void run();
-    int read_tool_inputs(void);
+    TOOL_STATUS read_tool_inputs(void);
     void hal_init_pins(void);
 
     EMC_IO_STAT &emcioStatus;
@@ -85,7 +92,7 @@ public:
     const char *tooltable_filename {};
     char db_program[LINELEN] {};
     tooldb_t db_mode {tooldb_t::DB_NOTUSED};
-    int tool_status;
+    TOOL_STATUS tool_status;
 };
 
 extern Task *task_methods;
