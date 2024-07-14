@@ -774,7 +774,7 @@ static inline int get_num_spindles (Interp &interp)  {
 static inline void set_num_spindles(Interp &interp, int value)  {
     interp._setup.num_spindles = value;
 }
-static inline int get_spindle_turning (Interp &interp, int spindle)  {
+static inline CANON_DIRECTION get_spindle_turning (Interp &interp, int spindle)  {
     return interp._setup.spindle_turning[spindle];
 }
 static inline void set_spindle_turning(Interp &interp, int spindle, int value)  {

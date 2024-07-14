@@ -683,7 +683,7 @@ static void user_defined_function(int num, double arg1, double arg2) {
 
 void SET_FEED_REFERENCE(CANON_FEED_REFERENCE ref) {}
 int GET_EXTERNAL_QUEUE_EMPTY() { return true; }
-CANON_DIRECTION GET_EXTERNAL_SPINDLE(int) { return CANON_STOPPED; }
+CANON_DIRECTION GET_EXTERNAL_SPINDLE(int) { return CANON_DIRECTION::STOPPED; }
 int GET_EXTERNAL_TOOL_SLOT() { return 0; }
 int GET_EXTERNAL_SELECTED_TOOL_SLOT() { return 0; }
 double GET_EXTERNAL_FEED_RATE() { return 1; }

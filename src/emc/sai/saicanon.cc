@@ -474,15 +474,13 @@ void SET_SPINDLE_MODE(int spindle, double arg) {
 void START_SPINDLE_CLOCKWISE(int spindle, int wait_for_atspeed)
 {
   PRINT("START_SPINDLE_CLOCKWISE(%i)\n", spindle);
-  _sai._spindle_turning[spindle] = ((_sai._spindle_speed[spindle] == 0) ? CANON_STOPPED :
-                                                   CANON_CLOCKWISE);
+  _sai._spindle_turning[spindle] = ((_sai._spindle_speed[spindle] == 0) ? CANON_DIRECTION::STOPPED :CANON_DIRECTION::CLOCKWISE);
 }
 
 void START_SPINDLE_COUNTERCLOCKWISE(int spindle, int wait_for_atspeed)
 {
   PRINT("START_SPINDLE_COUNTERCLOCKWISE(%i)\n", spindle);
-  _sai._spindle_turning[spindle] = ((_sai._spindle_speed[spindle] == 0) ? CANON_STOPPED :
-                                                   CANON_COUNTERCLOCKWISE);
+  _sai._spindle_turning[spindle] = ((_sai._spindle_speed[spindle] == 0) ? CANON_DIRECTION::STOPPED : CANON_DIRECTION::COUNTERCLOCKWISE);
 }
 
 void SET_SPINDLE_SPEED(int spindle, double rpm)
@@ -494,7 +492,7 @@ void SET_SPINDLE_SPEED(int spindle, double rpm)
 void STOP_SPINDLE_TURNING(int spindle)
 {
   PRINT("STOP_SPINDLE_TURNING(%i)\n", spindle);
-  _sai._spindle_turning[spindle] = CANON_STOPPED;
+  _sai._spindle_turning[spindle] = CANON_DIRECTION::STOPPED;
 }
 
 void SPINDLE_RETRACT()
@@ -1173,7 +1171,7 @@ StandaloneInterpInternals::StandaloneInterpInternals() :
   _program_position_y(0),
   _program_position_z(0),
   _spindle_speed{0},
-  _spindle_turning{CANON_STOPPED},
+  _spindle_turning{CANON_DIRECTION::STOPPED},
   _pockets_max(CANON_POCKETS_MAX),
   _tools{},
   /* optional program stop */

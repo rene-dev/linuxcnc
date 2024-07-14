@@ -266,12 +266,12 @@ For the XZ and YZ planes, this makes analogous motions.
 InterpReturn Interp::check_g74_g84_spindle(GCodes motion, CANON_DIRECTION dir)
 {
     switch (dir) {
-    case CANON_STOPPED:
+    case CANON_DIRECTION::STOPPED:
         ERS(_("Spindle not turning in %s"), toString((GCodes)motion).c_str());
-    case CANON_CLOCKWISE:
+    case CANON_DIRECTION::CLOCKWISE:
         CHKS((motion == G_74), _("Spindle turning clockwise in G74"));
         return INTERP_OK;
-    case CANON_COUNTERCLOCKWISE:
+    case CANON_DIRECTION::COUNTERCLOCKWISE:
         CHKS((motion == G_84), _("Spindle turning counterclockwise in G84"));
         return INTERP_OK;
     }
@@ -458,15 +458,15 @@ int Interp::convert_cycle_g86(block_pointer block,
                               CANON_DIRECTION direction, //!< direction spindle turning at outset
                               int spindle)       // the spindle being used
 {
-  CHKS(((direction != CANON_CLOCKWISE) &&
-       (direction != CANON_COUNTERCLOCKWISE)),
+  CHKS(((direction != CANON_DIRECTION::CLOCKWISE) &&
+       (direction != CANON_DIRECTION::COUNTERCLOCKWISE)),
       NCE_SPINDLE_NOT_TURNING_IN_G86);
 
   cycle_feed(block, plane, x, y, bottom_z);
   DWELL(dwell);
   STOP_SPINDLE_TURNING(spindle);
   cycle_traverse(block, plane, x, y, clear_z);
-  if (direction == CANON_CLOCKWISE)
+  if (direction == CANON_DIRECTION::CLOCKWISE)
     START_SPINDLE_CLOCKWISE(spindle);
   else
     START_SPINDLE_COUNTERCLOCKWISE(spindle);
@@ -546,27 +546,27 @@ int Interp::convert_cycle_g87(block_pointer block,
                               CANON_DIRECTION direction, //!< direction spindle turning at outset
                               int spindle)       // the spindle being used
 {
-  CHKS(((direction != CANON_CLOCKWISE) &&
-       (direction != CANON_COUNTERCLOCKWISE)),
+  CHKS(((direction != CANON_DIRECTION::CLOCKWISE) &&
+       (direction != CANON_DIRECTION::COUNTERCLOCKWISE)),
       NCE_SPINDLE_NOT_TURNING_IN_G87);
 
   cycle_traverse(block, plane, offset_x, offset_y, r);
   STOP_SPINDLE_TURNING(spindle);
-  ORIENT_SPINDLE(spindle, 0.0, direction);
+  ORIENT_SPINDLE(spindle, 0.0, 0);
   cycle_traverse(block, plane, offset_x, offset_y, bottom_z);
   cycle_traverse(block, plane, x, y, bottom_z);
-  if (direction == CANON_CLOCKWISE)
+  if (direction == CANON_DIRECTION::CLOCKWISE)
     START_SPINDLE_CLOCKWISE(spindle);
   else
     START_SPINDLE_COUNTERCLOCKWISE(spindle);
   cycle_feed(block, plane, x, y, middle_z);
   cycle_feed(block, plane, x, y, bottom_z);
   STOP_SPINDLE_TURNING(spindle);
-  ORIENT_SPINDLE(spindle,0.0, direction);
+  ORIENT_SPINDLE(spindle,0.0, 0);
   cycle_traverse(block, plane, offset_x, offset_y, bottom_z);
   cycle_traverse(block, plane, offset_x, offset_y, clear_z);
   cycle_traverse(block, plane, x, y, clear_z);
-  if (direction == CANON_CLOCKWISE)
+  if (direction == CANON_DIRECTION::CLOCKWISE)
     START_SPINDLE_CLOCKWISE(spindle);
   else
     START_SPINDLE_COUNTERCLOCKWISE(spindle);
@@ -613,15 +613,15 @@ int Interp::convert_cycle_g88(block_pointer block,
                               CANON_DIRECTION direction, //!< direction spindle turning at outset
                               int spindle)       // the spindle being used
 {
-  CHKS(((direction != CANON_CLOCKWISE) &&
-       (direction != CANON_COUNTERCLOCKWISE)),
+  CHKS(((direction != CANON_DIRECTION::CLOCKWISE) &&
+       (direction != CANON_DIRECTION::COUNTERCLOCKWISE)),
       NCE_SPINDLE_NOT_TURNING_IN_G88);
 
   cycle_feed(block, plane, x, y, bottom_z);
   DWELL(dwell);
   STOP_SPINDLE_TURNING(spindle);
   PROGRAM_STOP();               /* operator retracts the spindle here */
-  if (direction == CANON_CLOCKWISE)
+  if (direction == CANON_DIRECTION::CLOCKWISE)
     START_SPINDLE_CLOCKWISE(spindle);
   else
     START_SPINDLE_COUNTERCLOCKWISE(spindle);

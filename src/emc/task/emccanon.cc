@@ -3597,14 +3597,14 @@ double GET_EXTERNAL_SPEED(int spindle)
 CANON_DIRECTION GET_EXTERNAL_SPINDLE(int spindle)
 {
     if (emcStatus->motion.spindle[spindle].speed == 0) {
-	return CANON_STOPPED;
+	return CANON_DIRECTION::STOPPED;
     }
 
     if (emcStatus->motion.spindle[spindle].speed >= 0.0) {
-	return CANON_CLOCKWISE;
+	return CANON_DIRECTION::CLOCKWISE;
     }
 
-    return CANON_COUNTERCLOCKWISE;
+    return CANON_DIRECTION::COUNTERCLOCKWISE;
 }
 
 static char _parameter_file_name[LINELEN];

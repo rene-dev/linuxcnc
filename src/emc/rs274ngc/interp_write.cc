@@ -160,8 +160,8 @@ int Interp::write_m_codes(block_pointer block,   //!< pointer to a block of RS27
 {
   settings->active_m_codes[0] = settings->sequence_number;   /* 0 seq number  */
   settings->active_m_codes[1] = (block == NULL) ? -1 : block->m_modes[4];    /* 1 stopping    */
-  settings->active_m_codes[2] = (settings->spindle_turning[0] == CANON_STOPPED) ? 5 :   /* 2 spindle     */
-    (settings->spindle_turning[0] == CANON_CLOCKWISE) ? 3 : 4;
+  settings->active_m_codes[2] = (settings->spindle_turning[0] == CANON_DIRECTION::STOPPED) ? 5 :   /* 2 spindle     */
+    (settings->spindle_turning[0] == CANON_DIRECTION::CLOCKWISE) ? 3 : 4;
   settings->active_m_codes[3] =                      /* 3 tool change */
     (block == NULL) ? -1 : block->m_modes[6];
   settings->active_m_codes[4] =                      /* 4 mist        */
@@ -310,9 +310,9 @@ int Interp::write_state_tag(block_pointer block,
 	(block == NULL) ? -1 : block->m_modes[4];
 
     state.flags[GM_FLAG_SPINDLE_ON] =
-	!(settings->spindle_turning[0] != CANON_STOPPED);
+	!(settings->spindle_turning[0] != CANON_DIRECTION::STOPPED);
     state.flags[GM_FLAG_SPINDLE_CW] =
-	(settings->spindle_turning[0] == CANON_CLOCKWISE);
+	(settings->spindle_turning[0] == CANON_DIRECTION::CLOCKWISE);
 
     state.fields[GM_FIELD_TOOLCHANGE] =
 	(block == NULL) ? -1 : block->m_modes[6];

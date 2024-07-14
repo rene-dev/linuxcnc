@@ -68,9 +68,9 @@ BOOST_PYTHON_MODULE(emccanon) {
             .export_values();
 
     enum_<CANON_DIRECTION>("CANON_DIRECTION")
-            .value("CANON_STOPPED", CANON_STOPPED)
-            .value("CANON_CLOCKWISE", CANON_CLOCKWISE)
-            .value("CANON_COUNTERCLOCKWISE", CANON_COUNTERCLOCKWISE)
+            .value("CANON_STOPPED", CANON_DIRECTION::STOPPED)
+            .value("CANON_CLOCKWISE", CANON_DIRECTION::CLOCKWISE)
+            .value("CANON_COUNTERCLOCKWISE", CANON_DIRECTION::COUNTERCLOCKWISE)
             .export_values();
 
     enum_<CANON_FEED_REFERENCE>("CANON_FEED_REFERENCE")

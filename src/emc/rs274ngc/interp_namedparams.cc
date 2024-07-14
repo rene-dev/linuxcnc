@@ -611,11 +611,11 @@ int Interp::lookup_named_param(const char *nameBuf,
 	// some active_m_codes fields
 
     case NP_SPINDLE_ON: // _spindle_on
-	*value = (_setup.spindle_turning[0] != CANON_STOPPED);
+	*value = (_setup.spindle_turning[0] != CANON_DIRECTION::STOPPED);
 	break;
 
     case NP_SPINDLE_CW: // spindle_cw
-	*value = (_setup.spindle_turning[0] == CANON_CLOCKWISE);
+	*value = (_setup.spindle_turning[0] == CANON_DIRECTION::CLOCKWISE);
 	break;
 
     case NP_MIST: // mist

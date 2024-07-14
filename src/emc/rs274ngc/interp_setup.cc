@@ -127,7 +127,7 @@ setup::setup() :
     spindle_mode{SPINDLE_MODE::CONSTANT_RPM},
     speed_feed_mode{CANON_SPEED_FEED_MODE::INDEPENDENT},
     speed_override{false},
-    spindle_turning{CANON_STOPPED},
+    spindle_turning{CANON_DIRECTION::STOPPED},
     stack{},
     stack_index(0),
     tool_offset{{0,0,0},0,0,0,0,0,0},
@@ -179,7 +179,7 @@ setup::setup() :
     disable_g92_persistence(0),
     pythis(),
     on_abort_command(NULL),
-    init_once(CANON_STOPPED)
+    init_once(1)
 {
   std::fill(parameters, parameters + interp_param_global::RS274NGC_MAX_PARAMETERS, 0);
 }

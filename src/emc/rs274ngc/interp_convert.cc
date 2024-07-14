@@ -3977,15 +3977,15 @@ int Interp::convert_m(block_pointer block,       //!< pointer to a block of RS27
         if (block->dollar_number == -1){ // all spindles
             for (int i = 0; i < settings->num_spindles; i++){
                 enqueue_START_SPINDLE_CLOCKWISE(i);
-                settings->spindle_turning[i] = CANON_CLOCKWISE;
+                settings->spindle_turning[i] = CANON_DIRECTION::CLOCKWISE;
             }
         } else { // a specific spindle
             enqueue_START_SPINDLE_CLOCKWISE(block->dollar_number);
-            settings->spindle_turning[(int)block->dollar_number] = CANON_CLOCKWISE;
+            settings->spindle_turning[(int)block->dollar_number] = CANON_DIRECTION::CLOCKWISE;
         }
      } else { // the default spindle
         enqueue_START_SPINDLE_CLOCKWISE(0);
-        settings->spindle_turning[0] = CANON_CLOCKWISE;
+        settings->spindle_turning[0] = CANON_DIRECTION::CLOCKWISE;
      }
  } else if ((block->m_modes[7] == 4) && ONCE_M(7)) {
      if (block->dollar_flag){
@@ -3994,15 +3994,15 @@ int Interp::convert_m(block_pointer block,       //!< pointer to a block of RS27
         if (block->dollar_number == -1){ // all spindles
             for (int i = 0; i < settings->num_spindles; i++){
                  enqueue_START_SPINDLE_COUNTERCLOCKWISE(i);
-                 settings->spindle_turning[i] = CANON_COUNTERCLOCKWISE;
+                 settings->spindle_turning[i] = CANON_DIRECTION::COUNTERCLOCKWISE;
              }
          } else { // a specific spindle
             enqueue_START_SPINDLE_COUNTERCLOCKWISE(block->dollar_number);
-            settings->spindle_turning[(int)block->dollar_number] = CANON_COUNTERCLOCKWISE;
+            settings->spindle_turning[(int)block->dollar_number] = CANON_DIRECTION::COUNTERCLOCKWISE;
         }
      } else { // default spindle
          enqueue_START_SPINDLE_COUNTERCLOCKWISE(0);
-         settings->spindle_turning[0] = CANON_COUNTERCLOCKWISE;
+         settings->spindle_turning[0] = CANON_DIRECTION::COUNTERCLOCKWISE;
      }
  } else if ((block->m_modes[7] == 5) && ONCE_M(7)){
     if (block->dollar_flag){
@@ -4010,22 +4010,22 @@ int Interp::convert_m(block_pointer block,       //!< pointer to a block of RS27
             (_("Spindle ($) number out of range in M5 Command\nnum_spindles =%i. $=%d\n")),settings->num_spindles,(int)block->dollar_number);
         if (block->dollar_number == -1){ // all spindles
             for (int i = 0; i < settings->num_spindles; i++){
-                settings->spindle_turning[i] = CANON_STOPPED;
+                settings->spindle_turning[i] = CANON_DIRECTION::STOPPED;
                 enqueue_STOP_SPINDLE_TURNING(i);
             }
         } else { // a specific spindle
-            settings->spindle_turning[block->dollar_number] = CANON_STOPPED;
+            settings->spindle_turning[block->dollar_number] = CANON_DIRECTION::STOPPED;
             enqueue_STOP_SPINDLE_TURNING(block->dollar_number);
         }
     } else { // the default spindle
       for (int i = 0; i < settings->num_spindles; i++){
-        settings->spindle_turning[i] = CANON_STOPPED;
+        settings->spindle_turning[i] = CANON_DIRECTION::STOPPED;
         enqueue_STOP_SPINDLE_TURNING(i);
       }
     }
   } else if ((block->m_modes[7] == 19) && ONCE_M(7)) {
       for (int i = 0; i < settings->num_spindles; i++)
-          settings->spindle_turning[i] = CANON_STOPPED;
+          settings->spindle_turning[i] = CANON_DIRECTION::STOPPED;
       if (block->dollar_flag){
          CHKS((block->dollar_number >= settings->num_spindles || block->dollar_number < 0),
              (_("Spindle ($) number out of range in M19 Command")));
@@ -5204,7 +5204,7 @@ int Interp::convert_stop(block_pointer block,    //!< pointer to a block of RS27
 /*7*/
     for (int s = 0; s < settings->num_spindles; s++){
         STOP_SPINDLE_TURNING(s);
-        settings->spindle_turning[s] = CANON_STOPPED;
+        settings->spindle_turning[s] = CANON_DIRECTION::STOPPED;
 
         settings->speed_override[s] = true;
         /* turn off FPR */
@@ -5393,8 +5393,8 @@ int Interp::convert_straight(int move,   //!< either G_0 or G_1
 				(_("Invalid spindle ($) number in G33 move")));
 		settings->active_spindle = (int)block->dollar_number;
 	}
-    CHKS(((settings->spindle_turning[settings->active_spindle] != CANON_CLOCKWISE) &&
-           (settings->spindle_turning[settings->active_spindle] != CANON_COUNTERCLOCKWISE)),
+    CHKS(((settings->spindle_turning[settings->active_spindle] != CANON_DIRECTION::CLOCKWISE) &&
+           (settings->spindle_turning[settings->active_spindle] != CANON_DIRECTION::COUNTERCLOCKWISE)),
           _("Spindle not turning in G33"));
     START_SPEED_FEED_SYNCH(settings->active_spindle, block->k_number, 0);
     STRAIGHT_FEED(block->line_number, end_x, end_y, end_z, AA_end, BB_end, CC_end, u_end, v_end, w_end);
@@ -5408,8 +5408,8 @@ int Interp::convert_straight(int move,   //!< either G_0 or G_1
 				(_("Invalid spindle ($) number in G33.1 move")));
 		settings->active_spindle = (int)block->dollar_number;
 	}
-    CHKS(((settings->spindle_turning[settings->active_spindle] != CANON_CLOCKWISE) &&
-           (settings->spindle_turning[settings->active_spindle] != CANON_COUNTERCLOCKWISE)),
+    CHKS(((settings->spindle_turning[settings->active_spindle] != CANON_DIRECTION::CLOCKWISE) &&
+           (settings->spindle_turning[settings->active_spindle] != CANON_DIRECTION::COUNTERCLOCKWISE)),
           _("Spindle not turning in G33.1"));
     START_SPEED_FEED_SYNCH(settings->active_spindle, block->k_number, 0);
     double scale = 1;
@@ -5428,8 +5428,8 @@ int Interp::convert_straight(int move,   //!< either G_0 or G_1
 				(_("Invalid D-number in G76 cycle")));
 		settings->active_spindle = (int)block->dollar_number;
 	}
-    CHKS(((settings->spindle_turning[settings->active_spindle] != CANON_CLOCKWISE) &&
-           (settings->spindle_turning[settings->active_spindle] != CANON_COUNTERCLOCKWISE)),
+    CHKS(((settings->spindle_turning[settings->active_spindle] != CANON_DIRECTION::CLOCKWISE) &&
+           (settings->spindle_turning[settings->active_spindle] != CANON_DIRECTION::COUNTERCLOCKWISE)),
           _("Chosen spindle (%i) not turning in G76"), settings->active_spindle);
     CHKS((settings->AA_current != AA_end ||
          settings->BB_current != BB_end ||
@@ -6080,7 +6080,7 @@ int Interp::convert_tool_change(setup_pointer settings)  //!< pointer to machine
   if (!settings->tool_change_with_spindle_on) {
 	  for (int s = 0; s < settings->num_spindles; s++){
 		  STOP_SPINDLE_TURNING(s);
-		  settings->spindle_turning[s] = CANON_STOPPED;
+		  settings->spindle_turning[s] = CANON_DIRECTION::STOPPED;
 	  }
   }
 
