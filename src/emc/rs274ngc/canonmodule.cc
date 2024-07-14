@@ -79,9 +79,9 @@ BOOST_PYTHON_MODULE(emccanon) {
             .export_values();
 
     enum_<CANON_SIDE>("CANON_SIDE")
-            .value("CANON_SIDE_RIGHT", CANON_SIDE_RIGHT)
-            .value("CANON_SIDE_LEFT", CANON_SIDE_LEFT)
-            .value("CANON_SIDE_OFF", CANON_SIDE_OFF)
+            .value("CANON_SIDE_RIGHT", CANON_SIDE::RIGHT)
+            .value("CANON_SIDE_LEFT", CANON_SIDE::LEFT)
+            .value("CANON_SIDE_OFF", CANON_SIDE::OFF)
             .export_values();
 
     enum_<CANON_AXIS>("CANON_AXIS")

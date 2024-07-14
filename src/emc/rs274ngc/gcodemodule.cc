@@ -512,8 +512,8 @@ void USE_TOOL_LENGTH_OFFSET(EmcPose offset) {
 
 void SET_FEED_REFERENCE(double reference) { }
 void SET_CUTTER_RADIUS_COMPENSATION(double radius) {}
-void START_CUTTER_RADIUS_COMPENSATION(int direction) {}
-void STOP_CUTTER_RADIUS_COMPENSATION(int direction) {}
+void START_CUTTER_RADIUS_COMPENSATION(CANON_SIDE direction) {}
+void STOP_CUTTER_RADIUS_COMPENSATION() {}
 void START_SPEED_FEED_SYNCH() {}
 void START_SPEED_FEED_SYNCH(int spindle, double sync, bool vel) {}
 void STOP_SPEED_FEED_SYNCH() {}
@@ -556,7 +556,6 @@ bool GET_OPTIONAL_PROGRAM_STOP() { return false;}
 void SET_OPTIONAL_PROGRAM_STOP(bool state) {}
 void SPINDLE_RETRACT_TRAVERSE() {}
 void SPINDLE_RETRACT() {}
-void STOP_CUTTER_RADIUS_COMPENSATION() {}
 void USE_NO_SPINDLE_FORCE() {}
 void SET_BLOCK_DELETE(bool enabled) {}
 

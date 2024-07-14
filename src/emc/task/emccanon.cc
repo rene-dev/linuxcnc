@@ -1219,7 +1219,7 @@ void SET_CUTTER_RADIUS_COMPENSATION(double radius)
     // nothing need be done here
 }
 
-void START_CUTTER_RADIUS_COMPENSATION(int side)
+void START_CUTTER_RADIUS_COMPENSATION(CANON_SIDE side)
 {
     // nothing need be done here
 }

@@ -110,11 +110,11 @@ enum class CANON_FEED_REFERENCE { //seems to be unused
     XYZ,
 };
 
-enum CANON_SIDE
+enum class CANON_SIDE
 {
-    CANON_SIDE_RIGHT = 1,
-    CANON_SIDE_LEFT,
-    CANON_SIDE_OFF,
+    RIGHT = 1,
+    LEFT,
+    OFF,
 };
 
 enum CANON_AXIS
@@ -396,7 +396,7 @@ extern void SET_CUTTER_RADIUS_COMPENSATION(double radius);
 
 /* Set the radius to use when performing cutter radius compensation. */
 
-extern void START_CUTTER_RADIUS_COMPENSATION(int direction);
+extern void START_CUTTER_RADIUS_COMPENSATION(CANON_SIDE direction);
 
 /* Conceptually, the direction must be left (meaning the cutter
 stays to the left of the programmed path) or right. */
