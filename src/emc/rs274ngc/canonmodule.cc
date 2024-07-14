@@ -85,15 +85,15 @@ BOOST_PYTHON_MODULE(emccanon) {
             .export_values();
 
     enum_<CANON_AXIS>("CANON_AXIS")
-            .value("CANON_AXIS_X", CANON_AXIS_X)
-            .value("CANON_AXIS_Y", CANON_AXIS_Y)
-            .value("CANON_AXIS_Z", CANON_AXIS_Z)
-            .value("CANON_AXIS_A", CANON_AXIS_A)
-            .value("CANON_AXIS_B", CANON_AXIS_B)
-            .value("CANON_AXIS_C", CANON_AXIS_C)
-            .value("CANON_AXIS_U", CANON_AXIS_U)
-            .value("CANON_AXIS_V", CANON_AXIS_V)
-            .value("CANON_AXIS_W", CANON_AXIS_W)
+            .value("CANON_AXIS_X", CANON_AXIS::X)
+            .value("CANON_AXIS_Y", CANON_AXIS::Y)
+            .value("CANON_AXIS_Z", CANON_AXIS::Z)
+            .value("CANON_AXIS_A", CANON_AXIS::A)
+            .value("CANON_AXIS_B", CANON_AXIS::B)
+            .value("CANON_AXIS_C", CANON_AXIS::C)
+            .value("CANON_AXIS_U", CANON_AXIS::U)
+            .value("CANON_AXIS_V", CANON_AXIS::V)
+            .value("CANON_AXIS_W", CANON_AXIS::W)
             .export_values();
 
     //  scope().attr("") =  ;

@@ -590,12 +590,12 @@ void RELOAD_TOOLDATA(void)
 
 void CLAMP_AXIS(CANON_AXIS axis)
 {PRINT("CLAMP_AXIS(%s)\n",
-        (axis == CANON_AXIS_X) ? "CANON_AXIS_X" :
-        (axis == CANON_AXIS_Y) ? "CANON_AXIS_Y" :
-        (axis == CANON_AXIS_Z) ? "CANON_AXIS_Z" :
-        (axis == CANON_AXIS_A) ? "CANON_AXIS_A" :
-        (axis == CANON_AXIS_B) ? "CANON_AXIS_B" :
-        (axis == CANON_AXIS_C) ? "CANON_AXIS_C" : "UNKNOWN");}
+        (axis == CANON_AXIS::X) ? "CANON_AXIS_X" :
+        (axis == CANON_AXIS::Y) ? "CANON_AXIS_Y" :
+        (axis == CANON_AXIS::Z) ? "CANON_AXIS_Z" :
+        (axis == CANON_AXIS::A) ? "CANON_AXIS_A" :
+        (axis == CANON_AXIS::B) ? "CANON_AXIS_B" :
+        (axis == CANON_AXIS::C) ? "CANON_AXIS_C" : "UNKNOWN");}
 
 void COMMENT(const char *s)
 {PRINT("COMMENT(\"%s\")\n", s);}
@@ -675,12 +675,12 @@ void TURN_PROBE_ON()
 
 void UNCLAMP_AXIS(CANON_AXIS axis)
 {PRINT("UNCLAMP_AXIS(%s)\n",
-        (axis == CANON_AXIS_X) ? "CANON_AXIS_X" :
-        (axis == CANON_AXIS_Y) ? "CANON_AXIS_Y" :
-        (axis == CANON_AXIS_Z) ? "CANON_AXIS_Z" :
-        (axis == CANON_AXIS_A) ? "CANON_AXIS_A" :
-        (axis == CANON_AXIS_B) ? "CANON_AXIS_B" :
-        (axis == CANON_AXIS_C) ? "CANON_AXIS_C" : "UNKNOWN");}
+        (axis == CANON_AXIS::X) ? "CANON_AXIS_X" :
+        (axis == CANON_AXIS::Y) ? "CANON_AXIS_Y" :
+        (axis == CANON_AXIS::Z) ? "CANON_AXIS_Z" :
+        (axis == CANON_AXIS::A) ? "CANON_AXIS_A" :
+        (axis == CANON_AXIS::B) ? "CANON_AXIS_B" :
+        (axis == CANON_AXIS::C) ? "CANON_AXIS_C" : "UNKNOWN");}
 
 /* Program Functions */
 

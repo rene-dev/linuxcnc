@@ -110,24 +110,24 @@ enum class CANON_FEED_REFERENCE { //seems to be unused
     XYZ,
 };
 
-enum class CANON_SIDE
+enum class CANON_SIDE //canon function exists, but unused in linuxcnc
 {
     RIGHT = 1,
     LEFT,
     OFF,
 };
 
-enum CANON_AXIS
+enum class CANON_AXIS //canon function exists, but unused in linuxcnc
 {
-    CANON_AXIS_X = 1,
-    CANON_AXIS_Y,
-    CANON_AXIS_Z,
-    CANON_AXIS_A,
-    CANON_AXIS_B,
-    CANON_AXIS_C,
-    CANON_AXIS_U,
-    CANON_AXIS_V,
-    CANON_AXIS_W,
+    X = 1,
+    Y,
+    Z,
+    A,
+    B,
+    C,
+    U,
+    V,
+    W,
 };
 
 struct CANON_VECTOR {
