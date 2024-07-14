@@ -256,7 +256,7 @@ void SET_FEED_RATE(double rate)
 void SET_FEED_REFERENCE(CANON_FEED_REFERENCE reference)
 {
   PRINT("SET_FEED_REFERENCE(%s)\n",
-         (reference == CANON_WORKPIECE) ? "CANON_WORKPIECE" : "CANON_XYZ");
+         (reference == CANON_FEED_REFERENCE::WORKPIECE) ? "CANON_WORKPIECE" : "CANON_XYZ");
 }
 
 extern void SET_MOTION_CONTROL_MODE(CANON_MOTION_MODE mode, double tolerance)

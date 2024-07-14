@@ -1162,7 +1162,7 @@ int Interp::init()
 
   _setup.rotation_xy = pars[k+10];
   SET_XY_ROTATION(pars[k+10]);
-  SET_FEED_REFERENCE(CANON_XYZ);
+  SET_FEED_REFERENCE(CANON_FEED_REFERENCE::XYZ);
 //_setup.active_g_codes initialized below
 //_setup.active_m_codes initialized below
 //_setup.active_settings initialized below

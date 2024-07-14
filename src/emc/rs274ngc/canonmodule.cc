@@ -74,8 +74,8 @@ BOOST_PYTHON_MODULE(emccanon) {
             .export_values();
 
     enum_<CANON_FEED_REFERENCE>("CANON_FEED_REFERENCE")
-            .value("CANON_WORKPIECE", CANON_WORKPIECE)
-            .value("CANON_XYZ", CANON_XYZ)
+            .value("CANON_WORKPIECE", CANON_FEED_REFERENCE::WORKPIECE)
+            .value("CANON_XYZ", CANON_FEED_REFERENCE::XYZ)
             .export_values();
 
     enum_<CANON_SIDE>("CANON_SIDE")

@@ -336,11 +336,11 @@ int Canterp::execute(const char *line) {
 
     if (!strcmp(the_command_name, "SET_FEED_REFERENCE")) {
 	if (!strcmp(the_command_args, "CANON_WORKPIECE")) {
-	    SET_FEED_REFERENCE(CANON_WORKPIECE);
+	    SET_FEED_REFERENCE(CANON_FEED_REFERENCE::WORKPIECE);
 	    return 0;
 	}
 	if (!strcmp(the_command_args, "CANON_XYZ")) {
-	    SET_FEED_REFERENCE(CANON_XYZ);
+	    SET_FEED_REFERENCE(CANON_FEED_REFERENCE::XYZ);
 	    return 0;
 	}
 	return INTERP_ERROR;

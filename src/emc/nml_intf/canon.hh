@@ -105,9 +105,9 @@ enum class CANON_DIRECTION {
     COUNTERCLOCKWISE,
 };
 
-enum CANON_FEED_REFERENCE {
-    CANON_WORKPIECE = 1,
-    CANON_XYZ,
+enum class CANON_FEED_REFERENCE { //seems to be unused
+    WORKPIECE = 1,
+    XYZ,
 };
 
 enum CANON_SIDE
