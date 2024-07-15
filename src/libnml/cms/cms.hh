@@ -30,7 +30,7 @@ extern "C" {
 #include <concepts>
 #include "cms_up.hh"
 
-template <typename T> concept C = std::integral<T> || std::floating_point<T>; 
+template <typename T> concept C = std::is_trivially_copyable<T>::value; 
 
 class PHYSMEM_HANDLE;
 struct PM_CARTESIAN;
@@ -213,12 +213,8 @@ class CMS {
     /* CMS UPDATE FUNCTIONS located in cms_up.cc */
   /***********************************************/
     /* Access functions for primitive C language data types */
-    //CMS_STATUS update(auto &x);
 
-  /* Access functions for primitive C language data types */
-  
-
-  CMS_STATUS update(C auto &x)
+  CMS_STATUS update(C auto x)
   {
     if (NULL != updater) {
       return (updater->update(x));
@@ -226,29 +222,14 @@ class CMS {
       return (status = CMS_UPDATE_ERROR);
     }
   }
-    // CMS_STATUS update(bool &x);
-    // CMS_STATUS update(char &x);                            /* Used by emc2 */
-    // CMS_STATUS update(unsigned char &x);                   /* Used by emc2 */
-    // CMS_STATUS update(short int &x);
-    // CMS_STATUS update(unsigned short int &x);
-    // CMS_STATUS update(int &x);                             /* Used by emc2 */
-    // CMS_STATUS update(unsigned int &x);
-    // CMS_STATUS update(long int &x);                        /* Used by emc2 */
-    // CMS_STATUS update(unsigned long int &x);               /* Used by emc2 */
-    // CMS_STATUS update(float &x);
-    // CMS_STATUS update(double &x);                          /* Used by emc2 */
-    // CMS_STATUS update(long double &x);
-    CMS_STATUS update(char *x, unsigned int len);          /* Used by emc2 */
-    CMS_STATUS update(unsigned char *x, unsigned int len); /* Used by emc2 */
-    CMS_STATUS update(short *x, unsigned int len);
-    CMS_STATUS update(unsigned short *x, unsigned int len);
-    CMS_STATUS update(int *x, unsigned int len);           /* Used by emc2 */
-    CMS_STATUS update(unsigned int *x, unsigned int len);
-    CMS_STATUS update(long *x, unsigned int len);
-    CMS_STATUS update(unsigned long *x, unsigned int len);
-    CMS_STATUS update(float *x, unsigned int len);
-    CMS_STATUS update(double *x, unsigned int len);        /* Used by emc2 */
-    CMS_STATUS update(long double *x, unsigned int len);
+  CMS_STATUS update(C auto x, unsigned int len)
+  {
+    if (NULL != updater) {
+      return (updater->update(x, len));
+    } else {
+      return (status = CMS_UPDATE_ERROR);
+    }
+  }
 
   /*************************************************************************
    * CMS UPDATE FUNCTIONS for POSEMATH classes, defined in cms_pm.cc       *
