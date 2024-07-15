@@ -405,6 +405,7 @@ SRCHEADERS := \
     libnml/buffer/shmem.hh \
     libnml/buffer/tcpmem.hh \
     libnml/cms/cms.hh \
+	libnml/cms/cms_enum.hh \
     libnml/cms/cms_aup.hh \
     libnml/cms/cms_cfg.hh \
     libnml/cms/cms_dup.hh \
