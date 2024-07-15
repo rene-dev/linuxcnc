@@ -27,6 +27,10 @@ extern "C" {
 #endif
 #include "linuxcnc.h"		/* LINELEN */
 
+#include <concepts>
+
+template <typename T> concept C = std::integral<T> || std::floating_point<T>; 
+
 class PHYSMEM_HANDLE;
 struct PM_CARTESIAN;
 struct PM_CYLINDRICAL;
@@ -258,18 +262,31 @@ class CMS {
     /* CMS UPDATE FUNCTIONS located in cms_up.cc */
   /***********************************************/
     /* Access functions for primitive C language data types */
-    CMS_STATUS update(bool &x);
-    CMS_STATUS update(char &x);                            /* Used by emc2 */
-    CMS_STATUS update(unsigned char &x);                   /* Used by emc2 */
-    CMS_STATUS update(short int &x);
-    CMS_STATUS update(unsigned short int &x);
-    CMS_STATUS update(int &x);                             /* Used by emc2 */
-    CMS_STATUS update(unsigned int &x);
-    CMS_STATUS update(long int &x);                        /* Used by emc2 */
-    CMS_STATUS update(unsigned long int &x);               /* Used by emc2 */
-    CMS_STATUS update(float &x);
-    CMS_STATUS update(double &x);                          /* Used by emc2 */
-    CMS_STATUS update(long double &x);
+    //CMS_STATUS update(auto &x);
+
+  /* Access functions for primitive C language data types */
+  
+
+  CMS_STATUS update(C auto &x)
+  {
+    if (NULL != updater) {
+      return (updater->update(x));
+    } else {
+      return (status = CMS_UPDATE_ERROR);
+    }
+  }
+    // CMS_STATUS update(bool &x);
+    // CMS_STATUS update(char &x);                            /* Used by emc2 */
+    // CMS_STATUS update(unsigned char &x);                   /* Used by emc2 */
+    // CMS_STATUS update(short int &x);
+    // CMS_STATUS update(unsigned short int &x);
+    // CMS_STATUS update(int &x);                             /* Used by emc2 */
+    // CMS_STATUS update(unsigned int &x);
+    // CMS_STATUS update(long int &x);                        /* Used by emc2 */
+    // CMS_STATUS update(unsigned long int &x);               /* Used by emc2 */
+    // CMS_STATUS update(float &x);
+    // CMS_STATUS update(double &x);                          /* Used by emc2 */
+    // CMS_STATUS update(long double &x);
     CMS_STATUS update(char *x, unsigned int len);          /* Used by emc2 */
     CMS_STATUS update(unsigned char *x, unsigned int len); /* Used by emc2 */
     CMS_STATUS update(short *x, unsigned int len);

@@ -1299,6 +1299,7 @@ void CMS::set_cms_status(CMS_STATUS new_status)
 }
 
   /* Access functions for primitive C language data types */
+/*
 CMS_STATUS CMS::update(bool &x)
 {
     if (NULL != updater) {
@@ -1406,6 +1407,7 @@ CMS_STATUS CMS::update(long double &x)
 	return (status = CMS_UPDATE_ERROR);
     }
 }
+*/
 
 CMS_STATUS CMS::update(char *x, unsigned int len)
 {
