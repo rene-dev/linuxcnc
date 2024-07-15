@@ -214,7 +214,7 @@ class CMS {
   /***********************************************/
     /* Access functions for primitive C language data types */
 
-  CMS_STATUS update(C auto x)
+  CMS_STATUS update(C auto &x)
   {
     if (NULL != updater) {
       return (updater->update(x));
