@@ -20,6 +20,8 @@
 #define CMS_UP_HH
 
 #include "cms.hh"		/* enum CMS_STATUS, class CMS */
+#include "cms_enum.hh"
+class CMS;
 
 enum CMS_UPDATER_MODE {
     CMS_NO_UPDATE = 0,
