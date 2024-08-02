@@ -217,7 +217,12 @@ class CMS {
   CMS_STATUS update(C auto &x)
   {
     if (NULL != updater) {
-      return (updater->update(x));
+      if constexpr (std::is_enum_v<std::decay_t<decltype(x)>>){// convert enum values to integer
+        return (updater->update((int*)&x,1));
+      }else{
+        return (updater->update(x));
+      }
+
     } else {
       return (status = CMS_UPDATE_ERROR);
     }

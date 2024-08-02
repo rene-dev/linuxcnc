@@ -1319,10 +1319,10 @@ void EMC_TRAJ_SET_FH_ENABLE::update(CMS * cms)
 void EMC_TASK_STAT::update(CMS * cms)
 {
     EMC_TASK_STAT_MSG::update(cms);
-    cms->update((int *) &mode, 1);
-    cms->update((int *) &state, 1);
-    cms->update((int *) &execState, 1);
-    cms->update((int *) &interpState, 1);
+    cms->update(mode);
+    cms->update(state);
+    cms->update(execState);
+    cms->update(interpState);
     cms->update(callLevel);
     cms->update(motionLine);
     cms->update(currentLine);
@@ -1341,7 +1341,7 @@ void EMC_TASK_STAT::update(CMS * cms)
     cms->update(activeGCodes, ACTIVE_G_CODES);
     cms->update(activeMCodes, ACTIVE_M_CODES);
     cms->update(activeSettings, ACTIVE_SETTINGS);
-    cms->update((int *) &programUnits, 1);
+    cms->update(programUnits);
     cms->update(interpreter_errcode);
     cms->update(task_paused);
     cms->update(delayLeft);
@@ -1378,7 +1378,7 @@ void EMC_TOOL_LOAD_TOOL_TABLE::update(CMS * cms)
 void EMC_TASK_SET_STATE::update(CMS * cms)
 {
     EMC_TASK_CMD_MSG::update(cms);
-    cms->update((int *) &state, 1);
+    cms->update(state);
 }
 
 /*
@@ -1432,7 +1432,7 @@ void EMC_STAT_MSG::update(CMS * cms)
 void EMC_TASK_SET_MODE::update(CMS * cms)
 {
     EMC_TASK_CMD_MSG::update(cms);
-    cms->update((int *) &mode, 1);
+    cms->update(mode);
 }
 
 /*
@@ -1620,7 +1620,7 @@ void EMC_TRAJ_STAT::update(CMS * cms)
     cms->update(joints);
     cms->update(spindles);
     cms->update(axis_mask);
-    cms->update((int *) &mode, 1);
+    cms->update(mode);
     cms->update(enabled);
     cms->update(inpos);
     cms->update(queue);
@@ -1842,7 +1842,7 @@ void EMC_JOINT_SET_HOMING_PARAMS::update(CMS * cms)
 void EMC_TRAJ_SET_MODE::update(CMS * cms)
 {
     EMC_TRAJ_CMD_MSG::update(cms);
-    cms->update((int *) &mode, 1);
+    cms->update(mode);
 }
 
 /*
