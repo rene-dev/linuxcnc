@@ -305,10 +305,9 @@ class hal{
         /* found it */
         type = pin->type;
         if (pin->signal != 0) {
-            sig = (hal_sig_t*)SHMPTR(pin->signal);
+            auto sig = (hal_sig_t*)SHMPTR(pin->signal);
             d_ptr = SHMPTR(sig->data_ptr);
         } else {
-            sig = 0;
             d_ptr = &(pin->dummysig);
         }
         /* convert to python value */
