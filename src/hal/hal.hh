@@ -29,7 +29,7 @@ template<typename T>
 class hal_pin{
     public:
     std::string name;
-    volatile T** ptr;
+    T** ptr;
     T operator=(const T& value){
         **ptr = value;
         return **ptr;
@@ -103,7 +103,7 @@ class PyPin{
 
     bool write(std::string data){
         if (auto* v = std::get_if<hal_pin<hal_port>>(&pin_)) {
-            auto ret = hal_port_write((**v->ptr).ptr, data.c_str(), data.length());//(**v->ptr).ptr,
+            auto ret = hal_port_write((const hal_port_t*)(*v->ptr), data.c_str(), data.length());//(**v->ptr).ptr,
             return ret;
         }
         //not a port
@@ -112,7 +112,7 @@ class PyPin{
 
     unsigned int writable(){
         if (auto* v = std::get_if<hal_pin<hal_port>>(&pin_)) {
-            auto ret = hal_port_writable((**v->ptr).ptr);//(**v->ptr).ptr,
+            auto ret = hal_port_writable((const hal_port_t*)(*v->ptr));//(**v->ptr).ptr,
             return ret;
         }
         //not a port
@@ -121,7 +121,7 @@ class PyPin{
 
     unsigned int readable(){
         if (auto* v = std::get_if<hal_pin<hal_port>>(&pin_)) {
-            auto ret = hal_port_readable((**v->ptr).ptr);//(**v->ptr).ptr,
+            auto ret = hal_port_readable((const hal_port_t*)(*v->ptr));//(**v->ptr).ptr,
             return ret;
         }
         //not a port
@@ -130,14 +130,14 @@ class PyPin{
 
     void waitWritable(unsigned int count){
         if (auto* v = std::get_if<hal_pin<hal_port>>(&pin_)) {
-            hal_port_wait_writable((hal_port_t**)(v->ptr), count, 0);//(**v->ptr).ptr,
+            //hal_port_wait_writable((volatile hal_port_t**)(*v->ptr)->ptr, count, 0);//(**v->ptr).ptr, // sigsev here
         }
     }
 
     std::string read(unsigned int count){
         if (auto* v = std::get_if<hal_pin<hal_port>>(&pin_)) {
             std::string foo(count, '\0');
-            auto ret = hal_port_read((**v->ptr).ptr, foo.data(), count);//(**v->ptr).ptr,
+            auto ret = hal_port_read((const hal_port_t*)(*v->ptr), foo.data(), count);//(**v->ptr).ptr,
             if(ret)
                 return foo;
             else
@@ -150,7 +150,7 @@ class PyPin{
     std::string peek(unsigned int count){
         if (auto* v = std::get_if<hal_pin<hal_port>>(&pin_)) {
             std::string foo(count, '\0');
-            auto ret = hal_port_peek((**v->ptr).ptr, foo.data(), count);//(**v->ptr).ptr,
+            auto ret = hal_port_peek((const hal_port_t*)(*v->ptr), foo.data(), count);//(**v->ptr).ptr,
             if(ret)
                 return foo;
             else
@@ -162,7 +162,7 @@ class PyPin{
 
     unsigned int size(){
         if (auto* v = std::get_if<hal_pin<hal_port>>(&pin_)) {
-            auto ret = hal_port_buffer_size((**v->ptr).ptr);//(**v->ptr).ptr,
+            auto ret = hal_port_buffer_size((const hal_port_t*)(*v->ptr));//(**v->ptr).ptr,
             return ret;
         }
         //not a port
@@ -467,7 +467,7 @@ class hal_comp{
     }
 
     std::variant<double,bool,int32_t,uint32_t> getitem(const std::string& name){
-        auto pin = mapat(name);
+        auto pin = map.at(name);
         if (auto* v = std::get_if<hal_pin<double>>(&pin)) {
             return *v;
         } else if (auto* v = std::get_if<hal_pin<bool>>(&pin)) {
@@ -482,7 +482,7 @@ class hal_comp{
 
     template<typename T>
     void setitem(const std::string& name, T value){
-        auto pin = mapT(name);
+        auto pin = map.at(name);
         if (auto* p = std::get_if<hal_pin<double>>(&pin)) {
             *p = value;
         } else if (auto* p = std::get_if<hal_pin<bool>>(&pin)) {
@@ -505,7 +505,7 @@ class hal_comp{
 
     template<typename T>
     void add_pin(const std::string& pin_name, hal_dir dir, hal_pin<T> &pin){
-        pin.ptr = (volatile T**)hal_malloc(8);
+        pin.ptr = (T**)hal_malloc(8);
         if(!pin.ptr){
             error -= 1;
             rtapi_print_msg(RTAPI_MSG_ERR, "%s ERROR: hal_malloc() failed\n", pin_name.c_str());
