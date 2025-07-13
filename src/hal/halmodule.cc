@@ -41,7 +41,7 @@ PYBIND11_MODULE(hal, m) {
         //.def_property("value", &PyPin::getitem, &PyPin::setitem<bool>)
         //.def_property("value", &PyPin::getitem, &PyPin::setitem<double>)
         .def_property("value", &PyPin::getitem, &PyPin::setitem_variant)
-        // .def_property_readonly("name", &PyPin::getname)
+        .def_property_readonly("name", &PyPin::getname)
         .def("get_name", &PyPin::getname);
         // .def("is_pin", &PyPin::is_pin)
         // .def("get_type", &PyPin::get_type)
