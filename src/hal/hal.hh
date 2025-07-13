@@ -103,7 +103,7 @@ class PyPin{
 
     bool write(std::string data){
         if (auto* v = std::get_if<hal_pin<hal_port>>(&pin_)) {
-            auto ret = hal_port_write((const hal_port_t*)(*v->ptr), data.c_str(), data.length());//(**v->ptr).ptr,
+            auto ret = hal_port_write((const hal_port_t*)(*v->ptr), data.c_str(), data.length());
             return ret;
         }
         //not a port
@@ -112,7 +112,7 @@ class PyPin{
 
     unsigned int writable(){
         if (auto* v = std::get_if<hal_pin<hal_port>>(&pin_)) {
-            auto ret = hal_port_writable((const hal_port_t*)(*v->ptr));//(**v->ptr).ptr,
+            auto ret = hal_port_writable((const hal_port_t*)(*v->ptr));
             return ret;
         }
         //not a port
@@ -121,7 +121,7 @@ class PyPin{
 
     unsigned int readable(){
         if (auto* v = std::get_if<hal_pin<hal_port>>(&pin_)) {
-            auto ret = hal_port_readable((const hal_port_t*)(*v->ptr));//(**v->ptr).ptr,
+            auto ret = hal_port_readable((const hal_port_t*)(*v->ptr));
             return ret;
         }
         //not a port
@@ -137,7 +137,7 @@ class PyPin{
     std::string read(unsigned int count){
         if (auto* v = std::get_if<hal_pin<hal_port>>(&pin_)) {
             std::string foo(count, '\0');
-            auto ret = hal_port_read((const hal_port_t*)(*v->ptr), foo.data(), count);//(**v->ptr).ptr,
+            auto ret = hal_port_read((const hal_port_t*)(*v->ptr), foo.data(), count);
             if(ret)
                 return foo;
             else
@@ -150,7 +150,7 @@ class PyPin{
     std::string peek(unsigned int count){
         if (auto* v = std::get_if<hal_pin<hal_port>>(&pin_)) {
             std::string foo(count, '\0');
-            auto ret = hal_port_peek((const hal_port_t*)(*v->ptr), foo.data(), count);//(**v->ptr).ptr,
+            auto ret = hal_port_peek((const hal_port_t*)(*v->ptr), foo.data(), count);
             if(ret)
                 return foo;
             else
@@ -162,7 +162,7 @@ class PyPin{
 
     unsigned int size(){
         if (auto* v = std::get_if<hal_pin<hal_port>>(&pin_)) {
-            auto ret = hal_port_buffer_size((const hal_port_t*)(*v->ptr));//(**v->ptr).ptr,
+            auto ret = hal_port_buffer_size((const hal_port_t*)(*v->ptr));
             return ret;
         }
         //not a port
