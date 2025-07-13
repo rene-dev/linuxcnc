@@ -244,10 +244,10 @@ class hal{
         return retval;
     }
     public:
-    static bool component_exists(std::string name){
+    static bool component_exists(const std::string& name){
         return halpr_find_comp_by_name(name.c_str()) != NULL;
     }
-    static bool pin_has_writer(std::string name){
+    static bool pin_has_writer(const std::string& name){
         hal_pin_t *pin = halpr_find_pin_by_name(name.c_str());
         if(!pin) {//pin does not exist
             return false;
@@ -258,7 +258,7 @@ class hal{
         }
         return false;
     }
-    static bool component_is_ready(std::string name){
+    static bool component_is_ready(const std::string& name){
         // Bad form to assume comp name exists - stop crashing!
         hal_comp_t *thecomp = halpr_find_comp_by_name(name.c_str());
         return thecomp && (thecomp->ready != 0);
@@ -394,16 +394,16 @@ class hal_comp{
     int comp_id;
     std::string comp_name;
     std::map<std::string,pin_t> map;
-    int add_pin_(std::string name, hal_dir dir, hal_pin<bool> pin){
+    int add_pin_(const std::string& name, hal_dir dir, hal_pin<bool> pin){
         return hal_pin_new(name.c_str(), HAL_BIT, static_cast<hal_pin_dir_t>(dir), (void **)(pin.ptr), comp_id);
     }
-    int add_pin_(std::string name, hal_dir dir, hal_pin<int32_t> pin){
+    int add_pin_(const std::string& name, hal_dir dir, hal_pin<int32_t> pin){
         return hal_pin_new(name.c_str(), HAL_S32, static_cast<hal_pin_dir_t>(dir), (void **)(pin.ptr), comp_id);
     }
-    int add_pin_(std::string name, hal_dir dir, hal_pin<uint32_t> pin){
+    int add_pin_(const std::string& name, hal_dir dir, hal_pin<uint32_t> pin){
         return hal_pin_new(name.c_str(), HAL_U32, static_cast<hal_pin_dir_t>(dir), (void **)(pin.ptr), comp_id);
     }
-    int add_pin_(std::string name, hal_dir dir, hal_pin<double> pin){
+    int add_pin_(const std::string& name, hal_dir dir, hal_pin<double> pin){
         return hal_pin_new(name.c_str(), HAL_FLOAT, static_cast<hal_pin_dir_t>(dir), (void **)(pin.ptr), comp_id);
     }
     int add_pin_(std::string name, hal_dir dir, hal_pin<hal_port> pin){
@@ -411,7 +411,7 @@ class hal_comp{
     }
     public:
     int error = 0;
-    hal_comp(std::string name){
+    hal_comp(const std::string& name){
         comp_id = hal_init(name.c_str());
         comp_name = name;
         if(comp_id < 0){
@@ -430,7 +430,7 @@ class hal_comp{
         return comp_name;
     }
 
-    PyPin newpin(std::string name, hal_type_t type, hal_dir dir){
+    PyPin newpin(const std::string& name, hal_type_t type, hal_dir dir){
         auto& pin = map[name];
         switch(type){
             case HAL_BIT:
@@ -466,8 +466,8 @@ class hal_comp{
         return foo;
     }
 
-    std::variant<double,bool,int32_t,uint32_t> getitem(std::string name){
-        auto pin = map.at(name);
+    std::variant<double,bool,int32_t,uint32_t> getitem(const std::string& name){
+        auto pin = mapat(name);
         if (auto* v = std::get_if<hal_pin<double>>(&pin)) {
             return *v;
         } else if (auto* v = std::get_if<hal_pin<bool>>(&pin)) {
@@ -481,8 +481,8 @@ class hal_comp{
     }
 
     template<typename T>
-    void setitem(std::string name, T value){
-        auto pin = map.at(name);
+    void setitem(const std::string& name, T value){
+        auto pin = mapT(name);
         if (auto* p = std::get_if<hal_pin<double>>(&pin)) {
             *p = value;
         } else if (auto* p = std::get_if<hal_pin<bool>>(&pin)) {
@@ -504,7 +504,7 @@ class hal_comp{
     }
 
     template<typename T>
-    void add_pin(std::string pin_name, hal_dir dir, hal_pin<T> &pin){
+    void add_pin(const std::string& pin_name, hal_dir dir, hal_pin<T> &pin){
         pin.ptr = (volatile T**)hal_malloc(8);
         if(!pin.ptr){
             error -= 1;
