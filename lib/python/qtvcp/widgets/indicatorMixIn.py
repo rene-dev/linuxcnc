@@ -24,6 +24,9 @@ class IndicatedMixIn( _HalWidgetBase):
         # if user want to block their signals
         self._external_block_signal = False
 
+        # flags
+        self._watch_command_flag = False
+
         # changing text data
         self._state_text = False # use text
         self._true_string = 'True'
@@ -77,6 +80,7 @@ class IndicatedMixIn( _HalWidgetBase):
         self._is_limits_overridden = False
         self._is_manual = False
         self._is_mdi = False
+        self._is_mdi_command_finished = False
         self._is_auto = False
         self._is_spindle_stopped = False
         self._is_spindle_fwd = False
@@ -256,6 +260,9 @@ class IndicatedMixIn( _HalWidgetBase):
         elif self._is_idle:
             STATUS.connect('interp-idle', lambda w: self._flip_state(True))
             STATUS.connect('interp-run', lambda w: self._flip_state(False))
+        elif self._is_mdi_command_finished:
+            STATUS.connect('interp-idle', lambda w: self._flip_state(False))
+            STATUS.connect('current-command', lambda w,s: self.update_command_running(s))
         elif self._is_paused:
             STATUS.connect('program-pause-changed', lambda w, data: self._flip_state(data))
         elif self._is_flood:
@@ -397,6 +404,17 @@ class IndicatedMixIn( _HalWidgetBase):
     def indicator2_update(self, data):
         self._flashing2 = self._indicator2_state = data
         self.update()
+
+    # set the indicator that the MDI command is running
+    # or not
+    def update_command_running(self, code):
+        if self._watch_command_flag:
+            if not code =='':
+                self._flip_state(True)
+        if code =='':
+            self._flip_state(False)
+            self._watch_command_flag = False
+
 
     # override paint function to first paint the stock button
     # then our indicator paint routine
@@ -796,7 +814,7 @@ class IndicatedMixIn( _HalWidgetBase):
                 'is_flood', 'is_mist', 'is_block_delete', 'is_optional_stop',
                 'is_joint_homed', 'is_limits_overridden','is_manual',
                 'is_mdi', 'is_auto', 'is_spindle_stopped', 'is_spindle_fwd',
-                'is_spindle_rev')
+                'is_spindle_rev', 'is_mdi_finished')
 
         for i in data:
             if not i == picked:
@@ -851,6 +869,16 @@ class IndicatedMixIn( _HalWidgetBase):
         return self._is_idle
     def reset_is_idle(self):
         self._is_idle = False
+
+    # machine is mdi finished status
+    def set_is_mdi_fin(self, data):
+        self._is_mdi_command_finished = data
+        if data:
+            self._toggle_status_properties('is_mdi_finished')
+    def get_is_mdi_fin(self):
+        return self._is_mdi_command_finished
+    def reset_is_mdi_fin(self):
+        self._is_mdi_command_finished = False
 
     # machine_is_homed status
     def set_is_homed(self, data):
@@ -999,6 +1027,7 @@ class IndicatedMixIn( _HalWidgetBase):
     is_estopped_status = QtCore.pyqtProperty(bool, get_is_estopped, set_is_estopped, reset_is_estopped)
     is_on_status = QtCore.pyqtProperty(bool, get_is_on, set_is_on, reset_is_on)
     is_idle_status = QtCore.pyqtProperty(bool, get_is_idle, set_is_idle, reset_is_idle)
+    is_mdi_finished_status = QtCore.pyqtProperty(bool, get_is_mdi_fin, set_is_mdi_fin, reset_is_mdi_fin)
     is_homed_status = QtCore.pyqtProperty(bool, get_is_homed, set_is_homed, reset_is_homed)
     is_flood_status = QtCore.pyqtProperty(bool, get_is_flood, set_is_flood, reset_is_flood)
     is_mist_status = QtCore.pyqtProperty(bool, get_is_mist, set_is_mist, reset_is_mist)

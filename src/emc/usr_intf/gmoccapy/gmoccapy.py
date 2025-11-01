@@ -1948,6 +1948,9 @@ class gmoccapy(object):
         self.widgets.tooledit1.set_visible("abcxyzuvwijq", False)
         for axis in self.axis_list:
             self.widgets.tooledit1.set_visible("{0}".format(axis), True)
+        # disconnect the key_press handler in the widget
+        tv = self.widgets.tooledit1.wTree.get_object("treeview1")
+        tv.disconnect_by_func(self.widgets.tooledit1.on_tree_navigate_key_press)
         # if it's a lathe config we show lathe related columns
         if self.lathe_mode:
             self.widgets.tooledit1.set_visible("ijq", True)
@@ -1961,6 +1964,47 @@ class gmoccapy(object):
             if col > 0 and col < 16:
                 temp = self.widgets.tooledit1.wTree.get_object("cell_%s" % name)
                 temp.connect('editing-started', self.on_tool_col_edit_started, col)
+
+    def on_tree_navigate_key_press(self, treeview, event, filter):
+        keyname = Gdk.keyval_name(event.keyval)
+        path, col = treeview.get_cursor()
+        columns = [c for c in treeview.get_columns()]
+        colnum = columns.index(col)
+        focuschild = treeview.get_focus_child()
+        if filter == 'wear':
+            store_path = self.wear_filter.convert_path_to_child_path(path)
+            path = store_path
+        elif filter == 'tool':
+            store_path = self.tool_filter.convert_path_to_child_path(path)
+            path = store_path
+        if keyname == 'Tab':
+            cont = True
+            cont2 = True
+            i = 0
+            while cont:
+                print("column ", colnum)
+                i += 1
+                if colnum + i < len(columns):
+                    if columns[colnum + i].props.visible:
+                        renderer = columns[colnum + i].get_cells()
+                        if renderer[0].props.editable:
+                            next_column = columns[colnum + i]
+                            cont = False
+                else:
+                    i = 1
+                    while cont2:
+                        renderer = columns[i].get_cells()
+                        if renderer[0].props.editable:
+                            next_column = columns[i]
+                            cont2 = False
+                        else:
+                            i += 1
+                    cont = False
+            GLib.timeout_add(50,
+                             treeview.set_cursor,
+                             path, next_column, True)
+        else:
+            pass
 
     def on_tool_col_edit_started(self, widget, filtered_path, new_text, col):
         if not self.toolpage_use_calc:
@@ -3213,6 +3257,12 @@ class gmoccapy(object):
             self.diameter_mode = False
 
     def on_key_event(self, widget, event, signal):
+        # if the user has disabled keyboard shortcuts, we leave here
+        # in this case we do not return true, otherwise entering code in MDI history
+        # and the integrated editor will not work
+        if not self.widgets.chk_use_kb_shortcuts.get_active():
+            LOG.debug("Settings say: do not use keyboard shortcuts, abort")
+            return
 
         # get the keyname
         keyname = Gdk.keyval_name(event.keyval)
@@ -3222,6 +3272,7 @@ class gmoccapy(object):
         if keyname == "F1":  # will estop the machine, but not reset estop!
             self.command.state(linuxcnc.STATE_ESTOP)
             return True
+
         if keyname == "Escape":
             self.command.abort()
             return True
@@ -3264,13 +3315,6 @@ class gmoccapy(object):
         if keyname == "Super_L" and signal:  # Left Windows
             self.notification.del_last()
             self.widgets.window1.grab_focus()
-            return
-
-        # if the user do not want to use keyboard shortcuts, we leave here
-        # in this case we do not return true, otherwise entering code in MDI history
-        # and the integrated editor will not work
-        if not self.widgets.chk_use_kb_shortcuts.get_active():
-            LOG.debug("Settings say: do not use keyboard shortcuts, abort")
             return
 
         # Only in MDI mode the RETURN key should execute a command

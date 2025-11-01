@@ -677,7 +677,7 @@ Some functions/features are only used for particular modes and are not displayed
 |===
 |Name     |Description
 |Material |The top header is clickable in this area to reveal a drop-down menu. It is used to manually select the current material cut parameters. If there are no materials in the material file, then only the default material will be displayed.
-|VEL:     |This displays the actual cut feed rate the table is moving at.
+|VEL:     |Displays the current feed rate of the table, including both rapid and cutting moves. While cutting, if a <<plasma:velocity-reduction,Velocity Reduction>> is active, this label updates to reflect the percentage of the original feed rate being used. For example, "VEL@20%:" means the table is cutting at 20% of the programmed feed rate - an 80% reduction.
 |FR:      |If "View Material" is selected on the <<plasma:settings-tab,SETTINGS Tab>>, this displays the currently selected material's Feed Rate.
 |PH:      |If "View Material" is selected on the <<plasma:settings-tab,SETTINGS Tab>>, this displays the currently selected material's Pierce Height.
 |PD:      |If "View Material" is selected on the <<plasma:settings-tab,SETTINGS Tab>>, this displays the currently selected material's Pierce Delay.
@@ -1795,7 +1795,11 @@ For more information, see <<plasma:scribe,scribe>>.
 === Velocity Reduction
 
 There is a HAL pin available named *motion.analog-out-03* that can be changed in G-code with the *M67 (Synchronized with Motion)/M68 (Immediate)* commands.
-This pin will reduce the velocity to the percentage specified in the command.
+This pin will reduce the velocity of the original feed rate to the percentage specified in the command.
+
+The "VEL:" label at the top right of the preview window will update to reflect the percentage of the original feed rate being used. For example, "VEL@20%:" means the table is cutting at 20% of the programmed feed rate - an 80% reduction.
+
+NOTE: Because of differences between the GUI and the PlasmaC component polling intervals, velocity label updates may lag (typically by up to 100 ms).
 
 It is important to thoroughly understand the difference between *Synchronized with Motion* and *Immediate*:
 
@@ -1809,9 +1813,7 @@ Examples:
 * `M67 E3 Q60` would set the velocity to 60% of *CutFeedRate*.
 * `M67 E3 Q100` would set the velocity to 100% of *CutFeedRate*.
 
-The minimum percentage allowed is 10%, values below this will be set to 10%.
-
-The maximum percentage allowed is 100%, values above this will be set to 100%.
+Q values that are less than or equal to 0 or greater than or equal to 100 will be set to 100.
 
 If the user intends to use this feature it would be prudent to add `M68 E3 Q0` to both the preamble and postamble of the G-code program so the machine starts and ends in a known state.
 
@@ -3380,7 +3382,7 @@ There are three <<plasma:ext-hal-pin,External HAL Pins>> that are available to t
 the pin names are `qtplasmac.ext_out_0`, `qtplasmac.ext_out_1`, and `qtplasmac.ext_out_2`.
 HAL connections to these HAL pins need to be specified in a postgui HAL file as the HAL pins are not available until the QtPlasmaC GUI has loaded.
 
-For toggle-halpin buttons, it is possible for the user to mark the associated HAL pin as being required to be turned "ON" before starting a cut sequence by adding "cutcritical" after the HAL pin in the button code. If *TORCH ENABLE* is checked and *CYCLE START*, *MANUAL CUT*, or *SINGLE CUT* are initiated while the "cutcritical" button is not "ON" then the user will receive a dialog warning them as such and asking to CONTINUE or CANCEL.
+For toggle-halpin buttons, it is possible for the user to mark the associated HAL pin as being required to be turned "ON" before starting a cut sequence by adding "cutcritical" after the HAL pin in the button code. If *TORCH ENABLE* is checked and *CYCLE START*, *MANUAL CUT*, or *SINGLE CUT* are initiated while the "cutcritical" button is not "ON" then the user will receive a dialog warning them as such and asking to CONTINUE or CANCEL. The dialog will list all untoggled buttons with a corresponding checkbox and allow the user to choose which of the buttons should be toggled automatically upon clicking CONTINUE.
 
 [source,{ini}]
 ----
@@ -4107,8 +4109,8 @@ Therefore, the length of the wiggle and the feed rate need to be considered in c
 
 For example:
 
-* A feed rate of 1080 mm/min (18 mm/s)
-* A wiggle movement of 4 mm for 3 oscillations
+* A feed rate of 1080 mm/min (18 mm/s).
+* A wiggle movement of 4 mm for 3 oscillations.
 
 This means that the length of the wiggle is 4 x 3 = 12 mm. At the 18 mm/s feed rate, the pierce delay needs to be approx 0.7 seconds to support the wiggle distance at pierce height.
 
@@ -4264,7 +4266,7 @@ $ ./langlink xx
 ----
 
 [NOTE]
-this command is a script which creates a link in both qtplasmac_4x3/languages and qtplasmac_9x16/languages to the above .qm file and then renames the link to match the GUI name.
+This command is a script which creates a link in both qtplasmac_4x3/languages and qtplasmac_9x16/languages to the above .qm file and then renames the link to match the GUI name.
 
 QtPlasmaC will be translated to the language of the current locale on the next start so long as a .qm file exists in that language.
 

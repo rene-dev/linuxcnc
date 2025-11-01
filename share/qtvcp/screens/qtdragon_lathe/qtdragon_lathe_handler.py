@@ -1,5 +1,7 @@
 import os, time
 from PyQt5 import QtCore, QtWidgets, QtGui
+from PyQt5.QtWidgets import QAction, QMenu
+from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import QCoreApplication
 from qtvcp.widgets.gcode_editor import GcodeEditor as GCODE
 from qtvcp.widgets.gcode_graphics import GCodeGraphics as GRAPHICS
@@ -153,6 +155,9 @@ class HandlerClass:
         STATUS.connect('graphics-gcode-properties', lambda w, d: self.update_gcode_properties(d))
         STATUS.connect('status-message', lambda w, d, o: self.add_external_status(d,o))
         STATUS.connect('runstop-line-changed', lambda w, l :self.lastRunLine(l))
+        STATUS.connect('cycle-start-request', lambda w, state :self.btn_start_clicked(state))
+        STATUS.connect('cycle-pause-request', lambda w, state: self.btn_pause_clicked(state))
+        STATUS.connect('macro-call-request', lambda w, name: self.request_macro_call(name))
 
         txt1 = _translate("HandlerClass","Setup Tab")
         txt2 = _translate("HandlerClass","If you select a file with .html as a file ending, it will be shown here.")
@@ -288,24 +293,7 @@ class HandlerClass:
         self.w.layout_PDF.addWidget(self.PDFView)
         self.PDFView.loadSample('setup_tab')
 
-        # Show assigned macrobuttons define in INI under [MDI_COMMAND_LIST]
-        flag = True
-        for b in range(0,10):
-            button = self.w['macrobutton{}'.format(b)]
-            # prefer named INI MDI commands
-            key = button.property('ini_mdi_key')
-            if key == '' or INFO.get_ini_mdi_command(key) is None:
-                # fallback to legacy nth line
-                key = button.property('ini_mdi_number')
-            try:
-                code = INFO.get_ini_mdi_command(key)
-                if code is None: raise Exception
-                flag = False
-            except:
-                button.hide()
-        # no buttons hide frame
-        if flag:
-            self.w.frame_macro_buttons.hide()
+        self.configureMacroButtons()
 
         self.log_version()
 
@@ -403,6 +391,8 @@ class HandlerClass:
         self.cam_xscale_changed(self.w.PREFS_.getpref('Camview xscale', 100, int, 'CUSTOM_FORM_ENTRIES'))
         self.cam_yscale_changed(self.w.PREFS_.getpref('Camview yscale', 100, int, 'CUSTOM_FORM_ENTRIES'))
         self.w.camview._camNum = self.w.PREFS_.getpref('Camview cam number', 0, int, 'CUSTOM_FORM_ENTRIES')
+        self.w.camview.setAPI(self.w.PREFS_.getpref('Camview cam api', 'ANY', str, 'CUSTOM_FORM_ENTRIES'))
+        self.w.camview.setResolution(self.w.PREFS_.getpref('Camview cam resolution', 'DEFAULT', str, 'CUSTOM_FORM_ENTRIES'))
 
     def closing_cleanup__(self):
         if not self.w.PREFS_: return
@@ -862,7 +852,34 @@ class HandlerClass:
     # Log the last run line (in auto mode) if stopped
     def lastRunLine(self, line):
         if line >0:
-            self.add_status('last running line before stoppage: {}'.format(line))
+            self.add_status(_translate("HandlerClass",'last running line before stoppage: {}'.format(line)))
+
+    # called from hal_glib to run macros from external event
+    def request_macro_call(self, data):
+        if not STATUS.is_mdi_mode():
+            self.add_status(_translate("HandlerClass",'Machine must be in MDI mode to run macros'), CRITICAL)
+            return
+
+        for b in range(0,10):
+            button = self.w['macrobutton{}'.format(b)]
+            # prefer named INI MDI commands
+            key = button.property('ini_mdi_key')
+            code = INFO.get_ini_mdi_command(key)
+            if key == '' or code is None:
+                # fallback to legacy nth line
+                key = button.property('ini_mdi_number')
+                code = INFO.get_ini_mdi_command(key)
+                if code is None:
+                    continue
+            if str(key) == data:
+                #print('match',button.objectName())
+                text = button.text().replace('\n',' ')
+                self.add_status(_translate("HandlerClass",'Running macro: {} {}'.format(key, text)))
+                try:
+                    button.click()
+                except Exception as e:
+                    self.add_status(_translate("HandlerClass",'Running macro: {} {}\n{}'.format(key, text, e)))
+                break
 
     #######################
     # CALLBACKS FROM FORM #
@@ -1894,6 +1911,12 @@ class HandlerClass:
             self.w.frame_top_left.show()
             self.w.frm_backplot.show()
 
+
+        if main_index == TAB_MAIN and mode =='':
+            self.w.userReferenceWidget.show()
+        else:
+            self.w.userReferenceWidget.hide()
+
         # adjust window splitter size as per saved adjustments
 
         name = 'splitterSettings-{}{}'.format(tabId,mode)
@@ -2031,6 +2054,67 @@ class HandlerClass:
                  t)
         self.add_status(mess, CRITICAL,noLog=True)
         STATUS.emit('update-machine-log', mess, None)
+
+    # show/hide macro buttons depending on the INI definitions
+    def configureMacroButtons(self):
+        # Show assigned macrobuttons define in INI under [MDI_COMMAND_LIST]
+        flag = True
+        for b in range(0,10):
+            button = self.w['macrobutton{}'.format(b)]
+            # prefer named INI MDI commands
+            key = button.property('ini_mdi_key')
+            if key == '' or INFO.get_ini_mdi_command(key) is None:
+                # fallback to legacy nth line
+                key = button.property('ini_mdi_number')
+            try:
+                code = INFO.get_ini_mdi_command(key)
+                if code is None: raise Exception
+                flag = False
+            except:
+                button.hide()
+        # no buttons hide frame
+        if flag:
+            self.w.frame_macro_buttons.hide()
+
+        # if there are more then 10 add a menu to the last button for selection
+        if len(INFO.MDI_COMMAND_DICT)>10:
+            button.setText(_translate("HandlerClass",'MORE\nMACROS'))
+            button.setProperty('ini_mdi_command_action', False)
+            button.setProperty('no_action', True)
+            button.setToolTip('')
+            SettingMenu = QMenu(button)
+            button.setMenu(SettingMenu)
+            for i in range(0,len(INFO.MDI_COMMAND_DICT)-10):
+                try:
+                    name = 'MACRO{}'.format(i+10)
+                    label = INFO.MDI_COMMAND_DICT[name]['label']
+                except:
+                    label = INFO.MDI_COMMAND_LABEL_LIST[i+10]
+
+                action = QAction(QIcon.fromTheme('application-exit'), label.replace("\\n"," "), button)
+                action.triggered.connect(lambda s, i=i, b=button : self.midiAction(b, i+10))
+                # tooltips don't work on Qmenu items unless in toolbar
+                #tooltiplabel = 'INI MDI CMD {}:\n'.format(name)
+                #tooltiplabel += INFO.get_ini_mdi_command(key).replace(';', '\n')
+                #action.setToolTip(tooltiplabel)
+
+                SettingMenu.addAction(action)
+
+    # use the button to run macros selected from the buttons menu
+    def midiAction(self, button, num):
+        name = 'MACRO{}'.format(num)
+        try:
+            code = INFO.MDI_COMMAND_DICT[name]['cmd']
+            button.setProperty('ini_mdi_key', name)
+        except:
+            code = INFO.MDI_COMMAND_LIST[num]
+            button.setProperty('ini_mdi_key', '')
+            button.setProperty('ini_mdi_number', num)
+            print('number',num,button.ini_mdi_num)
+        button.setProperty('ini_mdi_command_action', True)
+
+        button.pressed.emit()
+        button.setProperty('ini_mdi_command_action', False)
 
     #####################
     # KEY BINDING CALLS #
