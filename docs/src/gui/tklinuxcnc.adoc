@@ -4,11 +4,6 @@
 [[cha:tklinuxcnc-intro]]
 = TkLinuxCNC GUI
 
-// Custom lang highlight
-// must come after the doc title, to work around a bug in asciidoc 8.6.6
-:ini: {basebackend@docbook:'':ini}
-:hal: {basebackend@docbook:'':hal}
-:ngc: {basebackend@docbook:'':ngc}
 
 [[sec:tklinuxcnc-intro]]
 == Introduction
@@ -28,7 +23,7 @@ image::images/tkemc.png["TkLinuxCNC Window",align="center"]
 To select TkLinuxCNC as the front-end for LinuxCNC, edit the INI file.
 In the section '[DISPLAY]' change the 'DISPLAY' line to read
 
-[source,{ini}]
+[source,ini]
 ----
 DISPLAY = tklinuxcnc
 ----
@@ -129,7 +124,9 @@ When the machine moves, it leaves a trail called the backplot. You can
 start the backplot window by selecting View→Backplot.
 
 [[cap:tklinuxcnc-interpreter]]
-=== TkLinuxCNC Interpreter / Automatic Program Control(((TkLinuxCNC Interpreter)))
+=== TkLinuxCNC Interpreter / Automatic Program Control
+
+(((TkLinuxCNC Interpreter)))
 
 image::images/tkemc-interp.png["TkLinuxCNC Interpreter / program control",align="center"]
 
@@ -184,7 +181,8 @@ color).
 .TkLinuxCNC Override Limits & Jogging increments example
 image::images/tkemc-override-limits.png["TkLinuxCNC Override Limits and Jogging increments example",align="center"]
 
-.The Spindle group(((spindle)))
+.The Spindle group
+(((spindle)))
 The button on the first row selects the direction for the spindle to
 rotate: Counterclockwise, Stopped, Clockwise. The buttons next to it
 allow the user to increase or decrease the rotation speed. The button
@@ -192,7 +190,8 @@ on the second row allows the spindle brake to be engaged or released.
 Depending on your machine configuration, not all the items in this
 group may have an effect.
 
-.The Coolant group(((Coolant)))
+.The Coolant group
+(((Coolant)))
 The two buttons allow the 'Mist' and 'Flood' coolants to be turned on
 and off. Depending on your machine configuration, not all the items in
 this group may appear.

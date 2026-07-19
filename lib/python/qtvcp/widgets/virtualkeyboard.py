@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import sys
 import os
-from PyQt5 import QtGui, QtWidgets, uic
-from PyQt5.QtCore import Qt, QEvent
+from qtpy import QtGui, QtWidgets, uic
+from qtpy.QtCore import Qt, QEvent, Signal
 
 from qtvcp.core import Info, Path
 from qtvcp import logger
@@ -11,6 +11,8 @@ LOG = logger.getLogger(__name__)
 PATH = Path()
 
 class VirtualKeyboard(QtWidgets.QWidget):
+    hideKeyboard = Signal()
+
     def __init__(self, parent=None):
         super(VirtualKeyboard, self).__init__(parent)
         # Load the widgets UI file:
@@ -93,6 +95,7 @@ class VirtualKeyboard(QtWidgets.QWidget):
         self.numbers_buttonGroup.buttonClicked.connect(self.special_clicked)
         self.special_buttonGroup.buttonClicked.connect(self.special_clicked)
         self.control_buttonGroup.buttonClicked.connect(self.button_clicked)
+        self.btn_hide.clicked.connect(lambda: self.hideKeyboard.emit())
 
     def init_letters(self):
         for val in self.letter_list:
@@ -178,11 +181,11 @@ class VirtualKeyboard(QtWidgets.QWidget):
     # Testing                   #
     #############################
 if __name__ == "__main__":
-    from PyQt5.QtWidgets import *
-    from PyQt5.QtCore import *
-    from PyQt5.QtGui import *
+    from qtpy.QtWidgets import *
+    from qtpy.QtCore import *
+    from qtpy.QtGui import *
     app = QtWidgets.QApplication(sys.argv)
     w = VirtualKeyboard()
     w.show()
-    sys.exit( app.exec_() )
+    sys.exit( app.exec() )
 

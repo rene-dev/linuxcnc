@@ -4,10 +4,6 @@
 [[cha:python-interface]]
 = The LinuxCNC Python module
 
-:ini: {basebackend@docbook:'':ini}
-:hal: {basebackend@docbook:'':hal}
-:ngc: {basebackend@docbook:'':ngc}
-
 This documentation describes the `linuxcnc` python module, which provides
 a Python API for talking to LinuxCNC.
 
@@ -40,7 +36,7 @@ The general pattern for `linuxcnc` usage is roughly like this:
 - Establish connections to the command, status and error NML channels as needed.
 - Poll the status channel, either periodically or as needed.
 - Before sending a command, determine from status whether it is in fact OK to do so
-  (for instance, there is no point in sending a 'Run' command if task is in the ESTOP state, or the interpreter is not idle)
+  (for instance, there is no point in sending a 'Run' command if task is in the ESTOP state, or the interpreter is not idle).
 - Send the command by using one of the `linuxcnc` command channel methods.
 
 To retrieve messages from the error channel, poll the error channel periodically, and process any messages retrieved.
@@ -190,6 +186,10 @@ see <<python:reading-ini-values,ReadingINI file values>> for an example.
   Active G-codes for each modal group. +
  The integer values reflect the nominal G-code numbers multiplied by 10. (Examples: 10 = 'G1', 430 = 'G43', 923 = 'G92.3')
 
+*heartbeat*:: '(returns integer)' -
+  motion controller heartbeat counter. Increments every servo cycle.
+  Rate is determined by `[EMCMOT]SERVO_PERIOD` in the INI file.
+
 *homed*:: '(returns tuple of integers)' -
   currently homed joints, with 0 = not homed, 1 = homed.
 
@@ -278,6 +278,9 @@ see <<python:reading-ini-values,ReadingINI file values>> for an example.
 *paused*:: '(returns boolean)' -
   `motion paused` flag.
 
+*single_stepping*:: '(returns boolean)' -
+  `motion single_stepping` flag.
+
 *pocket_prepped*:: '(returns integer)' -
   A Tx command completed, and this pocket is prepared. -1 if no
   prepared pocket.
@@ -321,7 +324,8 @@ see <<python:reading-ini-values,ReadingINI file values>> for an example.
 *settings*:: '(returns tuple of floats)' -
   current interpreter settings: +
   settings[0] = sequence number, +
-  settings[1] = feed rate, settings[2] = speed, +
+  settings[1] = feed rate, +
+  settings[2] = speed, +
   settings[3] = `G64 P` blend tolerance, +
   settings[4] = `G64 Q` naive CAM tolerance.
 
@@ -346,6 +350,10 @@ see <<python:reading-ini-values,ReadingINI file values>> for an example.
 
 *tool_in_spindle*:: '(returns integer)' -
   current tool number.
+
+*taskbeat*:: '(returns integer)' -
+  task main loop heartbeat counter. Increments every task cycle.
+  Rate is determined by `[TASK]CYCLE_TIME` in the INI file.
 
 *tool_from_pocket*:: '(returns integer)' -
   pocket number for the currently loaded tool (0 if no tool loaded).
@@ -517,8 +525,7 @@ For each joint, the following dictionary keys are available:
 
 *homed*:: (not currently implemented)
 
-*increasing*:: '(returns integer)' -
-  unclear.
+*increasing*:: '(returns integer)' - unclear.
 
 *orient_fault*:: '(returns integer)'
 
@@ -532,7 +539,7 @@ For each joint, the following dictionary keys are available:
 
 *speed*:: '(returns float)' -
   spindle speed value, rpm, > 0: clockwise, < 0: counterclockwise. +
-  With G96 active this reflects the maximum speed set by the optional G96 'D'-word or, if the 'D'-word was missing, the default values +/-1e30
+  With G96 active this reflects the maximum speed set by the optional G96 'D'-word or, if the 'D'-word was missing, the default values +/-1e30.
 
 ==  Preparing to send commands
 
@@ -564,9 +571,12 @@ def ok_for_mdi():
 
 if ok_for_mdi():
     c.mode(linuxcnc.MODE_MDI)
-    c.wait_complete() # wait until mode switch executed
+    c.wait_complete() # wait until mode switch executed (or default timeout of 5s occurs!)
     c.mdi("G0 X10 Y20 Z30")
 ----
+
+[WARNING]
+Read important information on 'wait_complete()' in the `linuxcnc.command methods' section below.
 
 ==  Sending commands through `linuxcnc.command`
 
@@ -803,10 +813,13 @@ c.spindle.(linuxcnc.SPINDLE_OFF, 0)
   Unhome a given joint.
 
 `wait_complete([float])`::
-  Wait for completion of the last command sent.
-  If timeout in seconds not specified, default is 5 seconds.
-  Return -1 if timed out, return `RCS_DONE` or `RCS_ERROR` according to command execution status.
-
+  Wait for completion of the last command.
+   Takes an optional timeout value in seconds. +
+   Timeout defaults to 5 seconds if omitted. +
+   Returns -1 if timed out. +
+   Returns `RCS_DONE` or `RCS_ERROR` according to command execution status. +
+   Note that python execution will be blocked until this function returns.
+   
 == Reading the error channel
 
 To handle error messages, connect to the error channel and periodically poll() it.
@@ -854,7 +867,7 @@ inifile = linuxcnc.ini(sys.argv[1])
 # inifile.find() returns None if the key wasn't found - the
 # following idiom is useful for setting a default value:
 
-machine_name = inifile.find("EMC", "MACHINE") or "unknown"
+machine_name = inifile.getstring("EMC", "MACHINE", fallback="unknown")
 print("machine name: ", machine_name)
 
 # inifile.findall() returns a list of matches, or an empty list
@@ -864,9 +877,19 @@ extensions = inifile.findall("FILTER", "PROGRAM_EXTENSION")
 print("extensions: ", extensions)
 
 # override default NML file by INI parameter if given
-nmlfile = inifile.find("EMC", "NML_FILE")
+nmlfile = inifile.getstring("EMC", "NML_FILE", fallback="")
 if nmlfile:
     linuxcnc.nmlfile = os.path.join(os.path.dirname(sys.argv[1]), nmlfile)
+
+# Other examples:
+realval = inifile.getreal("AXIS_X", "MAX_VELOCITY", fallback=5.0)
+boolval = inifile.getbool("JOINT_0", "HOME_USE_INDEX", fallback=False)
+
+# None is returned without fallback= if the variable was not found
+intval  = inifile.getint( "KINS", "JOINTS")
+if None == intval:
+    print("Error: [KINS]JOINTS not defined or an invalid integer"
+
 ----
 
 Or for the same INI file as LinuxCNC:

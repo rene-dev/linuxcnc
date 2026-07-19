@@ -1,5 +1,5 @@
 import os, time
-from PyQt5 import QtCore, QtWidgets, QtGui
+from qtpy import QtCore, QtWidgets, QtGui
 from qtvcp.widgets.gcode_editor import GcodeEditor as GCODE
 from qtvcp.widgets.gcode_graphics import GCodeGraphics as GRAPHICS
 from qtvcp.widgets.mdi_line import MDILine as MDI_WIDGET
@@ -28,7 +28,7 @@ WRITER = writer.Main()
 QHAL = Qhal()
 
 try:
-    from PyQt5.QtWebEngineWidgets import QWebEnginePage
+    from qtpy.QtWebEngineWidgets import QWebEnginePage
 except:
     LOG.warning('QtDragon Warning with loading QtWebEngineWidget - is python3-pyqt5.qtwebengine installed?')
 
@@ -66,7 +66,7 @@ class HandlerClass:
         self.w = widgets
         self.gcodes = GCodes(widgets)
         # This validator precludes using comma as a decimal
-        self.valid = QtGui.QRegExpValidator(QtCore.QRegExp('-?[0-9]{0,6}[.][0-9]{0,3}'))
+        self.valid = QtGui.QRegularExpressionValidator(QtCore.QRegularExpression('-?[0-9]{0,6}[.][0-9]{0,3}'))
         self.KEYBIND = KEYBIND
         KEYBIND.add_call('Key_F11','on_keycall_F11')
         KEYBIND.add_call('Key_F12','on_keycall_F12')

@@ -40,8 +40,8 @@
 #include <string.h>
 #include <rtapi_string.h>
 
-#include "rtapi.h"		/* RTAPI realtime OS API */
-#include "hal.h"		/* HAL public API decls */
+#include <rtapi.h>		/* RTAPI realtime OS API */
+#include <hal.h>		/* HAL public API decls */
 #include "../hal_priv.h"	/* private HAL decls */
 
 #include <gtk/gtk.h>
@@ -92,7 +92,7 @@ void init_display(void)
 
     /* allocate a user space buffer */
     ctrl_usr->disp_buf = g_malloc(sizeof(scope_data_t) * ctrl_shm->buf_len);
-    if (ctrl_usr->disp_buf == 0) {
+    if (ctrl_usr->disp_buf == NULL) {
 	/* malloc failed */
 	/* should never get here - gmalloc checks its return value */
 	exit(-1);

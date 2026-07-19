@@ -18,11 +18,11 @@
 *
 ********************************************************************/
 
-#include "rs274ngc.hh"
-#include "rs274ngc_interp.hh"
-#include "rs274ngc_return.hh"
-#include "inifile.hh"		// INIFILE
-#include "canon.hh"		// _parameter_file_name
+#include "rs274ngc/rs274ngc.hh"
+#include "rs274ngc/rs274ngc_interp.hh"
+#include "rs274ngc/rs274ngc_return.hh"
+#include <inifile.hh>
+#include "nml_intf/canon.hh"		// _parameter_file_name
 #include "config.h"		// LINELEN
 #include <stdio.h>    /* gets, etc. */
 #include <stdlib.h>   /* exit       */
@@ -31,14 +31,16 @@
 #include <stdarg.h>
 #include <string>
 
-#include <readline/readline.h>
-#include <readline/history.h>
+#include <editline/readline.h>
+#include <histedit.h>
 #include <glob.h>
 #include <wordexp.h>
 #include <rtapi_string.h>
 
-#include <saicanon.hh>
-#include "tooldata.hh"
+#include "saicanon.hh"
+#include "tooldata/tooldata.hh"
+
+using namespace linuxcnc;
 
 InterpBase *pinterp;
 #define interp_new (*pinterp)
@@ -674,17 +676,15 @@ usage:
         }
     }
   _sai._external_length_units =  0.03937007874016;
-  if (inifile!= 0) {
-      std::optional<const char*> inistring;
-      IniFile ini;
-      // open it
-      if (ini.Open(inifile) == false) {
-	    fprintf(stderr, "could not open supplied INI file %s\n", inifile);
+  if (inifile!= NULL) {
+      IniFile ini(inifile);
+      if (!ini) {
+        fprintf(stderr, "could not open supplied INI file %s\n", inifile);
         exit(1);
       }
 
-      if ((inistring = ini.Find("LINEAR_UNITS", "TRAJ"))) {
-          if (!strcmp(*inistring, "mm")) {
+      if (auto inistring = ini.findString("LINEAR_UNITS", "TRAJ")) {
+          if (*inistring == "mm") {
              _sai._external_length_units = 1.0;
           }
       }

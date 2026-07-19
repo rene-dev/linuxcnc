@@ -33,12 +33,14 @@ from gi.repository import Gtk
 from gi.repository import Gdk
 from gi.repository import GdkPixbuf
 from gi.repository import GLib
+from gi.repository import Pango
 
 import traceback            # needed to launch traceback errors
 import hal                  # base hal class to react to hal signals
 from common import hal_glib # needed to make our own hal pins
 import sys                 # handle system calls
 import os                  # needed to get the paths and directories
+import signal              # clean shutdown on SIGTERM/SIGINT
 import atexit              # needed to register child's to be closed on closing the GUI
 import subprocess          # to launch onboard and other processes
 import tempfile            # needed only if the user click new in edit mode to open a new empty file
@@ -47,14 +49,25 @@ import locale              # for setting the language of the GUI
 import gettext             # to extract the strings to be translated
 from collections import OrderedDict # needed for proper jog button arrangement
 from time import strftime  # needed for the clock in the GUI
-#from Gtk._Gtk import main_quit
 
 # Throws up a dialog with debug info when an error is encountered
 def excepthook(exc_type, exc_obj, exc_tb):
+    # A KeyboardInterrupt reaching the excepthook is a termination request:
+    # either SIGINT, or SIGTERM surfaced into the main loop by PyGObject's
+    # signal bridge. Quit cleanly instead of popping a modal error dialog,
+    # which would block in a nested loop and leave gmoccapy running until the
+    # caller escalates to SIGKILL.
+    if issubclass(exc_type, KeyboardInterrupt):
+        LOG.info("gmoccapy interrupted (signal), shutting down")
+        if Gtk.main_level() > 0:
+            Gtk.main_quit()
+        else:
+            # No loop yet (startup): the interrupt is swallowed at the GTK
+            # C boundary, so returning resumes startup. Force the exit.
+            os._exit(0)
+        return
     try:
         w = app.widgets.window1
-    except KeyboardInterrupt:
-        sys.exit()
     except NameError:
         w = None
     lines = traceback.format_exception(exc_type, exc_obj, exc_tb)
@@ -76,7 +89,7 @@ sys.excepthook = excepthook
 
 # constants
 #         # gmoccapy  #"
-_RELEASE = " 3.5.0"
+_RELEASE = "3.5.2"
 _INCH = 0                         # imperial units are active
 _MM = 1                           # metric units are active
 
@@ -123,7 +136,7 @@ TCLPATH = os.environ['LINUXCNC_TCL_DIR']
 ALERT_ICON = "dialog_warning"
 INFO_ICON = "dialog_information"
 
-AXISLIST = ['offset', 'X', 'Y', 'Z', 'A', 'B', 'C', 'U', 'V', 'W', 'name']
+AXISLIST = ['offset', 'X', 'Y', 'Z', 'A', 'B', 'C', 'U', 'V', 'W', 'Rot', 'name']
 
 class gmoccapy(object):
     def __init__(self, argv):
@@ -142,14 +155,19 @@ class gmoccapy(object):
                 padding: 3px;
                 margin: 1px;
             }
-            /* #__jog_incr_buttons *:checked {
-                background: rgba(230,230,50,0.8);
-            } */
-            #jog_incr_buttons *:active, #jog_buttons *:active {
-                background: rgba(230,230,50,0.8);
+            entry#gcode_edit {
+                min-height: 18px;
+                padding:1px;
             }
+            /* #jog_incr_buttons *:checked {
+                 background: rgba(255,129,22,0.6);
+            } */
             #eb_program_label, #eb_blockheight_label {
                 background: rgba(0,0,0,1);
+            }
+            #jog_incr_buttons *{
+                padding-left: 3px;
+                padding-right: 3px;
             }
             progress, trough {
                 min-height: 5px;
@@ -157,7 +175,12 @@ class gmoccapy(object):
             progress, text {
                 font-size: 13.3px;
             }
-        """
+            #mdi_entry image.right { background: rgba(146,149,149,0.3); padding: 20px; border-radius: 3px; }
+            #mdi_entry entry { border-width: 2px; margin-top: 3px; padding-right: 0px; }
+            #mdi_entry entry:focus { border-width: 1px; padding-right: 1px; padding-top: 1px; padding-bottom: 1px; }
+            frame#only_top_border > border { border-left-width: 0px; border-right-width: 0px; border-bottom-width: 0px; }
+         """
+            
         screen = Gdk.Screen.get_default()
         provider = Gtk.CssProvider()
         provider.load_from_data(css)
@@ -212,7 +235,6 @@ class gmoccapy(object):
         self.incr_rbt_list = []   # we use this list to add hal pin to the button later
         self.jog_increments = []  # This holds the increment values
         self.unlock = False       # this value will be set using the hal pin unlock settings
-        self.toolpage_use_calc = True   # enable/disable calculator widget to edit numeric values in the tool editor
 
         # needed to display the labels
         self.system_list = ("0", "G54", "G55", "G56", "G57", "G58", "G59", "G59.1", "G59.2", "G59.3")
@@ -406,9 +428,9 @@ class gmoccapy(object):
         self.widgets["rbt_view_{0}".format(view)].set_active(True)
         self.widgets.gremlin.set_property("view", view)
 
-        GSTAT = hal_glib.GStat()
-        GSTAT.connect("graphics-gcode-properties", self.on_gcode_properties)
-        GSTAT.connect("file-loaded", self.on_hal_status_file_loaded)
+        self.GSTAT = Status()
+        self.GSTAT.connect("graphics-gcode-properties", self.on_gcode_properties)
+        self.GSTAT.connect("file-loaded", self.on_hal_status_file_loaded)
 
         # get if run from line should be used
         self.run_from_line = self.prefs.getpref("run_from_line", "no_run", str)
@@ -533,22 +555,24 @@ class gmoccapy(object):
                     + _("Please check the console output."), ALERT_ICON)
 
     def _startup_message(self):
-        title = _("Important change(s)")
+        title = _("<b>Important change(s)</b>\n\n")
         # This array holds information about new features or things that changed. They can be hidden using the dialog's checkbox.
         # It is important that strings are only appended to this array (not removed), otherwise some messages could get hidden unwanted.
         messages =[ _("<b>3.5.0 (LinuxCNC 2.10.0): Gmoccapy does no longer automatically retain G43 after a toolchange!</b>\n"\
                     "Automatic reactivation of G43 is possible using a REMAP.\n"\
                     "Examples can be found in the Gmoccapy sim configurations."),
-                    # _("<b>3.5.1 (LinuxCNC 2.10.1): </b> Example for new feature"),
+                    _("<b>3.5.1 (LinuxCNC 2.10.0)</b>\n• The tool table and offset page use now the calculator for entering values by default. "\
+                    "This can be changed in the settings/by a button.\n• A button to call the calculator was added in MDI and G-code edit modes."),
+                    # _("<b>3.5.2 (LinuxCNC 2.10.x): </b> Example for new feature"),
                     ]
         hide_message = self.prefs.getpref("hide_startup_messsage", 0, int)
         if hide_message < len(messages):
-            message = "\n\n".join(messages[hide_message:])
+            message = title + "\n\n".join(messages[hide_message:])
             message += _('\n\nFor more information see the <a href="https://linuxcnc.org/docs/html/gui/gmoccapy_release_notes.txt">release notes</a>.')
+                 
+            self.notification.add_message(message, INFO_ICON, show_checkbox=True)
+            self.num = len(messages)
 
-            dont_show = self.dialogs.show_user_message(self, message, title, checkbox = True)
-            if dont_show:
-                self.prefs.putpref("hide_startup_messsage", len(messages), str)
 
     def _get_ini_data(self):
         self.get_ini_info = getiniinfo.GetIniInfo()
@@ -637,6 +661,17 @@ class gmoccapy(object):
 
         # Activate the recently open tab page
         self.widgets.ntb_tool_and_code_info.set_current_page(self.prefs.getpref("info_tab_page", 0, int))
+
+        self.jog_btn_size = self.prefs.getpref("jog_btn_size", 48, int)
+        self.widgets.adj_jog_btn_size.set_value(self.jog_btn_size)
+
+        jog_box_width = self.prefs.getpref("jog_box_width", 360, int)
+        self.widgets.adj_jog_box_width.set_value(jog_box_width)
+        self.widgets.vbx_jog.set_size_request(jog_box_width, -1)
+
+        # calculator use in offset page/tool table
+        self.toolpage_use_calc = self.prefs.getpref("toolpage_use_calc", True, bool)
+        self.offsetpage_use_calc = self.prefs.getpref("offsetpage_use_calc", True, bool)
 
 ###############################################################################
 ##                     create widgets dynamically                            ##
@@ -797,11 +832,14 @@ class gmoccapy(object):
         lbl.show()
         return lbl
 
-    def _new_button_with_predefined_image(self, name, size, image = None, image_name = None):
-        btn = Gtk.Button()
+    def _new_button_with_predefined_image(self, name, size, image = None, image_name = None, radio_button = False):
+        if radio_button:
+            btn = Gtk.RadioButton()
+        else:
+            btn = Gtk.Button()
+            btn.set_halign(Gtk.Align.CENTER)
+            btn.set_valign(Gtk.Align.CENTER)
         btn.set_size_request(*size)
-        btn.set_halign(Gtk.Align.CENTER)
-        btn.set_valign(Gtk.Align.CENTER)
         btn.set_property("name", name)
         try:
             if image:
@@ -837,7 +875,7 @@ class gmoccapy(object):
             btn.add(image)
         except Exception as e:
             LOG.error(e)
-            message = _("could not resolve the image path '{0}' given for button '{1}'".format(filepath, name))
+            message = _("could not resolve the image path '{0}' given for button '{1}'").format(filepath, name)
             LOG.error(message)
             image.set_from_icon_name("image-missing", Gtk.IconSize.DIALOG)
             btn.add(image)
@@ -872,12 +910,10 @@ class gmoccapy(object):
 
     def _on_btn_next_touch_clicked(self, widget):
         self._remove_button(self.touch_button_dic, self.widgets.hbtb_touch_off)
-
-        self.widgets.hbtb_touch_off.pack_start(self.touch_button_dic["edit_offsets"],True,True,0)
         self.widgets.hbtb_touch_off.pack_start(self.touch_button_dic["previous_button"],True,True,0)
         self.touch_button_dic["previous_button"].show()
 
-        start = len(self.axis_list) - 5
+        start = len(self.axis_list) - 8
         end = len(self.axis_list)
 
         # now put the needed widgets in the container
@@ -886,7 +922,7 @@ class gmoccapy(object):
             self.touch_button_dic[name].show()
             self.widgets.hbtb_touch_off.pack_start(self.touch_button_dic[name], True, True, 0)
 
-        self._put_set_active_and_back()
+        self._put_back()
 
     def _on_btn_next_macro_clicked(self, widget):
         # remove all buttons from container
@@ -930,12 +966,10 @@ class gmoccapy(object):
     def _on_btn_previous_touch_clicked(self, widget):
         self._remove_button(self.touch_button_dic, self.widgets.hbtb_touch_off)
 
-        self.widgets.hbtb_touch_off.pack_start(self.touch_button_dic["edit_offsets"],True,True,0)
-
         if self.tool_measure_OK:
-            end = 4
+            end = 7
         else:
-            end = 5
+            end = 8
 
         start = 0
         # now put the needed widgets in the container
@@ -950,8 +984,7 @@ class gmoccapy(object):
         if self.tool_measure_OK:
             self.widgets.hbtb_touch_off.pack_start(self.touch_button_dic["block_height"],True,True,0)
 
-        self.widgets.hbtb_touch_off.pack_start(self.touch_button_dic["zero_offsets"],True,True,0)
-        self._put_set_active_and_back()
+        self._put_back()
 
     def _on_btn_previous_macro_clicked(self, widget):
         # remove all buttons from container
@@ -970,9 +1003,7 @@ class gmoccapy(object):
         self.widgets.hbtb_MDI.pack_start(self.macro_dic["keyboard"],True,True,0)
         self.macro_dic["keyboard"].show()
 
-    def _put_set_active_and_back(self):
-        self.widgets.hbtb_touch_off.pack_start(self.touch_button_dic["zero_offsets"], True, True, 0)
-        self.widgets.hbtb_touch_off.pack_start(self.touch_button_dic["set_active"], True, True, 0)
+    def _put_back(self):
         self.widgets.hbtb_touch_off.pack_start(self.touch_button_dic["touch_back"], True, True, 0)
 
     def _put_unref_and_back(self):
@@ -984,29 +1015,12 @@ class gmoccapy(object):
 
         dic = self.axis_list
         num_elements = len(dic)
-        end = 7
+        end = 9
 
         if self.tool_measure_OK:
-            # we will have 3 buttons on the right side
             end -= 1
 
-        lbl = Gtk.Label.new(_("edit\noffsets"))
-        lbl.set_visible(True)
-        lbl.set_justify(Gtk.Justification.CENTER)
-        btn = Gtk.ToggleButton.new()
-        btn.set_size_request(*_DEFAULT_BB_SIZE)
-        btn.set_halign(Gtk.Align.CENTER)
-        btn.set_valign(Gtk.Align.CENTER)
-        btn.add(lbl)
-        btn.connect("toggled", self.on_tbtn_edit_offsets_toggled)
-        btn.set_property("tooltip-text", _("Press to edit the offsets"))
-        btn.set_property("name", "edit_offsets")
-        # TODO: Use CSS for this if still needed
-        # btn.override_background_color(Gtk.StateFlags.ACTIVE, Gdk.RGBA(1.0, 1.0, 0.0, 1.0))
-        self.widgets.hbtb_touch_off.pack_start(btn,True,True,0)
-        btn.show()
-
-        if num_elements > 6:
+        if num_elements > 8:
             # show the previous arrow to switch visible touch button)
             btn = self._new_button_with_predefined_image(
                 name="previous_button",
@@ -1032,7 +1046,7 @@ class gmoccapy(object):
 
             self.widgets.hbtb_touch_off.pack_start(btn,True,True,0)
 
-            if pos > end - 2:
+            if pos > end:
                 btn.hide()
 
         if num_elements > (end - 1):
@@ -1055,17 +1069,6 @@ class gmoccapy(object):
             self.widgets.hbtb_touch_off.pack_start(lbl,True,True,0)
             lbl.show()
 
-        btn = self.widgets.offsetpage1.wTree.get_object("zero_g92_button")
-        btn.set_size_request(*_DEFAULT_BB_SIZE)
-        btn.set_halign(Gtk.Align.CENTER)
-        btn.set_valign(Gtk.Align.CENTER)
-        self.widgets.offsetpage1.buttonbox.remove(btn)
-        btn.connect("clicked", self.on_btn_zero_g92_clicked)
-        btn.set_property("tooltip-text", _("Press to reset all G92 offsets"))
-        btn.set_property("name", "zero_offsets")
-        self.widgets.hbtb_touch_off.pack_start(btn,True,True,0)
-        btn.show()
-
         if self.tool_measure_OK:
             btn = Gtk.Button.new_with_label(_(" Block\nHeight"))
             btn.set_size_request(*_DEFAULT_BB_SIZE)
@@ -1076,20 +1079,6 @@ class gmoccapy(object):
             btn.set_property("name", "block_height")
             self.widgets.hbtb_touch_off.pack_start(btn,True,True,0)
             btn.show()
-
-        lbl = Gtk.Label.new(_("set\nselected"))
-        lbl.set_visible(True)
-        lbl.set_justify(Gtk.Justification.CENTER)
-        btn = Gtk.Button.new()
-        btn.set_size_request(*_DEFAULT_BB_SIZE)
-        btn.set_halign(Gtk.Align.CENTER)
-        btn.set_valign(Gtk.Align.CENTER)
-        btn.add(lbl)
-        btn.connect("clicked", self._on_btn_set_selected_clicked)
-        btn.set_property("tooltip-text", _("Press to set the selected coordinate system to be the active one"))
-        btn.set_property("name", "set_active")
-        self.widgets.hbtb_touch_off.pack_start(btn,True,True,0)
-        btn.show()
 
         btn = self._new_button_with_predefined_image(
             name="touch_back",
@@ -1149,9 +1138,14 @@ class gmoccapy(object):
         # We use the pressed signal, not the toggled, otherwise two signals will be emitted
         # One from the released button and one from the pressed button
         # we make a list of the buttons to later add the hardware pins to them
-        label = _("Continuous")
-        rbt = Gtk.RadioButton(label = label)
+        rbt = self._new_button_with_predefined_image(
+            name=_("Continuous"),
+            size=(-1,-1),
+            image=self.widgets.img_continuous,
+            radio_button=True
+        )
         rbt.set_property("name","rbt_0")
+        rbt.set_tooltip_text(_("Continuous jog"))
         rbt.connect("pressed", self._jog_increment_changed)
         self.widgets.vbtb_jog_incr.pack_start(rbt, True, True, 0)
         rbt.set_property("draw_indicator", False)
@@ -1267,7 +1261,7 @@ class gmoccapy(object):
                 LOG.debug("joint button")
                 joint_btn = True
             else:
-                LOG.warning(_("unknown jog command {0}".format(button_name)))
+                LOG.warning(_("unknown jog command {0}").format(button_name))
                 return None
 
         if not joint_btn:
@@ -1295,11 +1289,10 @@ class gmoccapy(object):
                 btn.set_property("name", name)
                 btn.connect("pressed", self._on_btn_jog_pressed, name)
                 btn.connect("released", self._on_btn_jog_released, name)
-                btn.set_property("tooltip-text", _("Press to jog axis {0}".format(axis)))
+                btn.set_property("tooltip-text", _("Press to jog axis {0}").format(axis.upper()))
                 # Set name to assign CSS
                 self.widgets.vbx_jog_button.set_property("name", "jog_buttons")
-                btn.set_size_request(48,48)
-
+                btn.set_size_request(self.jog_btn_size, self.jog_btn_size)
                 self.jog_button_dic[name] = btn
 
     def _make_joints_button(self):
@@ -1316,8 +1309,8 @@ class gmoccapy(object):
                 btn.set_property("name", name)
                 btn.connect("pressed", self._on_btn_jog_pressed, name)
                 btn.connect("released", self._on_btn_jog_released, name)
-                btn.set_property("tooltip-text", _("Press to jog joint {0}".format(joint)))
-                btn.set_size_request(48,48)
+                btn.set_property("tooltip-text", _("Press to jog joint {0}").format(joint))
+                btn.set_size_request(self.jog_btn_size, self.jog_btn_size)
 
                 self.joints_button_dic[name] = btn
 
@@ -1333,7 +1326,7 @@ class gmoccapy(object):
             num_macros = len(macros)
         LOG.debug("found {0} Macros".format(num_macros))
         if num_macros > 14:
-            message = _("Found more than 16 macros, will use only the first 14.")
+            message = _("Found more than 14 macros, will use only the first 14.")
             LOG.info(message)
             num_macros = 14
         btn = self._new_button_with_predefined_image(
@@ -1362,7 +1355,7 @@ class gmoccapy(object):
                 btn.set_halign(Gtk.Align.CENTER)
                 btn.set_valign(Gtk.Align.CENTER)
                 btn.set_property("name","macro_{0}".format(pos))
-            btn.set_property("tooltip-text", _("Press to run macro {0}".format(name)))
+            btn.set_property("tooltip-text", _("Press to run macro {0}").format(name))
             btn.connect("clicked", self._on_btn_macro_pressed, name)
             btn.position = pos
             btn.show()
@@ -1390,7 +1383,7 @@ class gmoccapy(object):
             size=_DEFAULT_BB_SIZE,
             image=self.widgets.img_macro_menu_calculator
         )
-        btn.set_property("tooltip-text", _("Press to display the virtual calculator"))
+        btn.set_property("tooltip-text", _("Press to display the calculator"))
         btn.connect("clicked", self.on_btn_show_calc_clicked)
         self.widgets.hbtb_MDI.pack_start(btn,True,True,0)
         btn = self.widgets.btn_macro_menu_toggle_keyboard = self._new_button_with_predefined_image(
@@ -1789,6 +1782,7 @@ class gmoccapy(object):
         else:
             self.widgets.spc_lin_jog_vel.set_digits(2)
             self.widgets.spc_lin_jog_vel.set_property("unit", _("inch/min"))
+        self.widgets.lbl_vel_unit.set_label(self.widgets.spc_lin_jog_vel.get_property("unit"))
 
         # the size of the DRO ; self.dro_size is initialized in _get_pref_data
         self.widgets.adj_dro_size.set_value(self.dro_size)
@@ -1800,6 +1794,11 @@ class gmoccapy(object):
             self.widgets.spc_ang_jog_vel.set_property("min", self.get_ini_info.get_min_ang_jog_vel())
             self.widgets.spc_ang_jog_vel.set_property("max", self.get_ini_info.get_max_ang_jog_vel())
             self.widgets.spc_ang_jog_vel.set_value(self.get_ini_info.get_default_ang_jog_vel())
+            
+        font = self.prefs.getpref("gcodeview_font", "monospace 10", str)
+        font_desc = Pango.FontDescription.from_string(font)
+        self.widgets.fontbutton_gcodeview.set_font(font)
+        self.widgets.gcode_view.modify_font(font_desc)
 
 # =============================================================
 # Dynamic tabs handling Start
@@ -1890,7 +1889,7 @@ class gmoccapy(object):
                     self.widgets[widget].hide()
 
             if "box_vel_info" in tab_locations:
-                widgetlist = ["vbx_overrides", "frm_rapid_override", "frm_feed_override"]
+                widgetlist = ["frm_vel_info"]
                 for widget in widgetlist:
                     self.widgets[widget].hide()
 
@@ -1948,19 +1947,143 @@ class gmoccapy(object):
         self.widgets.tooledit1.set_visible("abcxyzuvwijq", False)
         for axis in self.axis_list:
             self.widgets.tooledit1.set_visible("{0}".format(axis), True)
+        # hide select column
+        self.widgets.tooledit1.wTree.get_object("s1").set_visible(False)
+        # disconnect the key_press handler in the widget
+        tv = self.widgets.tooledit1.wTree.get_object("treeview1")
+        tv.disconnect_by_func(self.widgets.tooledit1.on_tree_navigate_key_press)
         # if it's a lathe config we show lathe related columns
         if self.lathe_mode:
             self.widgets.tooledit1.set_visible("ijq", True)
             if not self.get_ini_info.get_lathe_wear_offsets():
                 # hide the wear offset tabs
                 self.widgets.tooledit1.set_lathe_display(False)
-        self.widgets.tooledit1.hide_buttonbox(True)
-        column_cell_ids = ["toggle", "tool#1", "pos1", "x1", "y1", "z1", "a1", "b1", "c1", "u1", "v1", "w1",
-                       "d1", "front1", "back1", "orient1", "cell_comments1"]
+        # Modify the button box at the bottom
+        buttonbox = self.widgets.tooledit1.wTree.get_object("buttonbox")
+        buttonbox.set_layout(Gtk.ButtonBoxStyle.EDGE)
+        buttonbox.set_property("homogeneous", False)
+        # Delete button
+        btn_delete = self.widgets.tooledit1.wTree.get_object("delete")
+        btn_delete.set_size_request(56, 56)
+        btn_delete.set_label("")
+        btn_delete.set_image(self.widgets.img_tool_delete)
+        btn_delete.set_tooltip_text(_("Delete selected tool"))
+        btn_delete.set_always_show_image(True)
+        btn_delete.disconnect_by_func(self.widgets.tooledit1.delete)
+        btn_delete.connect("clicked",self.on_btn_delete_tool_clicked)
+        # Add button
+        btn_add = self.widgets.tooledit1.wTree.get_object("add")
+        btn_add.set_size_request(56, 56)
+        btn_add.set_label("")
+        btn_add.set_image(self.widgets.img_tool_add)
+        btn_add.set_tooltip_text(_("Add new tool"))
+        btn_add.set_always_show_image(True)
+        btn_add.disconnect_by_func(self.widgets.tooledit1.add)
+        btn_add.connect("clicked",self.on_btn_add_tool_clicked)
+        # Reload button
+        btn_reload = self.widgets.tooledit1.wTree.get_object("reload")
+        btn_reload.set_size_request(56, 56)
+        btn_reload.set_label("")
+        btn_reload.set_image(self.widgets.img_tool_reload)
+        btn_reload.set_tooltip_text(_("Reload tool table from file"))
+        btn_reload.set_always_show_image(True)
+        btn_reload.disconnect_by_func(self.widgets.tooledit1.reload)
+        btn_reload.connect("clicked",self.on_btn_reload_tooltable_clicked)
+        # Save button
+        btn_save = self.widgets.tooledit1.wTree.get_object("apply")
+        btn_save.set_size_request(56, 56)
+        btn_save.set_label("")
+        btn_save.set_image(self.widgets.img_tool_save)
+        btn_save.set_tooltip_text(_("Save tool table to file"))
+        btn_save.set_always_show_image(True)
+        btn_save.disconnect_by_func(self.widgets.tooledit1.save)
+        btn_save.connect("clicked",self.on_btn_save_tool_changes_clicked)
+        # Create a label for current tool in spindle
+        lbl_tool = Gtk.Label()
+        self.widgets.tooledit1.lbl_tool = lbl_tool
+        lbl_tool.show_all()
+        buttonbox.pack_start(lbl_tool,True,True,0)
+        # Calculator button
+        btn_calculator = Gtk.ToggleButton()
+        btn_calculator.set_size_request(56, 56)
+        btn_calculator.set_image(self.widgets.img_tool_calculator)
+        btn_calculator.set_tooltip_text(_("Use calculator to edit numeric values"))
+        btn_calculator.show_all()
+        btn_calculator.set_active(self.toolpage_use_calc)
+        btn_calculator.connect("toggled", self.on_toolpage_use_calc_toggled)
+        self.widgets.tooledit1.btn_calculator = btn_calculator
+
+        buttonbox.pack_start(btn_calculator,False,False,50)
+        column_cell_ids = ["toggle", "tool#1", "pos1",
+                           "x1", "y1", "z1", "a1", "b1", "c1", "u1", "v1", "w1",
+                           "d1", "front1", "back1", "orient1", "comments1"]
         for col, name in enumerate(column_cell_ids):
-            if col > 0 and col < 16:
+            if col > 0 and col < 17:
                 temp = self.widgets.tooledit1.wTree.get_object("cell_%s" % name)
-                temp.connect('editing-started', self.on_tool_col_edit_started, col)
+                if col < 16: # calulator is only useful for nummeric columns (ie not for 'Comments')
+                    temp.connect('editing-started', self.on_tool_col_edit_started, col)
+                temp.connect('edited', self.on_tool_col_edited)
+        self.widgets.tooledit1.edited = False
+        # override 'tooledit_widget' method 'set_selected_tool' so we can set the label text
+        self.tooledit1_set_selected_tool = self.widgets.tooledit1.set_selected_tool
+        self.widgets.tooledit1.set_selected_tool = self.set_selected_tool
+        # override 'tooledit_widget' method 'toolfile_stale' so we can also update toolinfo
+        self.widgets.tooledit1.toolfile_stale = self.toolfile_stale
+
+    def toolfile_stale(self):
+        self._update_toolinfo(self.widgets.tooledit1.toolinfo_num)
+        self.widgets.tooledit1.reload(None)
+        self.widgets.tooledit1.set_selected_tool(self.widgets.tooledit1.toolinfo_num)
+
+    def set_selected_tool(self, toolnumber):
+        lbl_tool_text = _("Tool loaded:") + " " + str(toolnumber)
+        self.widgets.tooledit1.lbl_tool.set_text(lbl_tool_text)
+        self.tooledit1_set_selected_tool(toolnumber)
+
+    def on_tree_navigate_key_press(self, treeview, event, filter):
+        keyname = Gdk.keyval_name(event.keyval)
+        path, col = treeview.get_cursor()
+        columns = [c for c in treeview.get_columns()]
+        colnum = columns.index(col)
+        focuschild = treeview.get_focus_child()
+        if filter == 'wear':
+            store_path = self.wear_filter.convert_path_to_child_path(path)
+            path = store_path
+        elif filter == 'tool':
+            store_path = self.tool_filter.convert_path_to_child_path(path)
+            path = store_path
+        if keyname == 'Tab':
+            cont = True
+            cont2 = True
+            i = 0
+            while cont:
+                print("column ", colnum)
+                i += 1
+                if colnum + i < len(columns):
+                    if columns[colnum + i].props.visible:
+                        renderer = columns[colnum + i].get_cells()
+                        if renderer[0].props.editable:
+                            next_column = columns[colnum + i]
+                            cont = False
+                else:
+                    i = 1
+                    while cont2:
+                        renderer = columns[i].get_cells()
+                        if renderer[0].props.editable:
+                            next_column = columns[i]
+                            cont2 = False
+                        else:
+                            i += 1
+                    cont = False
+            GLib.timeout_add(50,
+                             treeview.set_cursor,
+                             path, next_column, True)
+        else:
+            pass
+
+    def on_toolpage_use_calc_toggled(self,widget):
+        self.toolpage_use_calc = widget.get_active()
+        self.prefs.putpref("toolpage_use_calc", self.toolpage_use_calc)
 
     def on_tool_col_edit_started(self, widget, filtered_path, new_text, col):
         if not self.toolpage_use_calc:
@@ -1972,11 +2095,11 @@ class gmoccapy(object):
                        "Diameter", "Front angle", "Back angle", "Orientation", ";1"]
         toolpage = self.widgets.tooledit1
         toolview = toolpage.view1
-        model, row = toolview.get_selection().get_selected()
+        model, treeiter = toolview.get_selection().get_selected()
         value = self.dialogs.entry_dialog(self,
-                                    data=model[row][col],
+                                    data=model[treeiter][col],
                                     header=_("Enter value"),
-                                    label=_("Tool %s,  %s:" % (model[row][1], captations[col])),
+                                    label=_("Tool") + f" {model[treeiter][1]}, {captations[col]}:",
                                     integer=col in [1,2,15])
         if value == "ERROR":
             LOG.debug("conversion error")
@@ -1985,17 +2108,22 @@ class gmoccapy(object):
         elif value == "CANCEL":
             pass
         else:
-            store = toolpage.wTree.get_object("liststore1")
-            if col in [1,2,15]:
-                store[row][col] = value
-            else:
-                store[row][col] = f"{value:11.4f}"
+            path = model.get_path(treeiter)
+            row = path.get_indices()[0]
+            # Clicking on a cell emits 'editing-started' which leads to the evaluation of the text in edit mode.
+            # To use the return value of the calculator, it must be pretended that there is no editable (=no edit mode).
+            self.widgets.tooledit1.editable = None
+            self.widgets.tooledit1.validate_input(row, f"{value:11.4f}", col)
+            self.widgets.tooledit1.edited = True
         # this is needed to get offsetview out of editing mode
         GLib.timeout_add(50,
                      toolview.set_cursor,
-                     toolpage.model.get_path(row),
+                     toolpage.model.get_path(treeiter),
                      toolview.get_columns()[0],
                      True)
+
+    def on_tool_col_edited (self, *args):
+        self.widgets.tooledit1.edited = True
 
     def _init_themes(self):
         # If there are themes then add them to combo box
@@ -2074,7 +2202,28 @@ class gmoccapy(object):
 
         # load theme
         self._set_sourceview_theme(model[theme_choice.get_active_iter()][0])
+        
+        self._update_gcodeview_font_filter()
 
+    # Filter function for Gcodeview font selection
+    def _gcodeview_font_filter(self, family, face, monospace, regular):
+        mono = not monospace or family.is_monospace()
+        reg = not regular or face.get_face_name()=="Regular" or face.get_face_name()=="Medium" or face.get_face_name()=="Book"
+        return mono and reg
+    
+    # Filter function for messages font selection
+    def _messages_font_filter(self, family, face, wanted_face):
+        if wanted_face == "All":
+            return True
+        else:
+            return face.get_face_name() == wanted_face
+    
+    def _update_gcodeview_font_filter(self):
+        self.widgets.fontbutton_gcodeview.set_filter_func(self._gcodeview_font_filter, self.widgets.chk_font_monospace.get_active(), self.widgets.chk_font_regular.get_active())
+    
+    def _update_messages_font_filter(self):
+        self.widgets.fontbutton_popup.set_filter_func(self._messages_font_filter, self.widgets.cmb_messages_font_face.get_active_text())
+    
 
     def _init_audio(self):
         # try to add ability for audio feedback to user.
@@ -2262,7 +2411,64 @@ class gmoccapy(object):
         else:
             self.widgets.offsetpage1.set_to_inch()
             self.widgets.offsetpage1.machine_units_mm = _INCH
-        self.widgets.offsetpage1.hide_buttonbox(True)
+
+        # Modify the button box at the bottom
+        buttonbox = self.widgets.offsetpage1.wTree.get_object("buttonbox")
+        buttonbox.set_layout(Gtk.ButtonBoxStyle.EDGE)
+        buttonbox.set_property("homogeneous", True)
+        for child in buttonbox.get_children():
+            buttonbox.remove(child)
+        # create new edit button
+        lbl = Gtk.Label.new(_("Edit\nOffsets"))
+        lbl.set_visible(True)
+        lbl.set_justify(Gtk.Justification.CENTER)
+        btn_edit_offsets = Gtk.ToggleButton()
+        btn_edit_offsets.set_size_request(56, 56)
+        btn_edit_offsets.add(lbl)
+        btn_edit_offsets.set_property("tooltip-text", _("Press to set the selected coordinate system to be the active one"))
+        btn_edit_offsets.show_all()
+        btn_edit_offsets.connect("clicked", self._on_btn_edit_offsets_clicked)
+        self.widgets.offsetpage1.btn_edit_offsets = btn_edit_offsets
+        buttonbox.pack_start(btn_edit_offsets,True,True,0)
+        # create new Zero-G92
+        lbl = Gtk.Label.new(_("Zero\nG92/G52"))
+        lbl.set_visible(True)
+        lbl.set_justify(Gtk.Justification.CENTER)
+        btn_zero_g92 = Gtk.Button()
+        btn_zero_g92.set_size_request(56, 56)
+        btn_zero_g92.add(lbl)
+        btn_zero_g92.set_property("tooltip-text", _("Press to reset all G92 offsets"))
+        btn_zero_g92.show_all()
+        btn_zero_g92.connect("clicked", self.on_btn_zero_g92_clicked)
+        self.widgets.offsetpage1.btn_zero_g92 = btn_zero_g92
+        buttonbox.pack_start(btn_zero_g92,True,True,0)
+        # create new button to set selected offset system
+        lbl = Gtk.Label.new(_("Set\nSelected"))
+        lbl.set_visible(True)
+        lbl.set_justify(Gtk.Justification.CENTER)
+        btn_set_selected = Gtk.Button()
+        btn_set_selected.set_size_request(56, 56)
+        btn_set_selected.add(lbl)
+        btn_set_selected.set_property("tooltip-text", _("Press to set the selected coordinate system to be the active one"))
+        btn_set_selected.show_all()
+        btn_set_selected.connect("clicked", self._on_btn_set_selected_clicked)
+        self.widgets.offsetpage1.btn_set_selected = btn_set_selected
+        buttonbox.pack_start(btn_set_selected,True,True,0)
+        # Create a label as a space holder
+        spacer = Gtk.Label()
+        spacer.show_all()
+        buttonbox.pack_start(spacer,True,True,0)
+        # Calculator button
+        btn_calculator = Gtk.ToggleButton()
+        btn_calculator.set_size_request(56, 56)
+        btn_calculator.set_image(self.widgets.img_offset_calculator)
+        btn_calculator.set_tooltip_text(_("Use calculator to edit numeric values"))
+        btn_calculator.show_all()
+        btn_calculator.set_active(self.offsetpage_use_calc)
+        btn_calculator.connect("toggled", self.on_offsetpage_use_calc_toggled)
+        self.widgets.offsetpage1.btn_calculator = btn_calculator
+        buttonbox.pack_start(btn_calculator,False,False,50)
+
         self.widgets.offsetpage1.set_row_visible("1", False)
         self.widgets.offsetpage1.set_font("sans 12")
         self.widgets.offsetpage1.set_foreground_color(self._get_RGBA_color("#28D0D9"))
@@ -2275,23 +2481,28 @@ class gmoccapy(object):
             names.append([system, name])
         self.widgets.offsetpage1.set_names(names)
         for col, name in enumerate(AXISLIST):
-            if col > 9:break
+            if col > 10:break
             temp = self.widgets.offsetpage1.wTree.get_object("cell_%s" % name)
             temp.connect('editing-started', self.on_offset_col_edit_started, col)
 
-
+    def on_offsetpage_use_calc_toggled(self,widget):
+        self.offsetpage_use_calc = widget.get_active()
+        self.prefs.putpref("offsetpage_use_calc", self.offsetpage_use_calc)
+        
     def on_offset_col_edit_started(self, widget, filtered_path, new_text, col):
+        if not self.offsetpage_use_calc:
+            return
         offsetpage = self.widgets.offsetpage1
         offsetview = offsetpage.view2
         model, treeiter = offsetview.get_selection().get_selected()
         path = offsetpage.modelfilter.get_path(treeiter)
         (store_path,) = offsetpage.modelfilter.convert_path_to_child_path(path)
         row = store_path
-        if self.touch_button_dic["edit_offsets"].get_active():
+        if self.widgets.offsetpage1.btn_edit_offsets.get_active():
             offset = self.dialogs.entry_dialog(self,
                                         data=offsetpage.store[row][col],
                                         header=_("Enter value for offset"),
-                                        label=_("%s %s-offset:" % (offsetpage.store[row][0], AXISLIST[col])),
+                                        label=f"{offsetpage.store[row][0]} {AXISLIST[col]}-" + _("offset:"),
                                         integer=False)
             if offset == "ERROR":
                 LOG.debug("conversion error")
@@ -2344,6 +2555,21 @@ class gmoccapy(object):
             filetypes += ext.replace("*.", "") + ","
         self.widgets.IconFileSelection1.set_property("filetypes", filetypes)
 
+        self.iconview_sortorder = self.prefs.getpref("iconview_sortorder", 0, int)
+        self.iconview_sortbydate = self.prefs.getpref("iconview_sortbydate", 1, int)
+        self.iconview_folderfirst = self.prefs.getpref("iconview_folderfirst", 0, int)
+        self.sort_by_date = self.prefs.getpref("sort_by_date", False, bool) # state of toggle button
+        self.widgets.tbtn_sort.set_active(self.sort_by_date)
+        self.widgets.cmb_sortorder.set_active_id(str(self.iconview_sortorder))
+        self.widgets.cmb_sortbydate.set_active_id(str(self.iconview_sortbydate))
+        self.widgets.cmb_folderfirst.set_active_id(str(self.iconview_folderfirst))
+        self.widgets.IconFileSelection1.set_property("sortorder", self.iconview_sortorder)
+        self.widgets.IconFileSelection1.set_property("folderfirst", self.iconview_folderfirst)
+        if self.sort_by_date:
+            self.widgets.IconFileSelection1.set_property("sortbydate", self.iconview_sortbydate)
+        else:
+            self.widgets.IconFileSelection1.set_property("sortbydate", 0)
+        
         jump_to_dir = self.prefs.getpref("jump_to_dir", os.path.expanduser("~"), str)
         self.widgets.jump_to_dir_chooser.set_current_folder(jump_to_dir)
         self.widgets.IconFileSelection1.set_property("jump_to_dir", jump_to_dir)
@@ -2370,6 +2596,7 @@ class gmoccapy(object):
             pass
         self.widgets.window1.connect("key_press_event", self.on_key_event, 1)
         self.widgets.window1.connect("key_release_event", self.on_key_event, 0)
+        self.widgets.gcode_view.connect("key-press-event", self.on_key_event_gcode_edit)
 
     # Initialize the file to load dialog, setting an title and the correct
     # folder as well as a file filter
@@ -2442,6 +2669,7 @@ class gmoccapy(object):
             return
         if state:
             page.show()
+            self.widgets.offsetpage1.btn_calculator.set_active(self.offsetpage_use_calc)
             self.widgets.ntb_preview.set_property("show-tabs", state)
             self.widgets.ntb_preview.set_current_page(1)
             self.widgets.offsetpage1.mark_active((self.system_list[self.stat.g5x_index]).lower())
@@ -2453,8 +2681,7 @@ class gmoccapy(object):
                 system_name = "system_name_{0}".format(system).lower()
                 self.prefs.putpref(system_name, name)
             page.hide()
-
-            self.touch_button_dic["edit_offsets"].set_active(False)
+            self.widgets.offsetpage1.btn_edit_offsets.set_active(False)
             self.widgets.ntb_preview.set_current_page(0)
             self.widgets.ntb_info.set_current_page(0)
             if self.widgets.ntb_preview.get_n_pages() <= 4:  # else user tabs are available
@@ -2466,9 +2693,12 @@ class gmoccapy(object):
             return
         if state:
             page.show()
+            self.widgets.tooledit1.btn_calculator.set_active(self.toolpage_use_calc)
             self.widgets.ntb_preview.set_property("show-tabs", not state)
             self.widgets.vbx_jog.hide()
             self.widgets.ntb_preview.set_current_page(2)
+            self.widgets.tooledit1.reload(None)
+            self.widgets.tooledit1.edited = False
             self.widgets.tooledit1.set_selected_tool(self.stat.tool_in_spindle)
             if self.widgets.chk_use_kb_on_tooledit.get_active():
                 self.widgets.ntb_info.set_current_page(1)
@@ -2536,7 +2766,7 @@ class gmoccapy(object):
 
     # every 1 second this gets called
     def _periodic_1s(self):
-        if hal.get_value('halui.program.is-running'):
+        if self.GSTAT.is_auto_running() and not self.GSTAT.is_auto_paused():
             self.elapsed_time_run += 1
             self._update_progressbar_text()
         return True
@@ -2544,7 +2774,6 @@ class gmoccapy(object):
 
     def _show_error(self, error):
         kind, text = error
-        # print(kind,text)
         if kind in (linuxcnc.NML_ERROR, linuxcnc.OPERATOR_ERROR):
             icon = ALERT_ICON
             self.halcomp["error"] = True
@@ -2586,7 +2815,7 @@ class gmoccapy(object):
             self.stat.poll()
             if self.stat.task_state == linuxcnc.STATE_ESTOP:
                 widget.set_active(True)
-                self._show_error((11, _("External ESTOP is set, could not change state!")))
+                self._show_error((linuxcnc.OPERATOR_ERROR, _("External ESTOP is set, could not change state!")))
 
     # toggle machine on / off button
     def on_tbtn_on_toggled(self, widget, data=None):
@@ -2599,7 +2828,7 @@ class gmoccapy(object):
             self.stat.poll()
             if self.stat.task_state != linuxcnc.STATE_ON:
                 widget.set_active(False)
-                self._show_error((11, _("Could not switch the machine on, is limit switch activated?")))
+                self._show_error((linuxcnc.OPERATOR_DISPLAY, _("Could not switch the machine on, is limit switch activated?")))
                 self._update_widgets(False)
                 return
             self._update_widgets(True)
@@ -2890,7 +3119,7 @@ class gmoccapy(object):
 
         # if the edit offsets button is active, we do not want to change
         # pages, as the user may want to edit several axis values
-        if self.touch_button_dic["edit_offsets"].get_active():
+        if self.widgets.offsetpage1.btn_edit_offsets.get_active():
             return
 
         # self.tool_change is set only if the tool change was commanded
@@ -2910,7 +3139,7 @@ class gmoccapy(object):
             self.command.abort()
             self.command.mode(linuxcnc.MODE_MANUAL)
             self.command.wait_complete()
-            self._show_error((13, _("It is not possible to change to MDI Mode at the moment")))
+            self._show_error((linuxcnc.OPERATOR_DISPLAY, _("It is not possible to change to MDI Mode at the moment")))
             return
         else:
             # if we are in user tabs, we must reset the button
@@ -2961,7 +3190,7 @@ class gmoccapy(object):
             self.command.abort()
             self.command.mode(linuxcnc.MODE_MANUAL)
             self.command.wait_complete()
-            self._show_error((13, _("It is not possible to change to Auto Mode at the moment")))
+            self._show_error((linuxcnc.OPERATOR_DISPLAY, _("It is not possible to change to Auto Mode at the moment")))
             return
         else:
             # if we are in user tabs, we must reset the button
@@ -3095,7 +3324,7 @@ class gmoccapy(object):
             # move and resize the window
             self.widgets.window1.move(self.xpos, self.ypos)
             self.widgets.window1.resize(self.width, self.height)
-            
+        
         # keyboard size
         self.widgets.chk_kbd_set_height.set_active(self.kbd_set_height)
         self.widgets.chk_kbd_set_width.set_active(self.kbd_set_width)
@@ -3103,9 +3332,6 @@ class gmoccapy(object):
         self.widgets.adj_kbd_width.set_value(self.kbd_width)
         self._update_kbd_height(self.kbd_set_height)
         self._update_kbd_width(self.kbd_set_width)
-
-        # set initial state of widgets
-        self.touch_button_dic["set_active"].set_sensitive(False)
 
         # set up the hal pin status of tool measurement
         # could not be done prior to this, as the hal pin are not created before
@@ -3131,13 +3357,16 @@ class gmoccapy(object):
         Gtk.main_quit()
 
     def on_focus_out(self, widget, data=None):
+        LOG.debug("focus-out-event")
         self.stat.poll()
         if self.stat.enabled and self.stat.task_mode == linuxcnc.MODE_MANUAL and self.stat.current_vel > 0:
             # cancel any joints jogging
             JOGMODE = self._get_jog_mode()
             for jnum in range(self.stat.joints):
-                self.command.jog(linuxcnc.JOG_STOP, JOGMODE, jnum)
-            LOG.debug("Stopped jogging on focus-out-event")
+                # don't cancel if the joint is homing
+                if not self.stat.joint[jnum]["homing"]:
+                    self.command.jog(linuxcnc.JOG_STOP, JOGMODE, jnum)
+                    LOG.debug("Stopped jogging for joint %d on focus-out-event" % (jnum))
 
     # What to do if a macro button has been pushed
     def _on_btn_macro_pressed( self, widget = None, data = None ):
@@ -3147,7 +3376,7 @@ class gmoccapy(object):
 
         for code in o_codes[1:]:
             parameter = self.dialogs.entry_dialog(self, data=None, header=_("Enter value:"),
-                                                  label=_("Set parameter {0} to:").format(code), integer=False)
+                                                  label=f"{code}:", integer=False)
             if parameter == "ERROR":
                 LOG.debug("conversion error")
                 self.dialogs.warning_dialog(self, _("Conversion error !"),
@@ -3213,6 +3442,12 @@ class gmoccapy(object):
             self.diameter_mode = False
 
     def on_key_event(self, widget, event, signal):
+        # if the user has disabled keyboard shortcuts, we leave here
+        # in this case we do not return true, otherwise entering code in MDI history
+        # and the integrated editor will not work
+        if not self.widgets.chk_use_kb_shortcuts.get_active():
+            LOG.debug("Settings say: do not use keyboard shortcuts, abort")
+            return
 
         # get the keyname
         keyname = Gdk.keyval_name(event.keyval)
@@ -3222,6 +3457,7 @@ class gmoccapy(object):
         if keyname == "F1":  # will estop the machine, but not reset estop!
             self.command.state(linuxcnc.STATE_ESTOP)
             return True
+
         if keyname == "Escape":
             self.command.abort()
             return True
@@ -3266,13 +3502,6 @@ class gmoccapy(object):
             self.widgets.window1.grab_focus()
             return
 
-        # if the user do not want to use keyboard shortcuts, we leave here
-        # in this case we do not return true, otherwise entering code in MDI history
-        # and the integrated editor will not work
-        if not self.widgets.chk_use_kb_shortcuts.get_active():
-            LOG.debug("Settings say: do not use keyboard shortcuts, abort")
-            return
-
         # Only in MDI mode the RETURN key should execute a command
         if keyname == "Return" and signal and self.stat.task_mode == linuxcnc.MODE_MDI:
             # LOG.debug("Got enter in MDI")
@@ -3286,7 +3515,7 @@ class gmoccapy(object):
         if keyname == "F3" or keyname == "F5":
             if self.stat.interp_state != linuxcnc.INTERP_IDLE:
                 if signal: # Otherwise the message will be shown twice
-                    self._show_error((13, _("Mode change is only allowed if the interpreter is idle!")))
+                    self._show_error((linuxcnc.OPERATOR_DISPLAY, _("Mode change is only allowed if the interpreter is idle!")))
                 return
             else:
                 # F3 change to manual mode
@@ -3356,13 +3585,13 @@ class gmoccapy(object):
         # tooledit page is active, so keys must go through
         if self.widgets.ntb_preview.get_current_page() == 2:
             return
-            
+        
         if (self.widgets.ntb_preview.get_current_page() == 4 and
             keyname in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
             'comma', 'period', 'BackSpace', 'Return']):
             #user Tab, pass numbers through
             return False
-            
+        
 
         # take care of different key handling for lathe operation
         if self.lathe_mode:
@@ -3456,6 +3685,64 @@ class gmoccapy(object):
             LOG.info("Key {0} ({1:d}) was pressed {2} {3}".format(keyname, event.keyval, signal, self.last_key_event))
         self.last_key_event = keyname, signal
         return True
+    
+    def on_key_event_gcode_edit(self, widget, event):
+        # Check if Ctrl+Shift+/ is pressed
+        if (event.state & Gdk.ModifierType.CONTROL_MASK) and (event.state & Gdk.ModifierType.SHIFT_MASK) and \
+           (event.keyval == Gdk.KEY_slash):
+            self.toggle_comment_from_selection()
+            return True  # Stop further handling of the event
+        return False
+
+    def toggle_comment_from_selection(self):
+        if self.widgets.gcode_view.get_editable():
+            buffer = self.widgets.gcode_view.get_buffer()
+            # Get the selection bounds
+            if buffer.get_has_selection():
+                start_iter, end_iter = buffer.get_selection_bounds()
+            # no selection, just cursor placed in line
+            else:
+                cursor_mark = buffer.get_insert()  # Get the current cursor mark
+                cursor_iter = buffer.get_iter_at_mark(cursor_mark)  # Get the iterator at the cursor mark
+                line_number = cursor_iter.get_line()  # Get the current line number
+                start_iter = buffer.get_iter_at_line(line_number)  # Start of the line
+                end_iter = buffer.get_iter_at_line(line_number + 1)  # End of the line
+
+            # Get the current line text
+            line_text = buffer.get_text(start_iter, end_iter, True).strip()
+
+            # Check if the last character of the selection is a newline
+            if buffer.get_text(start_iter, end_iter, True).endswith('\n'):
+                end_iter = buffer.get_iter_at_offset(end_iter.get_offset() - 1)
+
+            # Save the selection bounds
+            start_line = start_iter.get_line()
+            end_line = end_iter.get_line()
+
+            # Iterate through each line in the selection
+            for line_number in range(start_line, end_line + 1):
+                line_start_iter = buffer.get_iter_at_line(line_number)
+                line_end_iter = buffer.get_iter_at_line(line_number + 1)
+
+                # Get the current line text
+                line_text = buffer.get_text(line_start_iter, line_end_iter, True).strip()
+
+                # Check if the line already has parentheses
+                if line_text.startswith('(') and line_text.endswith(')'):
+                    # Remove the parentheses
+                    modified_line = line_text[1:-1].strip()
+                else:
+                    # Add parentheses around the line
+                    modified_line = f"({line_text})"
+
+                # Replace the original line with the modified line
+                buffer.delete(line_start_iter, line_end_iter)
+                buffer.insert(line_start_iter, modified_line + "\n")  # Add a newline
+
+            # Restore the selection
+            new_start_iter = buffer.get_iter_at_line(start_line)
+            new_end_iter = buffer.get_iter_at_line(end_line + 1)
+            buffer.select_range(new_start_iter, new_end_iter)
 
     # Notification stuff.
     def _init_notification(self):
@@ -3512,7 +3799,7 @@ class gmoccapy(object):
     def show_try_errors(self):
         exc_type, exc_value, exc_traceback = sys.exc_info()
         formatted_lines = traceback.format_exc().splitlines()
-        LOG.error(_("{0}").format(formatted_lines[0]))
+        LOG.error("{0}".format(formatted_lines[0]))
         traceback.print_tb(exc_traceback, limit=1, file=sys.stdout)
         LOG.debug(formatted_lines[-1])
 
@@ -3786,10 +4073,10 @@ class gmoccapy(object):
             self.widgets.lbl_tool_offset_x.set_text("{0:.4f}".format(self.halcomp["tooloffset-x"]))
 
     def on_offsetpage1_selection_changed(self, widget, system, name):
-        if system not in self.system_list[1:] or self.touch_button_dic["edit_offsets"].get_active():
-            self.touch_button_dic["set_active"].set_sensitive(False)
+        if system not in self.system_list[1:] or self.widgets.offsetpage1.btn_edit_offsets.get_active():
+            self.widgets.offsetpage1.btn_set_selected.set_sensitive(False)
         else:
-            self.touch_button_dic["set_active"].set_sensitive(True)
+            self.widgets.offsetpage1.btn_set_selected.set_sensitive(True)
 
     def on_adj_x_pos_popup_value_changed(self, widget, data=None):
         if not self.initialized:
@@ -3824,11 +4111,24 @@ class gmoccapy(object):
     def on_fontbutton_popup_font_set(self, font):
         self.prefs.putpref("message_font", self.widgets.fontbutton_popup.get_font())
         self._init_notification()
+        
+    def on_cmb_messages_font_face_changed(self, widget):
+        self._update_messages_font_filter()
 
+    def on_fontbutton_gcodeview_font_set(self, widget):
+        self.widgets.gcode_view.modify_font(widget.get_font_desc())
+        self.prefs.putpref("gcodeview_font", widget.get_font())
+        
+    def on_chk_font_monospace_toggled(self, widget):
+        self._update_gcodeview_font_filter()
+        
+    def on_chk_font_regular_toggled(self, widget):
+        self._update_gcodeview_font_filter()
+    
     def on_btn_launch_test_message_pressed(self, widget=None, data=None):
         index = len(self.notification.messages)
         text = _("Halo, welcome to the test message {0}").format(index)
-        self._show_error((13, text))
+        self._show_error((linuxcnc.OPERATOR_DISPLAY, text))
 
     def on_chk_turtle_jog_toggled(self, widget, data=None):
         state = widget.get_active()
@@ -3918,6 +4218,7 @@ class gmoccapy(object):
             self.widgets.rbt_mdi.set_sensitive(False)
             self.widgets.rbt_auto.set_sensitive(False)
             self.widgets.tbtn_user_tabs.set_sensitive(False)
+            self.widgets.tbtn_user_tabs.set_active(False)
             code = False
             # here the user don"t want an unlock code
             if self.widgets.rbt_no_unlock.get_active():
@@ -3964,11 +4265,8 @@ class gmoccapy(object):
 
             if self.user_tab_enabled:
                 self.widgets.tbtn_user_tabs.set_sensitive(True)
-            # if user tab was open before, switch back
-            if self.widgets.tbtn_user_tabs.get_active():
-                self.widgets.ntb_main.set_current_page(2)
             # if task_mode didn't change, enable tab "Manual Mode"
-            elif self.last_mode == self.stat.task_mode:
+            if self.last_mode == self.stat.task_mode:
                 # this is needed here, because we do not
                 # change mode, so on_hal_status_manual will not be called
                 self.widgets.ntb_main.set_current_page(0)
@@ -3989,9 +4287,10 @@ class gmoccapy(object):
             self.widgets.tbtn_fullsize_preview0.set_sensitive(False)
             widget.set_image(self.widgets.img_user_tabs_on)
         else:
-            self.widgets.ntb_main.set_current_page(0)
-            self.widgets.tbtn_fullsize_preview0.set_sensitive(True)
-            widget.set_image(self.widgets.img_user_tabs)
+            if not self.widgets.tbtn_setup.get_active():
+                self.widgets.ntb_main.set_current_page(0)
+                self.widgets.tbtn_fullsize_preview0.set_sensitive(True)
+                widget.set_image(self.widgets.img_user_tabs)
 
 # =========================================================
 # The homing functions
@@ -4016,6 +4315,11 @@ class gmoccapy(object):
     def _on_btn_home_clicked(self, widget):
         # home axis or joint?
         LOG.debug("on button home clicked = {0}".format(widget.get_property("name")))
+        self.stat.poll()
+        for j in range(self.stat.joints):
+            if self.stat.joint[j]["homing"]:
+                self._show_error((linuxcnc.OPERATOR_DISPLAY, _("Homing not possible until current homing process is finished.")))
+                return
         if "axis" in widget.get_property("name"):
             value = widget.get_property("name")[-1]
             # now get the joint from directory by the value
@@ -4121,11 +4425,11 @@ class gmoccapy(object):
         speed = hal.get_value("spindle.0.speed-out")
         # catch very large values eg when using G96 w/o D value
         if speed > self.max_spindle_disp:
-            self.widgets.lbl_spindle_act.set_text("S >"+str(self.max_spindle_disp))
+            self.widgets.lbl_spindle_act.set_text(">"+str(self.max_spindle_disp))
         elif speed < -self.max_spindle_disp:
-            self.widgets.lbl_spindle_act.set_text("S <"+str(self.max_spindle_disp))
+            self.widgets.lbl_spindle_act.set_text("<"+str(self.max_spindle_disp))
         else:
-            self.widgets.lbl_spindle_act.set_text("S {0}".format(int(round(speed))))
+            self.widgets.lbl_spindle_act.set_text("{0}".format(int(round(speed))))
 
     def _update_vc(self):
         #Note: self.stat.spindle[0]['speed'] does not reflect 'spindle.0.speed-out' pins when using G96 mode (issue #3449)
@@ -4259,13 +4563,13 @@ class gmoccapy(object):
             rpm_out = rpm / self.stat.spindle[0]['override']
         except:
             rpm_out = 0
-        self.widgets.lbl_spindle_act.set_label("S {0}".format(int(rpm)))
+        self.widgets.lbl_spindle_act.set_label("{0}".format(int(rpm)))
 
         if command == "stop":
             # documentation of self.command.spindle()
             # linuxcnc.spindle(direction, speed, spindle=0)
             self.command.spindle(0)
-            self.widgets.lbl_spindle_act.set_label("S 0")
+            self.widgets.lbl_spindle_act.set_label("0")
         elif command == "forward":
             self.command.spindle(1, rpm_out)
         elif command == "reverse":
@@ -4387,8 +4691,8 @@ class gmoccapy(object):
     # this are the MDI thinks we need
     def on_btn_delete_clicked(self, widget, data=None):
         message = _("Do you really want to delete the MDI history?\n")
-        message += _("This will not delete the MDI History file, but will\n")
-        message += _("delete the listbox entries for this session.")
+        message += _("This will not delete the MDI History file, but will\n"
+                     "delete the listbox entries for this session.")
         result = self.dialogs.yesno_dialog(self, message, _("Attention!!"))
         if result:
             self.widgets.hal_mdihistory.model.clear()
@@ -4507,6 +4811,38 @@ class gmoccapy(object):
             self.widgets.tbtn_fullsize_preview0.set_active(False)
             self.on_tbtn_fullsize_preview_toggled(self.widgets.tbtn_fullsize_preview0)
         else:  # else we go to main button on manual
+            if self.widgets.tooledit1.edited:
+                message = _("Discard unsaved changes and exit?")
+                result = self.dialogs.yesno_dialog(self, message, _("Attention!"))
+                if not result: # user says no, he want to save
+                    return
+            # check if offset values for current tool have been changed
+            tt = self.stat.tool_table[0]
+            new_offset = (tt.xoffset, tt.yoffset, tt.zoffset,
+                          tt.aoffset, tt.boffset, tt.coffset,
+                          tt.uoffset, tt.voffset, tt.woffset)
+            message = None
+            new_offset_is_nonzero = any(v != 0.0 for v in new_offset)
+            old_offset_is_zero = all(v == 0.0 for v in self.stat.tool_offset)
+            if (new_offset != self.stat.tool_offset) and ("G43" in self.active_gcodes):
+                message = _("Offset values for the tool in the spindle\n" \
+                            "have been changed with tool compensation (G43) active.\n\n" \
+                            "Do you want the new values to be applied as the currently\n" \
+                            "active tool offset?")
+            elif new_offset_is_nonzero and old_offset_is_zero and ("G49" in self.active_gcodes):
+                message = _("Offset values for the tool in the spindle\n" \
+                            "have been changed from zero to non-zero.\n\n" \
+                            "Do you want to activate tool compensation (G43)\n" \
+                            "using the currently active tool offset?")
+            if message:
+                result = self.dialogs.yesno_dialog(self, message, _("Attention!"))
+                if result: # user says YES
+                    self.command.mode(linuxcnc.MODE_MDI)
+                    self.command.wait_complete()
+                    self.command.mdi("G43")
+                    self.command.wait_complete()
+                    self.command.mode(linuxcnc.MODE_MANUAL)
+                    self.command.wait_complete()
             self.widgets.ntb_button.set_current_page(_BB_MANUAL)
             self.widgets.ntb_main.set_current_page(0)
             self.widgets.ntb_preview.set_current_page(0)
@@ -4537,14 +4873,14 @@ class gmoccapy(object):
             widgetlist.append("tbtn_user_tabs")
         self._sensitize_widgets( widgetlist, not state )
         for element in self.touch_button_dic:
-            if self.touch_button_dic[element].get_property("name") in ["edit_offsets", "touch_back"]:
+            if self.touch_button_dic[element].get_property("name") in ["touch_back"]:
                 continue
             self.touch_button_dic[element].set_sensitive(not state)
 
         # if no system is selected, set the "set active" button not sensitive
         system, name = self.widgets.offsetpage1.get_selected()
         if not system:
-            self.touch_button_dic["set_active"].set_sensitive(False)
+            self.widgets.offsetpage1.btn_set_selected.set_sensitive(False)
 
         if not state:  # we must switch back to manual mode, otherwise jogging is not possible
             self.command.mode(linuxcnc.MODE_MANUAL)
@@ -4602,6 +4938,12 @@ class gmoccapy(object):
             self.command.mode(linuxcnc.MODE_MANUAL)
             self.command.wait_complete()
             self.prefs.putpref("offset_axis_{0}".format(axis), offset, float)
+
+    def _on_btn_edit_offsets_clicked(self, widget, data=None):
+        state = self.widgets.offsetpage1.btn_edit_offsets.get_active()
+        self.widgets.offsetpage1.btn_zero_g92.set_sensitive(not state)
+        self.widgets.offsetpage1.btn_set_selected.set_sensitive(not state)
+        self.widgets.offsetpage1.set_editing(widget)
 
     def _on_btn_set_selected_clicked(self, widget, data=None):
         system, name = self.widgets.offsetpage1.get_selected()
@@ -4731,6 +5073,14 @@ class gmoccapy(object):
                 ("img_tool_clear", "clear", 24),
                 ("img_tool_path", "toolpath", 24),
                 ("img_dimensions", "dimensions", 24),
+                # tooledit frame controls
+                ("img_tool_delete", "delete", 32),
+                ("img_tool_add", "add", 32),
+                ("img_tool_reload", "refresh", 32),
+                ("img_tool_save", "save", 32),
+                ("img_tool_calculator", "calculator_open", 32),
+                # offsetpage frame controls
+                ("img_offset_calculator", "calculator_open", 32),
                 # coolant
                 ("img_coolant_on",  "coolant_flood_active",   48),
                 ("img_coolant_off", "coolant_flood_inactive", 48),
@@ -4746,6 +5096,7 @@ class gmoccapy(object):
                 # jog
                 ("img_rabbit_jog", "jog_speed_fast", 32),
                 ("img_turtle_jog", "jog_speed_slow", 32),
+                ("img_continuous", "jog_continuous", 24),
                 # fullscreen
                 ("img_fullsize_preview0_open",  "fullscreen_open",  48),
                 ("img_fullsize_preview0_close", "fullscreen_close", 48),
@@ -4809,13 +5160,19 @@ class gmoccapy(object):
                 ("img_skip_optional_inactive",  "skip_optional_inactive",   32),
                 # load file buttons
                 ("img_home",            "home_folder",          32),
+                ("img_jump_to",         "user_defined_folder",  32),
                 ("img_dir_up",          "chevron_up",           32),
+                ("img_refresh_dir",      "refresh",              32),
                 ("img_sel_prev",        "chevron_left",         32),
                 ("img_sel_next",        "chevron_right",        32),
-                ("img_jump_to",         "user_defined_folder",  32),
                 ("img_select",          "select_file",          32),
                 ("img_back_file_load",  "back_to_app",          48),
                 # edit file menu
+                ("img_up",                      "chevron_up",       24),
+                ("img_down",                    "chevron_down",     24),
+                ("img_edit-undo",               "edit_undo",        32),
+                ("img_edit-redo",               "edit_redo",        32),
+                ("img_split_view",              "split_view",       32),
                 ("img_edit_menu_reload",        "refresh",          32),
                 ("img_edit_menu_save",          "save",             32),
                 ("img_edit_menu_save_as",       "save_as",          32),
@@ -4824,6 +5181,7 @@ class gmoccapy(object):
                 ("img_edit_menu_keyboard",      "keyboard",         32),
                 ("img_edit_menu_keyboard_hide", "keyboard_hide",    32),
                 ("img_edit_menu_close",         "back_to_app",      48),
+                ("img_edit_comment",            "comment",          32),
                 # macro menu
                 ("img_macro_menu_calculator",       "calculator_open",       32),
                 ("img_macro_menu_keyboard",         "keyboard",         32),
@@ -4995,6 +5353,22 @@ class gmoccapy(object):
         self.prefs.putpref("height", value, float)
         self.height = value
         self.widgets.window1.resize(self.width, value)
+    
+    def on_adj_jog_btn_size_value_changed(self, widget, data=None):
+        if not self.initialized:
+            return
+        self.jog_btn_size = int(widget.get_value())
+        self.prefs.putpref("jog_btn_size", self.jog_btn_size, int)
+        self._make_jog_button()
+        for button in self.widgets.grid_jog_btn_axes.get_children():
+            button.set_size_request(self.jog_btn_size, self.jog_btn_size)
+        
+    def on_adj_jog_box_width_value_changed(self, widget, data=None):
+        if not self.initialized:
+            return
+        value = int(widget.get_value())
+        self.widgets.vbx_jog.set_size_request(value, -1)
+        self.prefs.putpref("jog_box_width", value, int)
 
     def on_adj_kbd_height_value_changed(self, widget, data=None):
         if not self.initialized:
@@ -5147,6 +5521,27 @@ class gmoccapy(object):
         index = widget.get_active()
         self.widgets.gremlin.set_property("mouse_btn_mode", index)
         self.prefs.putpref("mouse_btn_mode", index, int)
+    
+    def on_sortorder_changed(self, widget):
+        id = int(widget.get_active_id())
+        self.iconview_sortorder = id
+        self.widgets.IconFileSelection1.set_property("sortorder", id)
+        self.prefs.putpref("iconview_sortorder", id)
+
+    def on_sortorder_date_changed(self, widget):
+        id = int(widget.get_active_id())
+        self.iconview_sortbydate = id
+        self.prefs.putpref("iconview_sortbydate", id)
+        if self.sort_by_date:
+            self.widgets.IconFileSelection1.set_property("sortbydate", self.iconview_sortbydate)
+        else:
+            self.widgets.IconFileSelection1.set_property("sortbydate", 0)
+
+    def on_folderfirst_changed(self, widget):
+        id = int(widget.get_active_id())
+        self.iconview_folderfirst = id
+        self.widgets.IconFileSelection1.set_property("folderfirst", id)
+        self.prefs.putpref("iconview_folderfirst", id)
 
 # =========================================================
 # tool stuff
@@ -5207,35 +5602,42 @@ class gmoccapy(object):
             self.halcomp['toolchange-changed'] = False
 
     def on_btn_delete_tool_clicked(self, widget, data=None):
-        act_tool = self.stat.tool_in_spindle
-        if act_tool == self.widgets.tooledit1.get_selected_tool():
-            message = _("You are trying to delete the tool mounted in the spindle\n")
-            message += _("This is not allowed, please change tool prior to delete it")
+        selected_tool = self.widgets.tooledit1.get_selected_row()
+        if self.stat.tool_in_spindle == selected_tool:
+            message = _("You are trying to delete the tool mounted in the spindle.\n"
+                        "This is not allowed, please change tool prior to delete it.")
             self.dialogs.warning_dialog(self, _("Warning Tool can not be deleted!"), message)
             return
-
-        self.widgets.tooledit1.delete(None)
-        self.widgets.tooledit1.set_selected_tool(act_tool)
+        self.widgets.tooledit1.delete_selected_row(widget)
+        self.widgets.tooledit1.edited = True
 
     def on_btn_add_tool_clicked(self, widget, data=None):
         self.widgets.tooledit1.add(None)
+        self.widgets.tooledit1.edited = True
 
     def on_btn_reload_tooltable_clicked(self, widget, data=None):
+        if self.widgets.tooledit1.edited:
+            message = _("Discard unsaved changes and reload the table?")
+            result = self.dialogs.yesno_dialog(self, message, _("Attention!"))
+            if not result: # user says no, he want to save
+                return
         self.widgets.tooledit1.reload(None)
+        self.widgets.tooledit1.edited = False
         self.widgets.tooledit1.set_selected_tool(self.stat.tool_in_spindle)
 
-    def on_btn_apply_tool_changes_clicked(self, widget, data=None):
+    def on_btn_save_tool_changes_clicked(self, widget, data=None):
         self.widgets.tooledit1.save(None)
-        self.widgets.tooledit1.set_selected_tool(self.stat.tool_in_spindle)
+        self.widgets.tooledit1.edited = False
 
     def on_btn_tool_touchoff_clicked(self, widget, data=None):
-        if not self.widgets.tooledit1.get_selected_tool():
-            message = _("No or multiple tools selected in the tool table. ")
+        tool = self.widgets.tooledit1.get_selected_row()
+        if not tool:
+            message = _("No tool selected in the tool table. ")
             message += _("Please select only one tool in the table!")
             self.dialogs.warning_dialog(self, _("Warning Tool Touch off not possible!"), message)
             return
 
-        if self.widgets.tooledit1.get_selected_tool() != self.stat.tool_in_spindle:
+        if tool != self.stat.tool_in_spindle:
             message = _("You can not touch off a tool, which is not mounted in the spindle! ")
             message += _("Your selection has been reset to the tool in spindle.")
             self.dialogs.warning_dialog(self, _("Warning Tool Touch off not possible!"), message)
@@ -5283,6 +5685,11 @@ class gmoccapy(object):
 
     # select a tool entering a number
     def on_btn_select_tool_by_no_clicked(self, widget, data=None):
+        if self.widgets.tooledit1.edited:
+            message = _("Discard unsaved changes and change tool?")
+            result = self.dialogs.yesno_dialog(self, message, _("Attention!"))
+            if not result: # user says no, he want to save
+                return
         value = self.dialogs.entry_dialog(self, data=None, header=_("Enter the tool number as integer "),
                                      label=_("Select the tool to change"), integer=True)
         if value == "ERROR":
@@ -5305,10 +5712,14 @@ class gmoccapy(object):
             # Next two lines fix issue #3129 caused by GStat missing changes in interpreter mode
             command = "G4 P{0}".format(self.get_ini_info.get_cycle_time()/1000)
             self.command.mdi(command)
-            
     # set tool with M61 Q? or with T? M6
     def on_btn_selected_tool_clicked(self, widget, data=None):
-        tool = self.widgets.tooledit1.get_selected_tool()
+        if self.widgets.tooledit1.edited:
+            message = _("Discard unsaved changes and change tool?")
+            result = self.dialogs.yesno_dialog(self, message, _("Attention!"))
+            if not result: # user says no, he want to save
+                return
+        tool = self.widgets.tooledit1.get_selected_row()
         if tool == None:
             message = _("you selected no or more than one tool, the tool selection must be unique")
             self.dialogs.warning_dialog(self, _("Important Warning!"), message)
@@ -5443,6 +5854,9 @@ class gmoccapy(object):
 
     def on_btn_jump_to_clicked(self, widget, data=None):
         self.widgets.IconFileSelection1.btn_jump_to.emit("clicked")
+        
+    def on_btn_refresh_dir_clicked(self, widget, data=None):
+        self.widgets.IconFileSelection1.refresh_filelist()
 
     def on_btn_dir_up_clicked(self, widget, data=None):
         self.widgets.IconFileSelection1.btn_dir_up.emit("clicked")
@@ -5475,11 +5889,12 @@ class gmoccapy(object):
 
     # edit a program or make a new one
     def on_btn_edit_clicked(self, widget, data=None):
-        self.widgets.ntb_button.set_current_page(_BB_EDIT)
-        self.widgets.ntb_preview.hide()
-        self.widgets.grid_DRO.hide()
-        self.widgets.vbox14.hide()
+        if not self.widgets.tbtn_split_view.get_active():
+            self.widgets.ntb_preview.hide()
+            self.widgets.vbox14.hide()
         self.widgets.vbox_jog.set_hexpand(True)
+        self.widgets.ntb_button.set_current_page(_BB_EDIT)
+        self.widgets.grid_DRO.hide()
         self.widgets.box_dro_side.hide()
         if not self.widgets.vbx_jog.get_visible():
             self.widgets.vbx_jog.set_visible(True)
@@ -5489,7 +5904,7 @@ class gmoccapy(object):
             self.widgets.ntb_info.set_current_page(1)
         else:
             self.widgets.ntb_info.hide()
-            
+        
         self.widgets.grid_search.show()
         self.widgets.progressbar_pgm.hide()
         self.gcodeerror = ""
@@ -5531,6 +5946,9 @@ class gmoccapy(object):
     # redo changes while in edit mode
     def on_btn_redo_clicked(self, widget, data=None):
         self.widgets.gcode_view.redo()
+        
+    def on_btn_toggle_comment_clicked(self, widget, data=None):
+        self.toggle_comment_from_selection()
 
         # if we leave the edit mode, we will have to show all widgets again
     def on_ntb_button_switch_page(self, *args):
@@ -5644,6 +6062,22 @@ class gmoccapy(object):
         else:
             self.widgets.tbtn_switch_mode.set_label(_("World\nmode"))
             self._set_motion_mode(1)
+            
+    def on_tbtn_sort_toggled(self, widget, data=None):
+        if widget.get_active():
+            self.widgets.IconFileSelection1.set_property("sortbydate", self.iconview_sortbydate)
+        else:
+            self.widgets.IconFileSelection1.set_property("sortbydate", 0)
+        self.sort_by_date = widget.get_active()
+        self.prefs.putpref("sort_by_date", self.sort_by_date)
+        
+    def on_tbtn_split_view_toggled(self, widget, data=None):
+        if widget.get_active():
+            self.widgets.ntb_preview.show()
+            self.widgets.vbox14.show()
+        else:
+            self.widgets.ntb_preview.hide()
+            self.widgets.vbox14.hide()
 
 # =========================================================
 # Hal Pin Handling Start
@@ -5791,13 +6225,16 @@ class gmoccapy(object):
                 return
             self.audio.run()
 
-    def _on_message_deleted(self, widget, messages):
+    def _on_message_deleted(self, widget, messages, checkbox_checked):
         number = []
         for message in messages:
             if message[2] == ALERT_ICON:
                 number.append(message[0])
         if len(number) == 0:
             self.halcomp["error"] = False
+        
+        if checkbox_checked:
+            self.prefs.putpref("hide_startup_messsage", self.num, str)
 
     def _del_message_changed(self, pin):
         if pin.get():
@@ -5830,7 +6267,7 @@ class gmoccapy(object):
             if self.stat.motion_mode == 1 and pin.get():
                 message = _("Axis jogging is only allowed in world mode, but you are in joint mode!")
                 LOG.debug(message)
-                self._show_error((13, message))
+                self._show_error((linuxcnc.OPERATOR_DISPLAY, message))
                 return
 
         if pin.get():
@@ -6094,27 +6531,27 @@ if __name__ == "__main__":
     from common import logger
     LOG = logger.initBaseLogger('Gmoccapy', log_file=None, log_level=logger.WARNING)
 
-    # we set the log level early so the imported modules get the right level
+    # We set the log level early so the imported modules get the right level.
     # The order is: VERBOSE, DEBUG, INFO, WARNING, ERROR, CRITICAL.
+    # The log level defaults to WARNING.
 
-    if '-d' in sys.argv:
-        # Log level defaults to WARNING, so set lower if in debug mode
+    if '-v' in sys.argv:
+        logger.setGlobalLevel(logger.VERBOSE)
+        LOG.info('VERBOSE logging on')
+    elif '-d' in sys.argv:
         logger.setGlobalLevel(logger.DEBUG)
-        LOG.debug('DEBUGGING logging on')
+        LOG.info('DEBUGGING logging on')
     elif '-i' in sys.argv:
-        # Log level defaults to WARNING, so set lower if in info mode
         logger.setGlobalLevel(logger.INFO)
         LOG.info('INFO logging on')
-    elif '-v' in sys.argv:
-        # Log level defaults to WARNING, so set lowest if in verbose mode
-        logger.setGlobalLevel(logger.VERBOSE)
-        LOG.verbose('VERBOSE logging on')
+    elif '-w' in sys.argv:
+        logger.setGlobalLevel(logger.WARNING)
     elif '-q' in sys.argv:
         logger.setGlobalLevel(logger.ERROR)
 
     # Some of these libraries log when imported so logging level must already be set.
     import gladevcp.makepins
-    from gladevcp.core import Info
+    from gladevcp.core import Info, Status
     from gladevcp.combi_dro import Combi_DRO  # we will need it to make the DRO
     from gmoccapy import widgets       # a class to handle the widgets
 
@@ -6161,6 +6598,18 @@ if __name__ == "__main__":
                     LOG.error('postgui command error:{}'.format(res))
                     raise SystemExit(res)
 
+
+    # Exit on SIGTERM/SIGINT whether or not a main loop is running.
+    # Gtk.main_quit() does nothing outside a running loop, so quit the
+    # loop if one is active, otherwise exit the process.
+    def _terminate(signum, frame):
+        LOG.info("gmoccapy received signal {}, shutting down".format(signum))
+        if Gtk.main_level() > 0:
+            Gtk.main_quit()
+        else:
+            sys.exit(0)
+    signal.signal(signal.SIGTERM, _terminate)
+    signal.signal(signal.SIGINT, _terminate)
 
     # start the event loop
     Gtk.main()

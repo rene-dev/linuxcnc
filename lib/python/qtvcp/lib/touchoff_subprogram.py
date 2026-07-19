@@ -21,7 +21,7 @@ import json
 import time
 import linuxcnc
 
-from PyQt5.QtCore import QObject
+from qtpy.QtCore import QObject
 from qtvcp.core import Status, Action, Info
 from qtvcp import logger
 LOG = logger.getLogger(__name__)
@@ -160,6 +160,7 @@ class TouchOffSubprog(QObject):
 
     # need to be in the right mode - entries are in machine units
     def prechecks(self):
+        ACTION.RECORD_CURRENT_MODE()
         # This is a work around. If a user sets the spindle running in MDI
         # but turn it off with a manual button, then when M72 will turn the
         # spindle back on! So we explicitly set M5 here.
@@ -180,6 +181,7 @@ class TouchOffSubprog(QObject):
     # return to previous motion modes
     def postreset(self):
         ACTION.CALL_MDI('M72')
+        ACTION.RESTORE_RECORDED_MODE()
 
     def touchoff(self):
         name = 'Touchoff'

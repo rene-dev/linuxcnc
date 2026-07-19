@@ -8,9 +8,9 @@ import math
 from qtvcp import logger
 LOG = logger.getLogger(__name__)
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, QSize, Qt, QTimer
-from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import (QApplication, QHBoxLayout, QSlider,
+from qtpy.QtCore import Property, Signal, QSize, Qt, QTimer
+from qtpy.QtGui import QColor
+from qtpy.QtWidgets import (QApplication, QHBoxLayout, QSlider,
         QWidget, QOpenGLWidget)
 
 LIB_GOOD = True
@@ -29,6 +29,7 @@ from rs274 import glcanon
 from rs274 import interpret
 import linuxcnc
 import gcode
+import preview_helpers
 
 import re
 import tempfile
@@ -69,7 +70,7 @@ class Window(QWidget):
         self.xSlider.setValue(15 * 16)
         self.ySlider.setValue(345 * 16)
         self.zSlider.setValue(0 * 16)
-        self.zSlider.setValue(10)
+        self.zoomSlider.setValue(10)
 
         self.setWindowTitle("Hello GL")
 
@@ -178,10 +179,10 @@ class StatCanon(glcanon.GLCanon, interpret.StatMixin):
 # widget for graphics plotting
 ###############################
 class Lcnc_3dGraphics(QOpenGLWidget,  glcanon.GlCanonDraw, glnav.GlNavBase):
-    percentLoaded = pyqtSignal(int)
-    xRotationChanged = pyqtSignal(int)
-    yRotationChanged = pyqtSignal(int)
-    zRotationChanged = pyqtSignal(int)
+    percentLoaded = Signal(int)
+    xRotationChanged = Signal(int)
+    yRotationChanged = Signal(int)
+    zRotationChanged = Signal(int)
     rotation_vectors = [(1.,0.,0.), (0., 0., 1.)]
 
     def __init__(self, parent=None):
@@ -205,7 +206,7 @@ class Lcnc_3dGraphics(QOpenGLWidget,  glcanon.GlCanonDraw, glnav.GlNavBase):
             stat = fakeStatus()
 
         self.inifile = linuxcnc.ini(inifile)
-        self.foam_option = bool(self.inifile.find("DISPLAY", "FOAM"))
+        self.foam_option = self.inifile.getbool("DISPLAY", "FOAM", fallback=False)
         try:
             trajcoordinates = self.inifile.find("TRAJ", "COORDINATES").lower().replace(" ","")
         except:
@@ -255,8 +256,7 @@ class Lcnc_3dGraphics(QOpenGLWidget,  glcanon.GlCanonDraw, glnav.GlNavBase):
         self.show_lathe_radius = False
         self.show_dtg = True
         self.grid_size = 0.0
-        temp = self.inifile.find("DISPLAY", "LATHE")
-        self.lathe_option = bool(temp == "1" or temp == "True" or temp == "true" )
+        self.lathe_option = self.inifile.getbool("DISPLAY", "LATHE", fallback=False)
 
         self.show_offsets = False
         self.show_overlay = False
@@ -268,9 +268,9 @@ class Lcnc_3dGraphics(QOpenGLWidget,  glcanon.GlCanonDraw, glnav.GlNavBase):
         self.use_gradient_background = False
         self.gradient_color1 = (0.0, 0.0, 1)
         self.gradient_color2 = (0.0, 0.0, 0.0)
-        self.a_axis_wrapped = self.inifile.find("AXIS_A", "WRAPPED_ROTARY")
-        self.b_axis_wrapped = self.inifile.find("AXIS_B", "WRAPPED_ROTARY")
-        self.c_axis_wrapped = self.inifile.find("AXIS_C", "WRAPPED_ROTARY")
+        self.a_axis_wrapped = self.inifile.getbool("AXIS_A", "WRAPPED_ROTARY", fallback=False)
+        self.b_axis_wrapped = self.inifile.getbool("AXIS_B", "WRAPPED_ROTARY", fallback=False)
+        self.c_axis_wrapped = self.inifile.getbool("AXIS_C", "WRAPPED_ROTARY", fallback=False)
 
         self._tool_dia = 0
         self.spindle_speed = 0
@@ -279,7 +279,7 @@ class Lcnc_3dGraphics(QOpenGLWidget,  glcanon.GlCanonDraw, glnav.GlNavBase):
         for i,j in enumerate("XYZABCUVW"):
             if self.stat.axis_mask & (1<<i) == 0: continue
             live_axis_count += 1
-        self.num_joints = int(self.inifile.find("KINS", "JOINTS") or live_axis_count)
+        self.num_joints = self.inifile.getint("KINS", "JOINTS", fallback=live_axis_count)
 
         # initialize variables for user view
         self.presetViewSettings(v=None,z=0,
@@ -379,26 +379,26 @@ class Lcnc_3dGraphics(QOpenGLWidget,  glcanon.GlCanonDraw, glnav.GlNavBase):
         td = tempfile.mkdtemp()
         self._current_file = filename
         load_result = True
+        canon = None
         try:
-            random = int(self.inifile.find("EMCIO", "RANDOM_TOOLCHANGER") or 0)
-            arcdivision = int(self.inifile.find("DISPLAY", "ARCDIVISION") or 64)
+            random = self.inifile.getbool("EMCIO", "RANDOM_TOOLCHANGER", fallback=False)
+            arcdivision = self.inifile.getint("DISPLAY", "ARCDIVISION", fallback=64)
             text = ''
             canon = StatCanon(self.colors,
                                 self.get_geometry(),
                                 self.foam_option,
                                 self.lathe_option,
-                                s, text, random, i,
+                                s, random, text, i,
                                 progress, arcdivision)
             # monkey patched function to call ours
             canon.output_notify_message = self.output_notify_message
-            parameter = self.inifile.find("RS274NGC", "PARAMETER_FILE")
-            temp_parameter = os.path.join(td, os.path.basename(parameter or "linuxcnc.var"))
+            parameter = self.inifile.getstring("RS274NGC", "PARAMETER_FILE", fallback="linuxcnc.var")
+            temp_parameter = os.path.join(td, os.path.basename(parameter))
             if parameter:
                 shutil.copy(parameter, temp_parameter)
             canon.parameter_file = temp_parameter
-            unitcode = "G%d" % (20 + (s.linear_units == 1))
-            initcode = self.inifile.find("RS274NGC", "RS274NGC_STARTUP_CODE") or ""
-            result, seq = self.load_preview(filename, canon, unitcode, initcode)
+            initcodes = preview_helpers.create_unitcode_and_initcode(s, self.inifile)
+            result, seq = self.load_preview(filename, canon, *initcodes)
             if result > gcode.MIN_ERROR:
                 self.report_gcode_error(result, seq, filename)
             self.logger.set_depth(self.from_internal_linear_unit(self.get_foam_z()),
@@ -448,11 +448,14 @@ class Lcnc_3dGraphics(QOpenGLWidget,  glcanon.GlCanonDraw, glnav.GlNavBase):
 
         props = {}
         loaded_file = self._current_file
-        max_speed = float(
-            self.inifile.find("DISPLAY","MAX_LINEAR_VELOCITY")
-            or self.inifile.find("TRAJ","MAX_LINEAR_VELOCITY")
-            or self.inifile.find("AXIS_X","MAX_VELOCITY")
-            or 1)
+        if self.inifile.hasvariable("DISPLAY","MAX_LINEAR_VELOCITY"):
+            max_speed = self.inifile.getreal("DISPLAY","MAX_LINEAR_VELOCITY", fallback=1.0)
+        elif self.inifile.hasvariable("TRAJ","MAX_LINEAR_VELOCITY"):
+            max_speed = self.inifile.getreal("TRAJ","MAX_LINEAR_VELOCITY", fallback=1.0)
+        elif self.inifile.hasvariable("AXIS_X","MAX_VELOCITY"):
+            max_speed = self.inifile.getreal("AXIS_X","MAX_VELOCITY", fallback=1.0)
+        else:
+            max_speed = 1.0
 
         if not loaded_file:
             props['name'] = "No file loaded"
@@ -577,7 +580,7 @@ class Lcnc_3dGraphics(QOpenGLWidget,  glcanon.GlCanonDraw, glnav.GlNavBase):
     def get_current_view(self):
         return self.current_view
     def get_geometry(self):
-        temp = self.inifile.find("DISPLAY", "GEOMETRY") or 'XYZABCUVW'
+        temp = self.inifile.getstring("DISPLAY", "GEOMETRY", fallback='XYZABCUVW')
         if temp:
             _geometry = re.split(" *(-?[XYZABCUVW])", temp.upper())
             self._geometry = "".join(reversed(_geometry))
@@ -1052,7 +1055,7 @@ class Lcnc_3dGraphics(QOpenGLWidget,  glcanon.GlCanonDraw, glnav.GlNavBase):
     def select_prime(self, x, y):
         self.select_primed = x, y
 
-    # If the hcode program is large the display pauses plotting update 
+    # If the hcode program is large the display pauses plotting update
     # while searching. probably needs a thread or compiled code.
     # the actual opengl search is in glcanon.py, GlCanonDraw: select()
     def select_fire(self):
@@ -1212,6 +1215,7 @@ class Lcnc_3dGraphics(QOpenGLWidget,  glcanon.GlCanonDraw, glnav.GlNavBase):
         self.extrude(x3, y3, x4, y4, z= .05, color = self.Green)
         self.extrude(x4, y4, y4, x4, z= .05, color = self.Green)
         self.extrude(y4, x4, y3, x3, z= .05, color = self.Green)
+        self.extrude(y3, x3, x3, y3, z= .05, color = self.Green)
 
         NumSectors = 200
 
@@ -1284,7 +1288,7 @@ class Lcnc_3dGraphics(QOpenGLWidget,  glcanon.GlCanonDraw, glnav.GlNavBase):
         return self._font
     def resetfont(self):
         self._font = 'monospace bold 16'
-    dro_font = pyqtProperty(str, getfont, setfont, resetfont)
+    dro_font = Property(str, getfont, setfont, resetfont)
 
     def setfontlarge(self, font):
         self._fontLarge = font
@@ -1293,7 +1297,7 @@ class Lcnc_3dGraphics(QOpenGLWidget,  glcanon.GlCanonDraw, glnav.GlNavBase):
         return self._fontLarge
     def resetfontlarge(self):
         self._fontLarge = 'monospace bold 22'
-    dro_large_font = pyqtProperty(str, getfontlarge, setfontlarge, resetfontlarge)
+    dro_large_font = Property(str, getfontlarge, setfontlarge, resetfontlarge)
 
 ###########
 # Testing

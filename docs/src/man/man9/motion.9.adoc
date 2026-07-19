@@ -28,8 +28,7 @@ The limits for the following items are compile-time settings:
   *motion.digital-in-00* whereas **names_din=**_homed-x,homed-y_ will
   create the HAL pins `motion.din-homed-x` and `motion.din-homed-y`.
 
-*num_aio*:: Maximum number of analog IO pins is set by
-*EMCMOT_MAX_AIO*.
+*num_aio*:: Maximum number of analog IO pins is set by *EMCMOT_MAX_AIO*.
   Minimum is 1, if *num_aio* is not specified, it defaults to *DEFAULT_AIO*.
 
 *names_aout*:: A comma-separated list of names for analog output pins.
@@ -61,10 +60,9 @@ the motion-controller function.
 
 == DESCRIPTION
 
-By default, the base thread does not support floating point. Software
-stepping, software encoder counting, and software pwm do not use floating point.
-*base_thread_fp* can be used to enable floating point in
-the base thread (for example for brushless DC motor control).
+NOTE: The *base_thread_fp* parameter is deprecated and ignored.
+All threads now unconditionally save and restore floating point state.
+This parameter will be removed in a future version.
 
 These pins and parameters are created by the realtime *motmod* module.
 This module provides a HAL interface for LinuxCNC's motion planner.
@@ -108,9 +106,9 @@ digital pins and two analog pins.
 == MOTION PINS
 
 *motion-command-handler.time* OUT S32::
-  Time (in CPU clocks) for the motion module motion-command-handler
+  Time (in ns) for the motion module motion-command-handler
 *motion-controller.time* OUT S32::
-  Time (in CPU clocks) for the motion module motion-controller
+  Time (in ns) for the motion module motion-controller
 *motion.adaptive-feed* IN FLOAT::
   When adaptive feed is enabled with M52 P1, the commanded velocity is
   multiplied by this value. This effect is multiplicative with the
@@ -248,7 +246,7 @@ Note: feed-inhibit applies to G-code commands -- not jogs.
   possibly reduced to accommodate machine velocity and acceleration limits.
   The value on this pin does not reflect the feed override or any other adjustments.
 *motion.servo.last-period* OUT U32::
-  The number of CPU clocks between invocations of the servo thread.
+  Time (in ns) between invocations of the servo thread.
   Typically, this number divided by the CPU speed gives the time in seconds,
   and can be used to determine whether the realtime motion
   controller is meeting its timing constraints
@@ -264,6 +262,52 @@ Note: feed-inhibit applies to G-code commands -- not jogs.
   Current tool offset for each axis where (*L* is the axis letter, one of: *x y z a b c u v w*)
 *motion.tp-reverse* OUT BIT::
   Trajectory planning is reversed (reverse run)
+
+=== Interpreter Metadata Pins
+
+These pins provide geometric intent and interpreter state for the segment of motion currently being executed. Unlike standard position feedback, these values are synchronized with the trajectory planner's execution point.
+
+==== Interpreter Status Pins
+
+* `motion.interp.line-number` (s32, out) +
+  The current G-code line number being executed.
+  
+* `motion.interp.motion-type` (s32, out) +
+  The type of motion currently in progress:
+** 0: None
+** 1: Rapid (G0)
+** 2: Feed (G1)
+** 3: Arc (G2, G3)
+** 4: Tool Change/Other
+
+* `motion.interp.feedrate` (float, out) +
+  The interpreted feedrate for the current segment in units per minute.
+
+==== Interpreter Geometric Pins
+
+* `motion.interp.heading` (float, out) +
+  The XY plane heading of the current linear move in degrees. Measured counter-clockwise from the +X axis (0 to 360). This could be used to control a tangential knife.
+
+* `motion.interp.arc-radius` (float, out) +
+  The radius of the current circular move. This value is 0.0 during linear moves. This could be used to modify plasma cutting parameters based on the arc radius and when hole cutting.
+
+* `motion.interp.arc-center-x` (float, out) +
+  The absolute X-coordinate of the center point for the current arc. 0 if in YZ plane
+
+* `motion.interp.arc-center-y` (float, out) +
+  The absolute Y-coordinate of the center point for the current arc. 0 if in XZ plane
+
+* `motion.interp.arc-center-z` (float, out) +
+  The absolute Y-coordinate of the center point for the current arc if in XZ or YZ plane.
+
+* `motion.interp.normal-heading` (float, out) +
+  the heading from the current point back to the arc centre for the current arc.
+  
+ * `motion.interp.iscircle` (bit, out) +
+  True if the current arc is a full circle and not a helix.
+  
+[NOTE]
+These pins represent the *commanded geometric intent* from the interpreter and are updated in real-time as each motion segment is consumed by the trajectory planner.
 
 == AXIS PINS
 
@@ -287,23 +331,19 @@ Note: feed-inhibit applies to G-code commands -- not jogs.
 **axis.**_L_**.eoffset-scale** IN FLOAT::
   Scale for external offset.
 **axis.**_L_**.jog-accel-fraction** IN FLOAT::
-  Sets acceleration for wheel jogging to a fraction of the INI
-  max_acceleration for the axis. Values greater than 1 or less than zero
-  are ignored.
+  Sets acceleration for wheel jogging to a fraction of the INI max_acceleration for the axis.
+  Values greater than 1 or less than zero are ignored.
 **axis.**_L_**.jog-counts** IN S32::
   Connect to the "counts" pin of an external encoder to use a physical jog wheel.
 **axis.**_L_**.jog-enable** IN BIT::
   When TRUE (and in manual mode), any change to "jog-counts" will result in motion.
   When false, "jog-counts" is ignored.
 **axis.**_L_**.jog-scale** IN FLOAT::
-  Sets the distance moved for each count on "jog-counts", in machine
-  units.
+  Sets the distance moved for each count on "jog-counts", in machine units.
 **axis.**_L_**.jog-vel-mode** IN BIT::
   When FALSE (the default), the jogwheel operates in position mode.
-  The axis will move exactly jog-scale units for each count, regardless of
-  how long that might take. When TRUE, the wheel operates in velocity
-  mode - motion stops when the wheel stops, even if that means the
-  commanded motion is not completed.
+  The axis will move exactly jog-scale units for each count, regardless of how long that might take.
+  When TRUE, the wheel operates in velocity mode - motion stops when the wheel stops, even if that means the commanded motion is not completed.
 **axis.**_L_**.kb-jog-active** OUT BIT::
   (free planner axis jogging active (keyboard or halui))
 **axis.**_L_**.pos-cmd** OUT FLOAT::
@@ -377,16 +417,14 @@ Note: Pins marked *(DEBUG)* serve as debugging aids and are subject to change or
 **joint.**_N_**.jog-counts** IN S32::
   Connect to the "counts" pin of an external encoder to use a physical jog wheel.
 **joint.**_N_**.jog-enable** IN BIT::
-  When TRUE (and in manual mode), any change to "jog-counts" will result
-  in motion. When false, "jog-counts" is ignored.
+  When TRUE (and in manual mode), any change to "jog-counts" will result in motion.
+  When false, "jog-counts" is ignored.
 **joint.**_N_**.jog-scale** IN FLOAT::
   Sets the distance moved for each count on "jog-counts", in machine units.
 **joint.**_N_**.jog-vel-mode** IN BIT::
   When FALSE (the default), the jogwheel operates in position mode.
-  The joint will move exactly jog-scale units for each count, regardless of
-  how long that might take. When TRUE, the wheel operates in velocity
-  mode - motion stops when the wheel stops, even if that means the
-  commanded motion is not completed.
+  The joint will move exactly jog-scale units for each count, regardless of how long that might take.
+  When TRUE, the wheel operates in velocity mode - motion stops when the wheel stops, even if that means the commanded motion is not completed.
 **joint.**_N_**.kb-jog-active** OUT BIT *(DEBUG)*::
   (free planner joint jogging active (keyboard or halui))
 **joint.**_N_**.motor-offset** OUT FLOAT *(DEBUG)*::
@@ -409,13 +447,16 @@ Note: Pins marked *(DEBUG)* serve as debugging aids and are subject to change or
 **joint.**_N_**.pos-hard-limit** OUT BIT *(DEBUG)*::
   The positive hard limit for the joint.
 **joint.**_N_**.pos-lim-sw-in** IN BIT::
-  Should be driven TRUE if the positive limit switch for this joint is
-  tripped.
+  Should be driven TRUE if the positive limit switch for this joint is tripped.
 **joint.**_N_**.unlock** OUT BIT::
   TRUE if the axis is a locked joint (typically a rotary) and a move is
   commanded (see JOINT UNLOCK PINS).
 **joint.**_N_**.vel-cmd** OUT FLOAT *(DEBUG)*::
   The joint's commanded velocity.
+**joint.**_N_**.jerk-cmd** OUT FLOAT *(DEBUG)*::
+  The joint's commanded jerk (rate of change of acceleration).
+  Only active when S-curve trajectory planning is enabled (INI file [TRAJ]PLANNER_TYPE=1 and [TRAJ]MAX_LINEAR_JERK>0).
+  Jerk limits are set via INI file [JOINT_N]MAX_JERK or via the ini.N.max_jerk HAL pin.
 **joint.**_N_**.wheel-jog-active** OUT BIT *(DEBUG)*::
   +
 
@@ -503,12 +544,12 @@ the M19 command fails with an error message.
 Many of the parameters serve as debugging aids, and are subject to change or removal at any time.
 
 *motion-command-handler.tmax* RW S32::
-  Show information about the execution time of these HAL functions in CPU clocks.
+  Show information about the execution time of these HAL functions in ns.
 
 *motion-command-handler.tmax-increased* RO S32::
 
 *motion-controller.tmax* RW S32::
-  Show information about the execution time of these HAL functions in CPU clocks.
+  Show information about the execution time of these HAL functions in ns.
 
 *motion-controller.tmax-increased* RO BIT::
   +

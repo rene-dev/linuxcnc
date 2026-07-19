@@ -16,10 +16,6 @@
 
 extern int verbose_nml_error_messages;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdio.h>		/* sscanf(), NULL FILE, fopen(), fgets() */
 #include <unistd.h>		/* gethostname() */
 #include <string.h>		/* strcpy(), strlen(),memcpy()
@@ -31,9 +27,6 @@ extern "C" {
 #include <netinet/in.h>		/* sockaddr_in */
 #include <stdlib.h>
 
-#ifdef __cplusplus
-}
-#endif
 #include <rtapi_string.h>
 #include "cms.hh"		/* class CMS */
 #include "cms_cfg.hh"
@@ -42,12 +35,12 @@ extern "C" {
     method for remote connection, for most applications. It is more reliable
     and can handle larger messages than UDP and is more widely available than 
     RPC. */
-#include "tcpmem.hh"		/* class TCPMEM */
+#include "libnml/buffer/tcpmem.hh"		/* class TCPMEM */
 
  /* If the buffer type or process type specified in the configuration file is 
     "PHANTOM" then every NML call of that type will result in calling your
     phantom function. */
-#include "phantom.hh"		/* class PHANTOMMEM */
+#include "libnml/buffer/phantom.hh"		/* class PHANTOMMEM */
 
  /* LOCMEM is useful when many modules are linked together in one thread of
     execution but you want to write them such that each module uses the NML
@@ -55,7 +48,7 @@ extern "C" {
     running separately. There is no need for any mutual exclusion mechanism
     and memory is obtained with a simple malloc so the operating system will
     not exceed its limits for semaphores or shared memory segments. */
-#include "locmem.hh"		/* class LOCMEM */
+#include "libnml/buffer/locmem.hh"		/* class LOCMEM */
 
  /* SHMEM is intended for communications between tasks managed by the same
     operating system. The operating system allocates the memory to be shared
@@ -63,10 +56,10 @@ extern "C" {
     exclusion techniques, using an operating system semaphore or mutex, or
     disabling and enabling context switching or interrupts during the
     appropriate critical sections. */
-#include "shmem.hh"		/* class SHMEM */
+#include "libnml/buffer/shmem.hh"		/* class SHMEM */
 
-#include "rcs_print.hh"		/* rcs_print_error() */
-#include "linklist.hh"		/* LinkedList */
+#include "libnml/rcs/rcs_print.hh"		/* rcs_print_error() */
+#include "libnml/linklist/linklist.hh"		/* LinkedList */
 
 struct CONFIG_FILE_INFO {
     CONFIG_FILE_INFO()
@@ -80,6 +73,10 @@ struct CONFIG_FILE_INFO {
 	    lines_list = NULL;
 	}
     };
+
+    // Not copyable
+    CONFIG_FILE_INFO(const CONFIG_FILE_INFO&) = delete;
+    CONFIG_FILE_INFO& operator= (const CONFIG_FILE_INFO&) = delete;
 
     LinkedList *lines_list;
     char file_name[80];
@@ -114,6 +111,8 @@ int load_nml_config_file(const char *file)
     if (strlen(file) >= 80) {
         rcs_print_error("cms_config: file name too long\n");
         loading_config_file = 0;
+	delete info->lines_list; // info is a struct
+	delete info;
         return -1;
     }
     rtapi_strlcpy(info->file_name, file, 80);
@@ -122,6 +121,7 @@ int load_nml_config_file(const char *file)
     if (fp == NULL) {
 	rcs_print_error("cms_config: can't open '%s'. Error = %d -- %s\n",
 	    file, errno, strerror(errno));
+	delete info->lines_list; // info is a struct
 	delete info;
 	loading_config_file = 0;
 	return -1;
@@ -341,9 +341,9 @@ int cms_config(CMS ** cms, const char *bufname, const char *procname, const char
     CONFIG_SEARCH_STRUCT search;
     char buf[LINELEN];
     char buf2[LINELEN];
-    char *default_ptr = 0;
+    char *default_ptr = NULL;
 
-    if (0 == bufname || 0 == procname || 0 == filename) {
+    if (NULL == bufname || NULL == procname || NULL == filename) {
 	return -1;
     }
     rcs_print_debug(PRINT_CMS_CONFIG_INFO, "cms_config arguments:\n");
@@ -365,7 +365,7 @@ int cms_config(CMS ** cms, const char *bufname, const char *procname, const char
 	search.bufname_for_procline = "default";
 	find_proc_and_buffer_lines(&search);
 	if (search.error_type == CONFIG_SEARCH_OK) {
-	    default_ptr = 0;
+	    default_ptr = NULL;
 	    strncpy(buf, search.proc_line, LINELEN);
 	    default_ptr = strstr(buf, "default");
 	    if (default_ptr) {
@@ -430,17 +430,17 @@ int cms_config(CMS ** cms, const char *bufname, const char *procname, const char
 int hostname_matches_bufferline(char *bufline)
 {
     char my_hostname[256];
-    struct hostent *my_hostent_ptr = 0;
-    struct hostent *buffer_hostent_ptr = 0;
+    struct hostent *my_hostent_ptr = NULL;
+    struct hostent *buffer_hostent_ptr = NULL;
     struct hostent my_hostent;
     char my_hostent_addresses[16][16];
     int num_my_hostent_addresses = 0;
     struct in_addr myaddress;
     int j, k;
-    char *buffer_host = 0;
+    char *buffer_host = NULL;
     char *word[4];		/* array of pointers to words from line */
 
-    if (0 == bufline) {
+    if (NULL == bufline) {
 	return 0;
     }
 
@@ -449,7 +449,7 @@ int hostname_matches_bufferline(char *bufline)
 	return 0;
     }
     buffer_host = word[3];
-    if (buffer_host == 0) {
+    if (buffer_host == NULL) {
 	return 0;
     }
 
@@ -461,7 +461,7 @@ int hostname_matches_bufferline(char *bufline)
 	return 1;
     }
     my_hostent_ptr = gethostbyname(my_hostname);
-    if (0 == my_hostent_ptr) {
+    if (NULL == my_hostent_ptr) {
 	return 0;
     }
     myaddress.s_addr = *((int *) my_hostent_ptr->h_addr_list[0]);
@@ -476,7 +476,7 @@ int hostname_matches_bufferline(char *bufline)
        they are clobbered when we try to get the hostentry for buffer_host */
     my_hostent = *my_hostent_ptr;
     memset(my_hostent_addresses, 0, 256);
-    for (j = 0; j < 16 && 0 != my_hostent.h_addr_list[j]; j++) {
+    for (j = 0; j < 16 && NULL != my_hostent.h_addr_list[j]; j++) {
 	memcpy(my_hostent_addresses[j], my_hostent.h_addr_list[j],
 	    my_hostent.h_length);
     }
@@ -485,7 +485,7 @@ int hostname_matches_bufferline(char *bufline)
 	return 0;
     }
     buffer_hostent_ptr = gethostbyname(buffer_host);
-    if (0 == buffer_hostent_ptr) {
+    if (NULL == buffer_hostent_ptr) {
 	return 0;
     }
     j = 0;
@@ -495,7 +495,7 @@ int hostname_matches_bufferline(char *bufline)
     }
     while (j < num_my_hostent_addresses && j < 16) {
 	k = 0;
-	while (k < 16 && buffer_hostent_ptr->h_addr_list[k] != 0) {
+	while (k < 16 && buffer_hostent_ptr->h_addr_list[k] != NULL) {
 	    if (!memcmp
 		(my_hostent_addresses[j], buffer_hostent_ptr->h_addr_list[k],
 		    my_hostent.h_length)) {
@@ -511,7 +511,7 @@ int hostname_matches_bufferline(char *bufline)
 
 void find_proc_and_buffer_lines(CONFIG_SEARCH_STRUCT * s)
 {
-    if (s == 0) {
+    if (s == NULL) {
 	return;
     }
 

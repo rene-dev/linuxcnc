@@ -2,8 +2,8 @@
 #ifndef AXIS_H
 #define AXIS_H
 
-#include "rtapi_bool.h"
-#include "hal.h"
+#include <rtapi_bool.h>
+#include <hal.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,6 +30,7 @@ void axis_set_max_pos_limit(int axis_num, double maxLimit);
 void axis_set_min_pos_limit(int axis_num, double minLimit);
 void axis_set_vel_limit(int axis_num, double vel);
 void axis_set_acc_limit(int axis_num, double acc);
+void axis_set_jerk_limit(int axis_num, double jerk);
 void axis_set_ext_offset_vel_limit(int axis_num, double ext_offset_vel);
 void axis_set_ext_offset_acc_limit(int axis_num, double ext_offset_acc);
 void axis_set_locking_joint(int axis_num, int joint);

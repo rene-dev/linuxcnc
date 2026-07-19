@@ -9,6 +9,17 @@ import math
 from gi.repository import GObject
 from gi.repository import GLib
 
+# Set up logging
+from . import logger
+# log instance holder variable
+LOG = None
+
+try:
+    import zmq
+    import json
+except:
+    zmq = None
+
 # constants
 JOGJOINT  = 1
 JOGTELEOP = 0
@@ -18,13 +29,13 @@ JOGTELEOP = 0
 try:
     inifile = linuxcnc.ini(os.environ['INI_FILE_NAME'])
     trajcoordinates = inifile.find("TRAJ", "COORDINATES").lower().replace(" ", "")
-    jointcount = int(inifile.find("KINS", "JOINTS"))
+    jointcount = inifile.getint("KINS", "JOINTS")
 except:
     pass
 try:
     # get cycle time which could be in ms or seconds
     # convert to ms - use this to set update time
-    ct = float(inifile.find('DISPLAY', 'CYCLE_TIME') or 100)
+    ct = inifile.getreal('DISPLAY', 'CYCLE_TIME', fallback=100)
     if ct < 1:
         CYCLE_TIME = int(ct * 1000)
     else:
@@ -168,6 +179,8 @@ class _GStat(GObject.GObject):
         'current-position': (GObject.SignalFlags.RUN_FIRST , GObject.TYPE_NONE, (GObject.TYPE_PYOBJECT,GObject.TYPE_PYOBJECT,
                             GObject.TYPE_PYOBJECT, GObject.TYPE_PYOBJECT,)),
         'current-z-rotation': (GObject.SignalFlags.RUN_FIRST, GObject.TYPE_NONE, (GObject.TYPE_FLOAT,)),
+        'current-command': (GObject.SignalFlags.RUN_FIRST , GObject.TYPE_NONE, (GObject.TYPE_STRING,)),
+
         'requested-spindle-speed-changed': (GObject.SignalFlags.RUN_FIRST, GObject.TYPE_NONE, (GObject.TYPE_FLOAT,)),
         'actual-spindle-speed-changed': (GObject.SignalFlags.RUN_FIRST, GObject.TYPE_NONE, (GObject.TYPE_FLOAT,)),
         'spindle-override-changed': (GObject.SignalFlags.RUN_FIRST, GObject.TYPE_NONE, (GObject.TYPE_FLOAT,)),
@@ -236,12 +249,18 @@ class _GStat(GObject.GObject):
                                         (GObject.TYPE_STRING, GObject.TYPE_BOOLEAN)),
         'show-preference': (GObject.SignalFlags.RUN_FIRST , GObject.TYPE_NONE, ()),
         'shutdown': (GObject.SignalFlags.RUN_FIRST , GObject.TYPE_NONE, ()),
+        'shutdown-request': (GObject.SignalFlags.RUN_FIRST , GObject.TYPE_NONE, ()),
         'status-message': (GObject.SignalFlags.RUN_FIRST , GObject.TYPE_NONE, (GObject.TYPE_PYOBJECT, GObject.TYPE_PYOBJECT)),
         'error': (GObject.SignalFlags.RUN_FIRST , GObject.TYPE_NONE, (GObject.TYPE_INT, GObject.TYPE_STRING)),
         'general': (GObject.SignalFlags.RUN_FIRST , GObject.TYPE_NONE, (GObject.TYPE_PYOBJECT,)),
         'forced-update': (GObject.SignalFlags.RUN_FIRST , GObject.TYPE_NONE, ()),
         'progress': (GObject.SignalFlags.RUN_FIRST , GObject.TYPE_NONE, (GObject.TYPE_INT, GObject.TYPE_PYOBJECT)),
         'following-error': (GObject.SignalFlags.RUN_FIRST , GObject.TYPE_NONE,(GObject.TYPE_PYOBJECT,)),
+        'ok-request': (GObject.SignalFlags.RUN_FIRST, GObject.TYPE_NONE, (GObject.TYPE_BOOLEAN,)),
+        'cancel-request': (GObject.SignalFlags.RUN_FIRST, GObject.TYPE_NONE, (GObject.TYPE_BOOLEAN,)),
+        'cycle-start-request': (GObject.SignalFlags.RUN_FIRST, GObject.TYPE_NONE, (GObject.TYPE_BOOLEAN,)),
+        'cycle-pause-request': (GObject.SignalFlags.RUN_FIRST, GObject.TYPE_NONE, (GObject.TYPE_BOOLEAN,)),
+        'macro-call-request': (GObject.SignalFlags.RUN_FIRST, GObject.TYPE_NONE, (GObject.TYPE_STRING,)),
         }
 
     STATES = { linuxcnc.STATE_ESTOP:       'state-estop'
@@ -299,8 +318,28 @@ class _GStat(GObject.GObject):
 
     def __init__(self, stat = None):
         GObject.Object.__init__(self)
+
+        global LOG
+        LOG = logger.getLogger(__name__)
+        # Force the log level for this module only
+        #LOG.setLevel(logger.DEBUG) # One of DEBUG, INFO, WARNING, ERROR, CRITICAL
+
         self.stat = stat or linuxcnc.stat()
         self.cmd = linuxcnc.command()
+
+        self.readAddress = "tcp://127.0.0.1:5691"
+        self.writeAddress = "tcp://127.0.0.1:5690"
+        self.write_available = False
+        # if zmq is imported, create sockets
+        # for communication with a 3rd party
+        if zmq:
+            self.init_write_socket()
+            self.init_read_socket()
+        else:
+            # logging set up now - add ZMQ failed message
+            LOG.debug('ZMQ python library not imported  - Is python3-zmq installed?')
+            LOG.debug('ZMQ socket messages will not be processed')
+
         self._status_active = False
         self.old = {}
         self.old['tool-prep-number'] = 0
@@ -326,6 +365,75 @@ class _GStat(GObject.GObject):
     # can override it to fix a seg fault
     def set_timer(self):
         GLib.timeout_add(CYCLE_TIME, self.update)
+
+    # open a zmq socket for writing out data
+    def init_write_socket(self):
+        context = zmq.Context()
+        self.write_socket = context.socket(zmq.PUB)
+        try:
+            self.write_socket.bind(self.writeAddress)
+            LOG.debug('hal_glib write socket available: {}'.format(self.writeAddress))
+            self.write_available = True
+        except Exception as e:
+            LOG.debug('hal_glib write socket not available: {}'.format(e))
+            self.write_available = False
+
+    # convert and actually send out the message
+    def write_msg(self, msg,data):
+        if self.write_available == True:
+            topic = b'STATUS'
+            x = {
+                "MESSAGE": msg,
+                "ARGS": [data]
+                }
+            # convert to JSON object
+            m1 = json.dumps(x)
+            self.write_socket.send_multipart([topic, bytes((m1).encode('utf-8'))])
+
+    # open a zmq socket for reading in function calls 
+    def init_read_socket(self):
+        # ZeroMQ Context
+        context = zmq.Context()
+
+        # Define the socket using the "Context"
+        self.readSocket = context.socket(zmq.SUB)
+
+        # Define subscription and messages with topic to accept.
+        topic = "" # all topics
+        self.readSocket.setsockopt_string(zmq.SUBSCRIBE, 'STATUSREQUEST')
+        try:
+            self.readSocket.connect(self.readAddress)
+            LOG.debug('hal_glib read socket available: {}'.format(self.readAddress))
+        except Exception as e:
+            LOG.debug('hal_glib read socket error: {}'.format(e))
+            return
+        GObject.io_add_watch(self.readSocket.getsockopt(zmq.FD),
+                         GObject.IO_IN|GObject.IO_ERR|GObject.IO_HUP,
+                         self.onReadMsg, self.readSocket)
+
+    # convert message to a function name and data
+    # then call that function
+    def onReadMsg(self, queue, condition, sock):
+        while self.readSocket.getsockopt(zmq.EVENTS) & zmq.POLLIN:
+            # get raw message
+            topic, data = self.readSocket.recv_multipart()
+            # convert from json object to python object
+            y = json.loads(data)
+            function = y.get('FUNCTION')
+            data = y.get('ARGS')
+            LOG.debug('REQUESTED:{}'.format(y))
+            if data == '':
+                try:
+                    self[function]()
+                except Exception as e:
+                    LOG.debug('not a valid request\n {}'.format(e))
+            else:
+                try:
+                    self[function](data)
+                except Exception as e:
+                    LOG.debug('not a valid request\n {}'.format(e))
+            #self. action(y.get('MESSAGE'),y.get('ARGS'))
+        return True
 
     def merge(self):
         self.old['command-state'] = self.stat.state
@@ -406,7 +514,7 @@ class _GStat(GObject.GObject):
         # extract specific G-code modes
         itime = fpm = fpr = css = rpm = metric = False
         radius = diameter = adm = idm = False
-        group0 = group1 = group3 = group4 = group5 = group6 = group7 = ''
+        group0 = group1 = group2 = group3 = group4 = group5 = group6 = group7 = ''
         group8 = group10 = group12 = group13 = group14 = group15 =''
 
         for num,i in enumerate(active_gcodes):
@@ -485,6 +593,7 @@ class _GStat(GObject.GObject):
         self.old['s-code'] = settings[2]
         self.old['blend-tolerance-code'] = settings[3]
         self.old['nativecam-tolerance-code'] = settings[4]
+        self.old['current-command'] = self.stat.command
 
     def update(self):
         try:
@@ -845,6 +954,11 @@ class _GStat(GObject.GObject):
            blend_code_new != blend_code_old:
                 self.emit('blend-code-changed',blend_code_new, cam_code_new)
 
+        code_old = old.get('current-command',None)
+        code_new = self.old['current-command']
+        if code_new != code_old:
+            self.emit('current-command',code_new)
+
         # AND DONE... Return true to continue timeout
         self.emit('periodic')
         return True
@@ -988,10 +1102,12 @@ class _GStat(GObject.GObject):
         spindle_spd_new = self.old['actual-spindle-speed']
         self.emit('actual-spindle-speed-changed', spindle_spd_new)
         self.emit('spindle-control-changed', 0, False, 0, False)
-        self.emit('jograte-changed', self.current_jog_rate)
-        self.emit('jograte-angular-changed', self.current_angular_jog_rate)
-        self.emit('jogincrement-changed', self.current_jog_distance, self.current_jog_distance_text)
-        self.emit('jogincrement-angular-changed', self.current_jog_distance_angular, self.current_jog_distance_angular_text)
+
+        self.set_jograte(self.current_jog_rate)
+        self.set_jograte_angular(self.current_angular_jog_rate)
+        self.set_jog_increments(self.current_jog_distance, self.current_jog_distance_text)
+        self.set_jog_increment_angular(self.current_jog_distance_angular, self.current_jog_distance_angular_text)
+
         tool_info_new = self.old['tool-info']
         self.emit('tool-info-changed', tool_info_new)
 
@@ -1082,6 +1198,7 @@ class _GStat(GObject.GObject):
     def set_jograte(self, upm):
         self.current_jog_rate = upm
         self.emit('jograte-changed', upm)
+        self.write_msg('jograte-changed', upm)
 
     def get_jograte(self):
         return self.current_jog_rate
@@ -1089,6 +1206,7 @@ class _GStat(GObject.GObject):
     def set_jograte_angular(self,rate):
         self.current_angular_jog_rate = rate
         self.emit('jograte-angular-changed', rate)
+        self.write_msg('jograte-angular-changed', rate)
 
     def get_jograte_angular(self):
         return self.current_angular_jog_rate
@@ -1100,22 +1218,24 @@ class _GStat(GObject.GObject):
         try:
             isinstance(float(distance), float)
         except:
-            print('error converting angular jog increment ({}) to float: staying at {}'.format(distance,self.current_jog_distance_angular))
+            LOG.warning('error converting angular jog increment ({}) to float: staying at {}'.format(distance,self.current_jog_distance_angular))
             return
         self.current_jog_distance_angular = distance
         self.current_jog_distance_text_angular = text
         self.emit('jogincrement-angular-changed', distance, text)
+        self.write_msg('jogincrements-angular-changed', (distance, text))
 
     # should be in machine units
     def set_jog_increments(self, distance, text):
         try:
             isinstance(float(distance), float)
         except:
-            print('error converting jog increment ({}) to float: staying at {}'.format(distance,self.current_jog_distance))
+            LOG.warning('error converting jog increment ({}) to float: staying at {}'.format(distance,self.current_jog_distance))
             return
         self.current_jog_distance = distance
         self.current_jog_distance_text = text
         self.emit('jogincrement-changed', distance, text)
+        self.write_msg('jogincrements-changed', (distance,text))
 
     def get_jog_increment(self):
         return self.current_jog_distance
@@ -1126,6 +1246,7 @@ class _GStat(GObject.GObject):
     def set_selected_joint(self, data):
         self.selected_joint = int(data)
         self.emit('joint-selection-changed', data)
+        self.write_msg('joint-selection-changed', data)
 
     def get_selected_joint(self):
         return self.selected_joint
@@ -1133,6 +1254,7 @@ class _GStat(GObject.GObject):
     def set_selected_axis(self, data):
         self.selected_axis = str(data)
         self.emit('axis-selection-changed', data)
+        self.write_msg('axis-selection-changed', data)
 
     def get_selected_axis(self):
         return self.selected_axis
@@ -1296,17 +1418,17 @@ class _GStat(GObject.GObject):
             return JOGJOINT
         if self.stat.motion_mode == linuxcnc.TRAJ_MODE_TELEOP:
             return JOGTELEOP
-        print("commands.py: unexpected motion_mode",self.stat.motion_mode)
+        LOG.warning("Unexpected motion_mode {}, ".format(self.stat.motion_mode))
         return JOGTELEOP
 
     def jnum_for_axisnum(self,axisnum):
         if self.stat.kinematics_type != linuxcnc.KINEMATICS_IDENTITY:
-            print("\n%s:\n  Joint jogging not supported for"
+            LOG.warning("\n%s:\n  Joint jogging not supported for"
                    "non-identity kinematics"%__file__)
             return -1 # emcJogCont() et al reject neg joint/axis no.s
         jnum = trajcoordinates.index( "xyzabcuvw"[axisnum] )
         if jnum > jointcount:
-            print("\n%s:\n  Computed joint number=%d for axisnum=%d "
+            LOG.warning("\n%s:\n  Computed joint number=%d for axisnum=%d "
                    "exceeds jointcount=%d with trajcoordinates=%s"
                    %(__file__,jnum,axisnum,jointcount,trajcoordinates))
             # Note: primary gui should protect for this misconfiguration
@@ -1348,11 +1470,41 @@ class _GStat(GObject.GObject):
             coord[1] = x1 * math.sin(t) + y1 * math.cos(t)
         return coord
 
+    #############################################
+    # called by ZMQ requests
+    #############################################
+    def request_cycle_start(self, data):
+        self.emit('cycle-start-request', data)
+
+    def request_cycle_pause(self, data):
+        self.emit('cycle-pause-request', data)
+
+    def request_macro_call(self, data):
+        self.emit('macro-call-request', data)
+
+    def request_reload_display(self, data):
+        self.emit('reload-display')
+
+    def request_shutdown(self):
+        self.emit('shutdown-request')
+
+    def request_ok(self, data):
+        self.emit('ok-request', data)
+
+    def request_cancel(self, data):
+        self.emit('cancel-request', data)
+
+    #############################################
+
     def shutdown(self):
         self.emit('shutdown')
 
     def get_linuxcnc_version(self):
         return linuxcnc.version
+
+    def get_current_command(self):
+        self.stat.poll()
+        return self.stat.command
 
     def __getitem__(self, item):
         return getattr(self, item)

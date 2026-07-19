@@ -57,6 +57,7 @@ typedef enum {
     GM_FLAG_IN_REMAP,
     GM_FLAG_IN_SUB,
     GM_FLAG_EXTERNAL_FILE,
+    GM_FLAG_IS_CIRCLE,
     GM_FLAG_MAX_FLAGS
 } StateFlag;
 
@@ -67,7 +68,7 @@ typedef enum {
  * WARNING:
  *
  * 1) Since these are used as array indices, they have to start at 0,
- * be monotonic, and the MAX_FIELDS enum MUST be last in the list.
+ * be monotonic, and the GM_FIELD_MAX_FIELDS enum MUST be last in the list.
  *
  * 2) If your application needs to pass state tags through NML, then
  * you MUST update the corresponding cms->update function for state
@@ -98,6 +99,12 @@ typedef enum {
     GM_FIELD_FLOAT_SPEED,
     GM_FIELD_FLOAT_PATH_TOLERANCE,
     GM_FIELD_FLOAT_NAIVE_CAM_TOLERANCE,
+    GM_FIELD_FLOAT_ARC_RADIUS,
+    GM_FIELD_FLOAT_ARC_CENTER_X,
+    GM_FIELD_FLOAT_ARC_CENTER_Y,
+    GM_FIELD_FLOAT_ARC_CENTER_Z,
+    GM_FIELD_FLOAT_STRAIGHT_HEADING,
+    GM_FIELD_FLOAT_NORMAL_HEADING,
     GM_FIELD_FLOAT_MAX_FIELDS
 } StateFieldFloat;
 
@@ -115,7 +122,7 @@ struct state_tag_t {
 
     // Float-type machine settings:  feed, speed, etc., indexed by the
     // StateFieldFloat enum above
-    float fields_float[GM_FIELD_FLOAT_MAX_FIELDS];
+    double fields_float[GM_FIELD_FLOAT_MAX_FIELDS];
 
     // Any G / M code states that doesn't pack nicely into a single bit
     // These are an array mostly because it's easier to pass an

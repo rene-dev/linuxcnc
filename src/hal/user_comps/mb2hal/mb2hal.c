@@ -48,12 +48,6 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    gbl.ini_file_ptr = fopen(gbl.ini_file_path, "r");
-    if (gbl.ini_file_ptr == NULL) {
-        ERR(gbl.init_dbg, "Unable to open INI file [%s]", gbl.ini_file_path);
-        return -1;
-    }
-
     if (parse_ini_file() != 0) {
         ERR(gbl.init_dbg, "Unable to parse INI file [%s]", gbl.ini_file_path);
         goto QUIT_CLEANUP;
@@ -81,13 +75,13 @@ int main(int argc, char **argv)
         ERR(gbl.init_dbg, "Unable to create HAL pins");
         goto QUIT_CLEANUP;
     }
-    hal_ready(gbl.hal_mod_id);
-    OK(gbl.init_dbg, "HAL components created OK");
-
-    gbl.quit_flag = 0; //tell the threads to quit (SIGTERM o SIGQUIT) (unloadusr mb2hal).
+    gbl.quit_flag = 0; //tell the threads to quit (SIGTERM or SIGINT) (unloadusr mb2hal).
     signal(SIGINT, quit_signal);
     //unloadusr and unload commands of halrun
     signal(SIGTERM, quit_signal);
+
+    hal_ready(gbl.hal_mod_id);
+    OK(gbl.init_dbg, "HAL components created OK");
 
     /* Each link has it's own thread */
     pthread_attr_init(&thrd_attr);
@@ -149,7 +143,7 @@ void *link_loop_and_logic(void *thrd_link_num)
 
         for (tx_counter = 0; tx_counter < gbl.tot_mb_tx; tx_counter++) {
 
-            if (gbl.quit_flag != 0) { //tell the threads to quit (SIGTERM o SGIQUIT) (unloadusr mb2hal).
+            if (gbl.quit_flag != 0) {
                 return NULL;
             }
 
@@ -225,7 +219,7 @@ void *link_loop_and_logic(void *thrd_link_num)
                 break;
             }
 
-            if (gbl.quit_flag != 0) { //tell the threads to quit (SIGTERM o SGIQUIT) (unloadusr mb2hal).
+            if (gbl.quit_flag != 0) {
                 return NULL;
             }
 
@@ -381,7 +375,9 @@ retCode get_tx_connection(const int this_mb_tx_num, int *ret_connected)
     //set response and byte timeout according to each mb_tx
     timeout.tv_sec  = this_mb_tx->mb_response_timeout_ms / 1000;
     timeout.tv_usec = (this_mb_tx->mb_response_timeout_ms % 1000) * 1000;
-#if LIBMODBUS_VERSION_CHECK(3, 1, 2)
+// Cppcheck fails to parse the function-like macro
+//#if (LIBMODBUS_VERSION_CHECK(3, 1, 2))
+# if LIBMODBUS_VERSION_HEX >= 0x030102
     modbus_set_response_timeout(this_mb_link->modbus, timeout.tv_sec, timeout.tv_usec);
 #else
     modbus_set_response_timeout(this_mb_link->modbus, &timeout);
@@ -392,7 +388,9 @@ retCode get_tx_connection(const int this_mb_tx_num, int *ret_connected)
 
     timeout.tv_sec  = this_mb_tx->mb_byte_timeout_ms / 1000;
     timeout.tv_usec = (this_mb_tx->mb_byte_timeout_ms % 1000) * 1000;
-#if LIBMODBUS_VERSION_CHECK(3, 1, 2)
+// Cppcheck fails to parse the function-like macro
+//#if (LIBMODBUS_VERSION_CHECK(3, 1, 2))
+# if LIBMODBUS_VERSION_HEX >= 0x030102
     modbus_set_byte_timeout(this_mb_link->modbus, timeout.tv_sec, timeout.tv_usec);
 #else
     modbus_set_byte_timeout(this_mb_link->modbus, &timeout);
@@ -441,7 +439,7 @@ void quit_signal(int signal)
 {
     char *fnct_name = "quit_signal";
 
-    gbl.quit_flag = 1; //tell the threads to quit (SIGTERM o SIGQUIT) (unloadusr mb2hal).
+    gbl.quit_flag = 1; //tell the threads to quit (SIGTERM or SIGINT) (unloadusr mb2hal).
     DBG(gbl.init_dbg, "signal [%d] received", signal);
 }
 

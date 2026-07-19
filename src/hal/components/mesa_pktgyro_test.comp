@@ -47,7 +47,7 @@ Check linuxcnc.log for debug output.
 author "Boris Skegin";
 license "GPL";
 
-include "hal/drivers/mesa-hostmot2/hostmot2-serial.h";
+include <hostmot2-serial.h>;
 include "hal/drivers/mesa-hostmot2/hostmot2.h";
 
 
@@ -118,8 +118,8 @@ FUNCTION(receive){
 }
 // Only gcc/g++ supports the #pragma
 #if __GNUC__ && !defined(__clang__)
-// EXTRA_SETUP() is 2400
-#pragma GCC diagnostic warning "-Wframe-larger-than=2500"
+// EXTRA_SETUP() is 2544
+#pragma GCC diagnostic warning "-Wframe-larger-than=2552"
 #endif
 
 EXTRA_SETUP(){ // the names parameters are passed in 'prefix'.

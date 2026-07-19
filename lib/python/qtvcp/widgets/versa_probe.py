@@ -19,10 +19,11 @@ import sys
 import os
 import hal
 import json
+import re
 
-from PyQt5 import QtGui, QtCore, QtWidgets, uic
-from PyQt5.QtCore import QProcess, QEvent, Qt, pyqtProperty
-from PyQt5.QtWidgets import QDialogButtonBox, QAbstractSlider
+from qtpy import QtGui, QtCore, QtWidgets, uic
+from qtpy.QtCore import QProcess, QEvent, Qt, Property
+from qtpy.QtWidgets import QDialogButtonBox, QAbstractSlider
 
 from qtvcp.widgets.widget_baseclass import _HalWidgetBase
 from qtvcp.core import Status, Action, Info, Path
@@ -63,9 +64,9 @@ class VersaProbeParent(QtWidgets.QWidget, _HalWidgetBase):
 
         STATUS.connect('tool-info-changed', lambda w, data: self._tool_info(data))
         if INFO.MACHINE_IS_METRIC:
-            self.valid = QtGui.QRegExpValidator(QtCore.QRegExp(r'^((\d{1,4}(\.\d{1,3})?)|(\.\d{1,3}))$'))
+            self.valid = QtGui.QRegularExpressionValidator(QtCore.QRegularExpression(r'^((\d{1,4}(\.\d{1,3})?)|(\.\d{1,3}))$'))
         else:
-            self.valid = QtGui.QRegExpValidator(QtCore.QRegExp(r'^((\d{1,3}(\.\d{1,4})?)|(\.\d{1,4}))$'))
+            self.valid = QtGui.QRegularExpressionValidator(QtCore.QRegularExpression(r'^((\d{1,3}(\.\d{1,4})?)|(\.\d{1,4}))$'))
         self.setMinimumSize(600, 420)
         # Load the widgets UI file will use local file if available:
         self.filename = PATH.find_widget_path('versa_probe.ui')
@@ -213,12 +214,15 @@ class VersaProbeParent(QtWidgets.QWidget, _HalWidgetBase):
             self.input_side_edge_length.setText(str(self.PREFS_.getpref( "ps_side_edge_length", 5.0, float, 'VERSA_PROBE_OPTIONS')) )
             self.input_tool_probe_height.setText(str(self.PREFS_.getpref( "ps_probe_height", 20.0, float, 'VERSA_PROBE_OPTIONS')) )
             self.input_tool_block_height.setText(str(self.PREFS_.getpref( "ps_block_height", 20.0, float, 'VERSA_PROBE_OPTIONS')) )
-            self.pbtn_use_tool_measurement.setChecked((self.PREFS_.getpref( "use_tool_measurement", True, bool, 'VERSA_PROBE_OPTIONS')) )
             self.input_adj_x.setText(str(self.PREFS_.getpref( "ps_offs_x", 0.0, float, 'VERSA_PROBE_OPTIONS')) )
             self.input_adj_y.setText(str(self.PREFS_.getpref( "ps_offs_y", 0.0, float, 'VERSA_PROBE_OPTIONS')) )
             self.input_adj_z.setText(str(self.PREFS_.getpref( "ps_offs_z", 0.0, float, 'VERSA_PROBE_OPTIONS')) )
             self.input_adj_angle.setText(str(self.PREFS_.getpref( "ps_offs_angle", 0.0, float, 'VERSA_PROBE_OPTIONS')) )
             self.input_rapid_vel.setText(str(self.PREFS_.getpref( "ps_probe_rapid_vel", 60.0, float, 'VERSA_PROBE_OPTIONS')) )
+
+            self.pbtn_use_tool_measurement.setChecked((self.PREFS_.getpref( "use_tool_measurement", True, bool, 'VERSA_PROBE_OPTIONS')) )
+            self.allow_auto_zero.setChecked((self.PREFS_.getpref( "use_auto_zero", True, bool, 'VERSA_PROBE_OPTIONS')) )
+            self.allow_auto_skew.setChecked((self.PREFS_.getpref( "use_auto_skew", True, bool, 'VERSA_PROBE_OPTIONS')) )
 
         self.z_max_clear = INFO.get_safe_float("VERSA_TOOLSETTER", "Z_MAX_CLEAR")
         self.ts_x =  INFO.get_safe_float('VERSA_TOOLSETTER','X')
@@ -266,12 +270,15 @@ class VersaProbeParent(QtWidgets.QWidget, _HalWidgetBase):
             self.PREFS_.putpref( "ps_side_edge_length", float(self.input_side_edge_length.text()), float, 'VERSA_PROBE_OPTIONS')
             self.PREFS_.putpref( "ps_probe_height", float(self.input_tool_probe_height.text()), float, 'VERSA_PROBE_OPTIONS')
             self.PREFS_.putpref( "ps_block_height", float(self.input_tool_block_height.text()), float, 'VERSA_PROBE_OPTIONS')
-            self.PREFS_.putpref( "use_tool_measurement", bool(self.pbtn_use_tool_measurement.isChecked()), bool, 'VERSA_PROBE_OPTIONS')
             self.PREFS_.putpref( "ps_offs_x", float(self.input_adj_x.text()), float, 'VERSA_PROBE_OPTIONS')
             self.PREFS_.putpref( "ps_offs_y", float(self.input_adj_y.text()), float, 'VERSA_PROBE_OPTIONS')
             self.PREFS_.putpref( "ps_offs_z", float(self.input_adj_z.text()), float, 'VERSA_PROBE_OPTIONS')
             self.PREFS_.putpref( "ps_offs_angle", float(self.input_adj_angle.text()), float, 'VERSA_PROBE_OPTIONS')
             self.PREFS_.putpref( "ps_probe_rapid_vel", float(self.input_rapid_vel.text()), float, 'VERSA_PROBE_OPTIONS')
+
+            self.PREFS_.putpref( "use_tool_measurement", bool(self.pbtn_use_tool_measurement.isChecked()), bool, 'VERSA_PROBE_OPTIONS')
+            self.PREFS_.putpref( "use_auto_zero", bool(self.allow_auto_zero.isChecked()), bool, 'VERSA_PROBE_OPTIONS')
+            self.PREFS_.putpref( "use_auto_skew", bool(self.allow_auto_skew.isChecked()), bool, 'VERSA_PROBE_OPTIONS')
 
     # process the STATUS return message
     # set the line edit to the value if not cancelled
@@ -341,6 +348,7 @@ class VersaProbeParent(QtWidgets.QWidget, _HalWidgetBase):
         if self.proc is not None:
             LOG.info("Probe Routine processor is busy")
             return
+        ACTION.RECORD_CURRENT_MODE()
         self.start_process()
         string_to_send = cmd + '$' + json.dumps(self.send_dict) + '\n'
         #print("String to send ", string_to_send)
@@ -364,6 +372,7 @@ class VersaProbeParent(QtWidgets.QWidget, _HalWidgetBase):
         LOG.info(("Probe Process finished - exitCode {} exitStatus {}".format(exitCode, exitStatus)))
         self.proc = None
         STATUS.unblock_error_polling()
+        ACTION.RESTORE_RECORDED_MODE()
 
     def parse_input(self, line):
         line = line.decode("utf-8")
@@ -500,7 +509,7 @@ class VersaProbeParent(QtWidgets.QWidget, _HalWidgetBase):
     def update_block_height_pin(self, text):
         value = float(text)
         #if value == self.pin_bheight.get(): return
-        origin = float(INFO.INI.find("AXIS_Z", "MIN_LIMIT")) + value
+        origin = INFO.INI.getreal("AXIS_Z", "MIN_LIMIT") + value
         ACTION.CALL_MDI_WAIT( "G10 L2 P0 Z%s" % origin )
         try:
             self.pin_bheight.set(value)
@@ -589,7 +598,7 @@ class VersaProbeParent(QtWidgets.QWidget, _HalWidgetBase):
 
     #########################################################################
     # This is how designer can interact with our widget properties.
-    # designer will show the pyqtProperty properties in the editor
+    # designer will show the Property properties in the editor
     # it will use the get set and reset calls to do those actions
     #########################################################################
 
@@ -599,7 +608,7 @@ class VersaProbeParent(QtWidgets.QWidget, _HalWidgetBase):
         return self.dialog_code
     def reset_dialog_code(self):
         self.dialog_code = 'CALCULATOR'
-    dialogCodeString = pyqtProperty(str, get_dialog_code, set_dialog_code, reset_dialog_code)
+    dialogCodeString = Property(str, get_dialog_code, set_dialog_code, reset_dialog_code)
 
     def set_runImmediately(self, data):
         self._runImmediately = data
@@ -610,7 +619,7 @@ class VersaProbeParent(QtWidgets.QWidget, _HalWidgetBase):
         self._runImmediately = True
 
     # toggle run on button push or run on function call
-    runImmediately = pyqtProperty(bool, get_runImmediately, set_runImmediately, reset_runImmediately)
+    runImmediately = Property(bool, get_runImmediately, set_runImmediately, reset_runImmediately)
 
 class HelpDialog(QtWidgets.QDialog, GeometryMixin):
     def __init__(self, parent=None):
@@ -676,10 +685,34 @@ class HelpDialog(QtWidgets.QDialog, GeometryMixin):
         l.addWidget(bBox)
         self.setLayout(l)
 
-        try:
-            self.next(t)
-        except Exception as e:
-                t.setText('Versa Probe Help file Unavailable:\n\n{}'.format(e))
+        # Load the first help page lazily (on first show): pre-scaling its
+        # images at construction can hang or crash qtvcp headless.
+        self._helpText = t
+        self._helpLoaded = False
+
+    def _set_scaled_html(self, t, html):
+        # QTextEdit scales raster images with a nearest-neighbour filter, which
+        # makes the help diagrams look jagged.  Pre-scale each raster <img> to
+        # its requested size with a smooth filter and register it as a document
+        # resource so Qt draws it 1:1.  SVG images are left untouched so Qt's
+        # vector renderer draws them crisply at any size.
+        doc = t.document()
+        for tag in re.findall(r'<img\b[^>]*>', html):
+            match = re.search(r'src="([^"]+)"', tag)
+            if match is None or match.group(1).lower().endswith('.svg'):
+                continue
+            src = match.group(1)
+            image = QtGui.QImage(src)
+            if image.isNull():
+                continue
+            width = re.search(r'width="(\d+)"', tag)
+            height = re.search(r'height="(\d+)"', tag)
+            if width is not None and int(width.group(1)) != image.width():
+                image = image.scaledToWidth(int(width.group(1)), QtCore.Qt.SmoothTransformation)
+            elif height is not None and int(height.group(1)) != image.height():
+                image = image.scaledToHeight(int(height.group(1)), QtCore.Qt.SmoothTransformation)
+            doc.addResource(QtGui.QTextDocument.ImageResource, QtCore.QUrl(src), image)
+        t.setHtml(html)
 
     def next(self,t,direction=None):
             if direction is None:
@@ -698,8 +731,8 @@ class HelpDialog(QtWidgets.QDialog, GeometryMixin):
                 file.open(QtCore.QFile.ReadOnly)
                 html = file.readAll()
                 html = str(html, encoding='utf8')
-                html = html.replace("../images/probe_icons/","{}/probe_icons/".format(PATH.IMAGEDIR))
-                t.setHtml(html)
+                html = html.replace("../images/","{}/".format(PATH.IMAGEDIR))
+                self._set_scaled_html(t, html)
                 if t.verticalScrollBar().isVisible():
                     t.verticalScrollBar().setPageStep(20)
                     self.pageStepDwnbutton.show()
@@ -726,9 +759,15 @@ class HelpDialog(QtWidgets.QDialog, GeometryMixin):
         super(HelpDialog, self).close()
 
     def showDialog(self):
+        if not self._helpLoaded:
+            try:
+                self.next(self._helpText)
+            except Exception as e:
+                self._helpText.setText('Versa Probe Help file Unavailable:\n\n{}'.format(e))
+            self._helpLoaded = True
         self.setWindowTitle(self._title);
         self.set_geometry()
-        retval = self.exec_()
+        retval = self.exec()
         LOG.debug('Value of pressed button: {}'.format(retval))
 
 # look for a custom version of Versa Probe
@@ -744,13 +783,13 @@ class VersaProbe(module):
 # Testing
 ####################################
 if __name__ == "__main__":
-    from PyQt5.QtWidgets import *
-    from PyQt5.QtCore import *
-    from PyQt5.QtGui import *
+    from qtpy.QtWidgets import *
+    from qtpy.QtCore import *
+    from qtpy.QtGui import *
 
     app = QtWidgets.QApplication(sys.argv)
     w = VersaProbeParent()
     w.setObjectName('versaprobeParent')
     w.show()
-    sys.exit( app.exec_() )
+    sys.exit( app.exec() )
 

@@ -118,8 +118,8 @@
 */
 
 #define HAL_KEY   0x48414C32	/* key used to open HAL shared memory */
-#define HAL_VER   0x00000010	/* version code */
-#define HAL_SIZE  (256*4096)
+#define HAL_VER   0x00000011	/* version code */
+#define HAL_SIZE  (2*256*4096)
 #define HAL_PSEUDO_COMP_PREFIX "__" /* prefix to identify a pseudo component */
 
 /* These pointers are set by hal_init() to point to the shmem block
@@ -140,15 +140,15 @@ RTAPI_END_DECLS
 #ifdef __cplusplus
 template<class T>
 bool hal_shmchk(T *t) {
-    char *c = (char*)t;
+    char *c = reinterpret_cast<char*>(t);
     return c > hal_shmem_base && c < hal_shmem_base + HAL_SIZE;
 }
 
 template<class T>
-int hal_shmoff(T *t) { return t ? (char*)t - hal_shmem_base : 0; }
+int hal_shmoff(T *t) { return t ? reinterpret_cast<char*>(t) - hal_shmem_base : 0; }
 
 template<class T>
-T *hal_shmptr(int p) { return p ? (T*)(hal_shmem_base + p) : nullptr; }
+T *hal_shmptr(int p) { return p ? reinterpret_cast<T*>(hal_shmem_base + p) : nullptr; }
 
 template<class T>
 class hal_shmfield {
@@ -275,6 +275,7 @@ typedef struct hal_data_t {
     SHMFIELD(hal_thread_t) thread_free_ptr;	/* list of free thread structs */
     int exact_base_period;      /* if set, pretend that rtapi satisfied our
 				   period request exactly */
+    rtapi_realtime_type_t realtime_type;	/* reflects the running realtime type */
     unsigned char lock;         /* hal locking, can be one of the HAL_LOCK_* types */
 } hal_data_t;
 
@@ -308,14 +309,16 @@ struct hal_comp_t {
 
 /** HAL 'pin' data structure.
     This structure contains information about a 'pin' object.
+    The structure layout is matched in the parameter layout.
+    FIXME: Merge with hal_param_t
 */
 struct hal_pin_t {
     SHMFIELD(hal_pin_t) next_ptr;		/* next pin in linked list */
     SHMFIELD(void*) data_ptr_addr;		/* address of pin data pointer */
     SHMFIELD(hal_comp_t) owner_ptr;		/* component that owns this pin */
-    SHMFIELD(hal_sig_t) signal;			/* signal to which pin is linked */
-    hal_data_u dummysig;	/* if unlinked, data_ptr points here */
     SHMFIELD(hal_oldname_t) oldname;		/* old name if aliased, else zero */
+    hal_data_u dummysig;	/* if unlinked, data_ptr points here */
+    SHMFIELD(hal_sig_t) signal;			/* signal to which pin is linked */
     hal_type_t type;		/* data type */
     hal_pin_dir_t dir;		/* pin direction */
     char name[HAL_NAME_LEN + 1];	/* pin name */
@@ -336,12 +339,16 @@ struct hal_sig_t {
 
 /** HAL 'parameter' data structure.
     This structure contains information about a 'parameter' object.
+    The structure layout is matched in the pin layout.
+    FIXME: Merge with hal_pin_t
 */
 struct hal_param_t {
     SHMFIELD(hal_param_t) next_ptr;		/* next parameter in linked list */
     SHMFIELD(void*) data_ptr;		/* offset of parameter value */
     SHMFIELD(hal_comp_t) owner_ptr;		/* component that owns this signal */
     SHMFIELD(hal_oldname_t) oldname;		/* old name if aliased, else zero */
+    hal_data_u data;		/* new API parameter storage is here, data_ptr points here too */
+    SHMFIELD(void*) reserved;	/* reserved to match hal_pin_t layout */
     hal_type_t type;		/* data type */
     hal_param_dir_t dir;	/* data direction */
     char name[HAL_NAME_LEN + 1];	/* parameter name */
@@ -373,7 +380,7 @@ struct hal_funct_t {
     void (*funct) (void *, long);	/* ptr to function code */
     hal_s32_t* runtime;	/* (pin) duration of last run, in CPU cycles */
     hal_s32_t maxtime;	/* (param) duration of longest run, in CPU cycles */
-    hal_bit_t maxtime_increased;	/* on last call, maxtime increased */
+    hal_bit_t maxtime_increased;	/* (param) on last call, maxtime increased */
     char name[HAL_NAME_LEN + 1];	/* function name */
 };
 
@@ -392,9 +399,11 @@ struct hal_thread_t {
     long int period;		/* period of the thread, in nsec */
     int priority;		/* priority of the thread */
     int task_id;		/* ID of the task that runs this thread */
-    hal_s32_t* runtime;	/* (pin) duration of last run, in CPU cycles */
-    hal_s32_t maxtime;	/* (param) duration of longest run, in CPU cycles */
+    hal_s32_t* runtime;	/* (pin) duration of last run, in ns */
+    hal_s32_t maxtime;	/* (param) duration of longest run, in ns */
     hal_list_t funct_list;	/* list of functions to run */
+    hal_list_t init_funct_list;	/* list of init functions, run once before first cyclic cycle */
+    int init_done;		/* 0 = init pending, 1 = init cycle has executed */
     char name[HAL_NAME_LEN + 1];	/* thread name */
     int comp_id;
 };
@@ -491,21 +500,5 @@ extern hal_pin_t *halpr_find_pin_by_sig(hal_sig_t * sig, hal_pin_t * start);
 */
 extern int hal_port_alloc(unsigned size, hal_port_t *port);
 
-
-
-#define HAL_STREAM_MAGIC_NUM		0x4649464F
-struct hal_stream_shm {
-    unsigned magic;
-    volatile unsigned in;
-    volatile unsigned out;
-    unsigned this_sample;
-    unsigned depth;
-    int num_pins;
-    unsigned long num_overruns, num_underruns;
-    hal_type_t type[HAL_STREAM_MAX_PINS];
-    union hal_stream_data data[];
-};
-
-extern int halpr_parse_types(hal_type_t type[HAL_STREAM_MAX_PINS], const char *fcg);
 RTAPI_END_DECLS
 #endif /* HAL_PRIV_H */

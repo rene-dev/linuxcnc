@@ -22,8 +22,8 @@
 
 #include <rtapi_list.h>
 
-#include "rtapi.h"
-#include "hal.h"
+#include <rtapi.h>
+#include <hal.h>
 #include "sserial.h"
 
 #include "hostmot2-lowlevel.h"
@@ -140,12 +140,18 @@
 // IDROM and MD structs
 //
 
+// Need clang 21+ for the nonstring attribute
+#if !defined(__clang__) || (defined(__clang_major__) && __clang_major__ >= 21)
+#define HM2_ATTRIBUTE_NONSTRING __attribute__((nonstring))
+#else
+#define HM2_ATTRIBUTE_NONSTRING
+#endif
 
 typedef struct {
     rtapi_u32 idrom_type;
     rtapi_u32 offset_to_modules;
     rtapi_u32 offset_to_pin_desc;
-    rtapi_u8 board_name[8];  // ascii string, but not NULL terminated!
+    rtapi_u8 board_name[8] HM2_ATTRIBUTE_NONSTRING;  // ASCII string, but not NULL terminated!
     rtapi_u32 fpga_size;
     rtapi_u32 fpga_pins;
     rtapi_u32 io_ports;
@@ -275,14 +281,10 @@ typedef struct {
     struct {
 
         struct {
-            hal_s32_t *rawcounts;       // raw encoder counts
-            hal_s32_t *rawlatch;        // raw encoder of latch
-            hal_s32_t *count;           // (rawcounts - zero_offset)
-            hal_s32_t *count_latch;     // (rawlatch - zero_offset)
-            hal_s64_t *rawcounts_64;    // raw encoder counts
-            hal_s64_t *rawlatch_64;     // raw encoder of latch
-            hal_s64_t *count_64;        // (rawcounts - zero_offset)
-            hal_s64_t *count_latch_64;  // (rawlatch - zero_offset)
+            hal_s32_t *rawcounts;       // raw encoder counts (truncated view of 64-bit internal)
+            hal_s32_t *rawlatch;        // raw encoder of latch (truncated view)
+            hal_s32_t *count;           // (rawcounts - zero_offset), truncated view
+            hal_s32_t *count_latch;     // (rawlatch - zero_offset), truncated view
             hal_float_t *position;
             hal_float_t *position_latch;
             hal_float_t *position_interpolated;
@@ -315,7 +317,13 @@ typedef struct {
     } hal;
 
     rtapi_s32 zero_offset;     // *hal.pin.counts == (*hal.pin.rawcounts - zero_offset)
-    rtapi_s64 zero_offset_64;  // *hal.pin.counts_64 == (*hal.pin.rawcounts_64 - zero_offset_64)
+    // 64-bit internals prevent float position wrap on high-count encoders.
+    // Not exposed as HAL pins; s32 pins above are truncated views.
+    rtapi_s64 rawcounts_64;
+    rtapi_s64 rawlatch_64;
+    rtapi_s64 count_64;
+    rtapi_s64 count_latch_64;
+    rtapi_s64 zero_offset_64;
 
     rtapi_u16 prev_reg_count;  // from this and the current count in the register we compute a change-in-counts, which we add to rawcounts
 
@@ -329,7 +337,6 @@ typedef struct {
 
     // these two are the datapoint last time we moved (only valid if state == HM2_ENCODER_MOVING)
     rtapi_s32 prev_event_rawcounts;
-    rtapi_s64 prev_event_rawcounts_64;
     rtapi_u16 prev_event_reg_timestamp;
 
     rtapi_s32 tsc_num_rollovers;

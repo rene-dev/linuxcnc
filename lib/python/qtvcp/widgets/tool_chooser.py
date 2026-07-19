@@ -18,10 +18,10 @@
 import sys
 import os
 import operator
-from PyQt5 import QtGui, QtWidgets, uic
-from PyQt5.QtCore import Qt, QAbstractTableModel, QVariant
-from PyQt5.QtGui import QColor, QIcon
-from PyQt5.QtWidgets import (QTableView, QAbstractItemView, QCheckBox,QStyledItemDelegate, qApp)
+from qtpy import QtGui, QtWidgets, uic
+from qtpy.QtCore import Qt, QAbstractTableModel
+from qtpy.QtGui import QColor, QIcon
+from qtpy.QtWidgets import (QTableView, QAbstractItemView, QCheckBox, QStyledItemDelegate, QHeaderView)
 from qtvcp.widgets.widget_baseclass import _HalWidgetBase
 from qtvcp.core import Status, Action, Info, Tool
 from qtvcp import logger
@@ -73,7 +73,7 @@ class ToolChooser(QTableView, _HalWidgetBase):
         self.setMinimumSize(100, 100)
 
         hh = self.horizontalHeader()
-        hh.setSectionResizeMode(3)
+        hh.setSectionResizeMode(QHeaderView.ResizeToContents)
         hh.setStretchLastSection(True)
         hh.setSortIndicator(1,Qt.AscendingOrder)
 
@@ -141,12 +141,12 @@ class ToolTableModel(QAbstractTableModel):
         elif role == Qt.BackgroundRole:
             if self.arraydata[index.row()][1] == self.parent()._current_tool:
                 return QColor(self._current_tool_bg_color)
-            return QVariant()
+            return None
         
         elif role == Qt.ForegroundRole:
             if self.arraydata[index.row()][1] == self.parent()._current_tool:
                 return QColor(self._current_tool_color)
-            return QVariant()
+            return None
 
     def flags(self, index):
         if not index.isValid():
@@ -156,10 +156,10 @@ class ToolTableModel(QAbstractTableModel):
 
     def headerData(self, col, orientation, role):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-            return QVariant(self.headerdata[col])
+            return self.headerdata[col]
         elif orientation != Qt.Horizontal and role == Qt.DisplayRole:
-            return QVariant('')
-        return QVariant()
+            return ''
+        return None
 
     def sort(self, Ncol, order):
         self.layoutAboutToBeChanged.emit()
@@ -172,11 +172,11 @@ class ToolTableModel(QAbstractTableModel):
     # Testing                   #
     #############################
 if __name__ == "__main__":
-    from PyQt5.QtWidgets import *
-    from PyQt5.QtCore import *
-    from PyQt5.QtGui import *
+    from qtpy.QtWidgets import *
+    from qtpy.QtCore import *
+    from qtpy.QtGui import *
     app = QtWidgets.QApplication(sys.argv)
     w = ToolChooser()
     w.show()
-    sys.exit( app.exec_() )
+    sys.exit( app.exec() )
 

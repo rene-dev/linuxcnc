@@ -16,8 +16,8 @@
 	* find the new functions, add them to posemath, convert the rest
 */
 
-#ifndef GO_MATH_H
-#define GO_MATH_H
+#ifndef __LINUXCNC_GO_MATH_H
+#define __LINUXCNC_GO_MATH_H
 
 #include <stddef.h>		/* sizeof */
 #include "rtapi_math.h"		/* M_PI */
@@ -540,7 +540,7 @@ typedef struct {
 } go_matrix;
 
 #define GO_MATRIX_DECLARE(M,Mspace,_rows,_cols) \
-go_matrix M = {0, 0, 0, 0, 0, 0}; \
+go_matrix M = {0, 0, NULL, NULL, NULL, NULL}; \
 struct { \
   go_real * el[_rows]; \
   go_real * elcpy[_rows]; \

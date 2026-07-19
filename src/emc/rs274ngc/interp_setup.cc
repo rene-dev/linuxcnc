@@ -24,7 +24,6 @@
 #include "rs274ngc_interp.hh"
 #include <boost/python/object.hpp>
 
-#pragma GCC diagnostic error "-Wmissing-field-initializers"
 setup::setup() :
     AA_axis_offset(0.0),
     AA_current(0.0),
@@ -64,6 +63,8 @@ setup::setup() :
     control_mode(CANON_EXACT_STOP),
     tolerance(0.0),
     naivecam_tolerance(0.0),
+    tolerance_default(0.0),
+    naivecam_tolerance_default(0.0),
     current_pocket(0),
 
     current_x (0.0),
@@ -140,6 +141,7 @@ setup::setup() :
     tool_table{},
     traverse_rate (0.0),
     orient_offset (0.0),
+    g43_with_zero_offset(false),
 
     defining_sub(0),
     sub_name(NULL),
@@ -184,7 +186,15 @@ setup::setup() :
     feature_set(0),
     disable_fanuc_style_sub(false),
     loop_on_main_m99(false),
-    disable_g92_persistence(0),
+    disable_g92_persistence(false),
+    disable_auto_g54(false),
+    heading(0.0),
+    radius(0.0),
+    center_x(0.0),
+    center_y(0.0),
+    center_z(0.0),
+    normal_heading(0.0),
+    iscircle(false),
     pythis(),
     on_abort_command(NULL),
     init_once(CANON_STOPPED)

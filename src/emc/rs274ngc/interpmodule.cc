@@ -32,8 +32,8 @@
 #include <boost/python/exception_translator.hpp>
 #include <boost/python/module.hpp>
 #include <boost/python/suite/indexing/map_indexing_suite.hpp>
-#include <boost_pyenum_macros.hh>
 #include <map>
+#include "boost_pyenum_macros.hh"
 
 namespace bp = boost::python;
 extern int _task;  // zero in gcodemodule, 1 in milltask
@@ -43,7 +43,7 @@ extern int _task;  // zero in gcodemodule, 1 in milltask
 #include <assert.h>
 
 #include "rs274ngc.hh"
-#include "interp_return.hh"
+#include "nml_intf/interp_return.hh"
 #include "interp_internal.hh"
 #include "rs274ngc_interp.hh"
 #include "units.h"
@@ -829,6 +829,8 @@ static inline void set_parameter_g83_peck_clearance(Interp &interp, double value
     interp._setup.parameter_g83_peck_clearance = value;
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"
 BOOST_PYTHON_MODULE(interpreter) {
     using namespace boost::python;
 
@@ -1062,3 +1064,4 @@ BOOST_PYTHON_MODULE(interpreter) {
 
     export_Arrays();
 }
+#pragma GCC diagnostic pop

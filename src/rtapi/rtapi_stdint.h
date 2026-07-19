@@ -13,8 +13,8 @@
 //    You should have received a copy of the GNU General Public License
 //    along with this program; if not, write to the Free Software
 //    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-#ifndef RTAPI_STDINT_H
-#define RTAPI_STDINT_H
+#ifndef __LINUXCNC_RTAPI_STDINT_H
+#define __LINUXCNC_RTAPI_STDINT_H
 
 #ifdef __KERNEL__
 #include <asm/types.h>
@@ -74,5 +74,10 @@ typedef uintptr_t rtapi_uintptr_t;
 #define RTAPI_INT64_MIN INT64_MIN
 #define RTAPI_UINT64_MAX UINT64_MAX
 #endif
+
+// Abstracted for HAL
+typedef double    rtapi_real;
+typedef rtapi_s64 rtapi_sint;
+typedef rtapi_u64 rtapi_uint;
 
 #endif

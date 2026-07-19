@@ -33,23 +33,23 @@
     * add HAL pins for all settable parameters, including joint type: ANGULAR / LINEAR
 */
 
-#include "rtapi_math.h"
-#include "gotypes.h"    /* go_result, go_integer */
-#include "gomath.h"     /* go_pose */
-#include "genserkins.h" /* these decls */
-#include "kinematics.h"
-#include "hal.h"
-
 #ifdef RTAPI
-#include "rtapi.h"
+#include <rtapi.h>
 #endif
+#include <rtapi_math.h>
+#include <hal.h>
+#include <gotypes.h>    /* go_result, go_integer */
+#include <gomath.h>     /* go_pose */
+#include <kinematics.h>
+
+#include "genserkins.h" /* these decls */
 
 // Only gcc/g++ supports the #pragma
 #if __GNUC__ && !defined(__clang__)
 // The matrix and vector storage is just big.
 // genser_kin_jac_inv() is 2112
-// genserKinematicsInverse() is 2576
-  #pragma GCC diagnostic warning "-Wframe-larger-than=2600"
+// genserKinematicsInverse() is 2640
+  #pragma GCC diagnostic warning "-Wframe-larger-than=2648"
 #endif
 
 static struct haldata {
@@ -62,7 +62,7 @@ static struct haldata {
     genser_struct *kins;
     go_pose *pos; // used in various functions, we malloc it
                   // only once in genserKinematicsSetup()
-} *haldata = 0;
+} *haldata = NULL;
 
 static int total_joints;
 double j[GENSER_MAX_JOINTS];

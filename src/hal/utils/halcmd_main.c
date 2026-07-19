@@ -38,14 +38,14 @@
  */
 
 #include "config.h"
-#include "emc/linuxcnc.h"
-#include "rtapi.h"
-#include "hal.h"
+#include <rtapi.h>
+#include <rtapi_mutex.h>
+#include <hal.h>
+#include <linuxcnc.h>
 #include "../hal_priv.h"
 #include "halcmd.h"
 #include "halcmd_commands.h"
 #include "halcmd_completion.h"
-#include <rtapi_mutex.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -192,17 +192,11 @@ int main(int argc, char **argv)
 		if (halcmd_inifile == NULL) {
 		    /* it's the first -i (ignore repeats) */
                     /* there is a following arg, and it's not an option */
-                    filename = optarg;
-                    halcmd_inifile = fopen(filename, "r");
+                    halcmd_inifile = strdup(optarg);
                     if (halcmd_inifile == NULL) {
-                        fprintf(stderr,
-                            "Could not open INI file '%s'\n",
-                            filename);
+                        fprintf(stderr, "Could not open INI file '%s'\n", optarg);
                         exit(-1);
                     }
-                    /* make sure file is closed on exec() */
-                    fd = fileno(halcmd_inifile);
-                    fcntl(fd, F_SETFD, FD_CLOEXEC);
 		}
 		break;
 #endif /* NO_INI */
@@ -282,7 +276,7 @@ int main(int argc, char **argv)
             newLinePos = (int)strlen(raw_buf) - 1; // interactive
             if (raw_buf[newLinePos] == '\n') { raw_buf[newLinePos]=0; newLinePos--; }  // tty
 
-            if (raw_buf[newLinePos] == '\\') { // backslash
+            if (newLinePos >= 0 && raw_buf[newLinePos] == '\\') { // backslash
                 raw_buf[newLinePos] = 0;
                 newLinePos++;
                 if (!extend_ct) { //first extend
@@ -386,7 +380,7 @@ static int release_HAL_mutex(void)
 
 static char **completion_callback(const char *text, hal_generator_func cb) {
     int state = 0;
-    char *s = 0;
+    char *s = NULL;
     do {
         s = cb(text, state);
         if(s) printf("%s\n", s);

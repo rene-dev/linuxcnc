@@ -1,5 +1,5 @@
-#ifndef RTAPI_H
-#define RTAPI_H
+#ifndef __LINUXCNC_RTAPI_H
+#define __LINUXCNC_RTAPI_H
 
 /********************************************************************
 * Description:  rtapi.h
@@ -278,12 +278,6 @@ RTAPI_BEGIN_DECLS
  * the returned value may be as good as one nano-second, or as poor as several
  * microseconds.
  *
- * Experience has shown that the implementation of this function in some
- * RTOS/Kernel combinations is horrible. It can take up to  several
- * microseconds, which is at least 100 times longer than it should, and perhaps
- * a thousand times longer. Use it only if you MUST have results in seconds
- * instead of clocks, and use it sparingly. See rtapi_get_clocks() instead.
- *
  * Most time measurements are relative, and should be done like this:
  * @code
  * deltat = (long int)(end_time - start_time);
@@ -299,36 +293,6 @@ RTAPI_BEGIN_DECLS
  * @return Current time in nanoseconds
  */
     extern long long int rtapi_get_time(void);
-
-/**
- * @brief Returns the current time in CPU clocks.
- *
- * It is  fast, since it just reads the TSC in the CPU instead of calling a
- * kernel or RTOS function. Of course, times measured in CPU clocks are not as
- * convenient, but for relative measurements this works fine. Its absolute value
- * means nothing, but it is monotonically increasing* and can be used to
- * schedule future events, or to time the duration of some activity. (* on SMP
- * machines, the two TSC's may get out of sync, so if a task reads the TSC, gets
- * swapped to the other CPU, and reads again, the value may decrease. RTAPI
- * tries to force all RT tasks to run on one CPU.)
- *
- * Most time measurements are relative, and should be done like this:
- * @code
- * deltat = (long int)(end_time - start_time);
- * @endcode
- * where @c end_time and @c start_time are longlong values returned from
- * rtapi_get_time(), and deltat is an ordinary long int (32 bits). This will
- * work for times up to a second or so, depending on the CPU clock frequency.
- * It is best used for millisecond and microsecond scale measurements though.
- * @return A 64 bit value.  The resolution of the returned value is one CPU
- *         clock, which is usually a few nanoseconds to a fraction of a
- *         nanosecond.
- * @note May be called from init/cleanup code, and from within realtime tasks.
- * @note longlong math may be poorly supported on some platforms, especially in
- *       kernel space. Also note that rtapi_print() will NOT print longlong.
-
- */
-    extern long long int rtapi_get_clocks(void);
 
 
 /***********************************************************************
@@ -414,12 +378,9 @@ RTAPI_BEGIN_DECLS
   * arbitrary void pointer when the task is started, and can be used to pass any
   * amount of data to the task (by pointing to a struct, or other such tricks).
   *
-  * @c uses_fp is a flag that tells the OS whether the task uses floating point
-  * so it can save the FPU registers on a task switch. Failing to save registers
-  * when needed causes the dreaded "NAN bug", so most tasks should set @c
-  * uses_fp to ::RTAPI_USES_FP. If a task definitely does not use floating
-  * point, setting @c uses_fp to ::RTAPI_NO_FP saves a few microseconds per task
-  * switch.
+  * @c uses_fp is deprecated and ignored.  All tasks now unconditionally
+  * save and restore FPU/SSE state on context switch.  This parameter
+  * will be removed in a future version.
   * @param taskcode Pointer to the function to be called when the task is
   *                 started.
   * @param arg Argument to be passed to the taskcode function.
@@ -427,8 +388,7 @@ RTAPI_BEGIN_DECLS
   * @param owner ID of the module that is making the call see rtapi_init().
   * @param stacksize The amount of stack to be used for the task, be generous,
   *                  hardware interrupts may use the same stack.
-  * @param uses_fp Whether the task uses floating point set with ::RTAPI_NO_FP
-  *                or ::RTAPI_USES_FP.
+  * @param uses_fp Deprecated and ignored.  Kept for API compatibility.
   * @return On success, returns a positive integer task ID, @c task_id. This ID
   *         is used for all subsequent calls that need to act on the task. On
   *         failure, returns a negative error code as listed above.
@@ -505,6 +465,18 @@ RTAPI_BEGIN_DECLS
  * @note May be called from init/cleanup code, and from within realtime tasks.
  */
     extern int rtapi_task_self(void);
+
+/**
+ * @brief Re-anchor the periodic schedule of the calling task.
+ *
+ * Sets the task's next wakeup to one full period from now, discarding any
+ * accumulated lag. Used after a long one-shot init sequence so the catch-up
+ * loop in rtapi_wait() does not fire "unexpected realtime delay" warnings
+ * and the next cyclic pass starts on a clean period boundary.
+ * @note Call only from within the realtime task whose schedule is to be
+ *       re-anchored. No-op if the task is not periodic.
+ */
+    extern void rtapi_task_self_resync(void);
 
 #if defined(RTAPI_USPACE) || defined(USPACE)
 
@@ -1013,7 +985,28 @@ int rtapi_spawnp_as_root(pid_t *pid, const char *path,
 #endif
 
 extern int rtapi_is_kernelspace(void);
+
+//If changing anything here:
+//Update also halmodule.cc PyInit__hal()
+//You can use type > REALTIME_TYPE_NONE to check if you have realtime at all
+typedef enum{
+    REALTIME_TYPE_UNINITIALIZED = -1, //Realtime not running, type unknown
+    REALTIME_TYPE_NONE = 0,           //No realtime available
+    REALTIME_TYPE_UNKNOWN = 1,        //Only used when LINUXCNC_FORCE_REALTIME=1 is set. Unknown, no PREEMPT_DYNAMIC but SCHED_FIFO is available. Not recommended.
+    REALTIME_TYPE_PREEMPT_DYNAMIC = 2,//Only used when LINUXCNC_FORCE_REALTIME=1 is set. Not recommended.
+    REALTIME_TYPE_PREEMPT_RT = 3,
+    REALTIME_TYPE_RTAI = 4,
+    REALTIME_TYPE_LXRT = 5,
+    REALTIME_TYPE_XENOMAI = 6,
+    REALTIME_TYPE_XENOMAI_EVL = 7,
+} rtapi_realtime_type_t;
+
+#ifdef RTAPI
+//Only available in real time context
+//Always use hal_get_realtime_type() in components
 extern int rtapi_is_realtime(void);
+extern rtapi_realtime_type_t rtapi_get_realtime_type(void);
+#endif
 
 int rtapi_open_as_root(const char *filename, int mode);
 

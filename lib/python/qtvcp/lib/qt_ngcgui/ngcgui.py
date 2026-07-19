@@ -21,9 +21,9 @@ import re
 import hashlib
 import datetime
 import shutil
-from PyQt5 import QtGui, QtWidgets, QtCore, uic
-from PyQt5.QtCore import QRegExp
-from PyQt5.QtWidgets import QFileDialog, QHBoxLayout, QVBoxLayout, QLabel, QWidget, QLineEdit, QMessageBox
+from qtpy import QtGui, QtWidgets, QtCore, uic
+from qtpy.QtCore import QRegularExpression
+from qtpy.QtWidgets import QFileDialog, QHBoxLayout, QVBoxLayout, QLabel, QWidget, QLineEdit, QMessageBox
 from qtvcp.core import Action, Info, Path
 from qtvcp import logger
 
@@ -150,8 +150,8 @@ class OnePg(QWidget):
         return lbl
 
     def new_lineedit(self, key, data):
-        # QRegExp('^[+-]?((\d+(\.\d{,4})?)|(\.\d{,4}))$' allows max 4 digits after the decimal
-        valid = QtGui.QRegExpValidator(QRegExp(r'^[+-]?((\d+(\.\d{,4})?)|(\.\d{,4}))$'))
+        # QRegularExpression('^[+-]?((\d+(\.\d{,4})?)|(\.\d{,4}))$' allows max 4 digits after the decimal
+        valid = QtGui.QRegularExpressionValidator(QRegularExpression(r'^[+-]?((\d+(\.\d{,4})?)|(\.\d{,4}))$'))
         lineedit = QLineEdit(str(data))
         lineedit.parm_no = key
         lineedit.setMaxLength(10)
@@ -1011,5 +1011,5 @@ if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     w = NgcGui()
     w.show()
-    sys.exit( app.exec_() )
+    sys.exit( app.exec() )
 

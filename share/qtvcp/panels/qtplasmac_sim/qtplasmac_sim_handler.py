@@ -24,9 +24,9 @@ import os
 import sys
 import hal
 from subprocess import run as RUN
-from PyQt5 import QtCore
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QMessageBox
+from qtpy import QtCore
+from qtpy.QtGui import QIcon
+from qtpy.QtWidgets import QMessageBox
 from qtvcp.core import Info
 from qtvcp.lib.preferences import Access
 
@@ -42,7 +42,7 @@ class HandlerClass:
         self.w.setWindowFlags(QtCore.Qt.CustomizeWindowHint |
                               QtCore.Qt.WindowTitleHint |
                               QtCore.Qt.WindowStaysOnTopHint)
-        self.machineName = self.iniFile.find('EMC', 'MACHINE')
+        self.machineName = self.iniFile.getstring('EMC', 'MACHINE', fallback="<unknown>")
         self.styleFile = f'{self.paths.CONFIGPATH}/qtplasmac_sim.qss'
         self.set_style()
         self.set_estop()

@@ -30,6 +30,7 @@ usr/share/man/man1/hexagui.1
 usr/share/man/man1/hy_gt_vfd.1
 usr/share/man/man1/hy_vfd.1
 usr/share/man/man1/image-to-gcode.1
+usr/share/man/man1/inivalue.1
 usr/share/man/man1/inivar.1
 usr/share/man/man1/io.1
 usr/share/man/man1/iocontrol.1
@@ -38,6 +39,7 @@ usr/share/man/man1/latency-plot.1
 usr/share/man/man1/latency-test.1
 usr/share/man/man1/lineardelta.1
 usr/share/man/man1/linuxcnc.1
+usr/share/man/man1/linuxcnc_check_ini.1
 usr/share/man/man1/linuxcnc_info.1
 usr/share/man/man1/linuxcnclcd.1
 usr/share/man/man1/linuxcncmkdesktop.1

@@ -18,7 +18,7 @@
 *   need to do the following to add a single new parameter called foo:
 *
 *   1)  Add a member 'foo' to the config or joint structure in motion.h
-*   2)  Add a command 'EMCMOT_SET_FOO" to the cmd_code_t enum in motion.h
+*   2)  Add a command 'EMCMOT_SET_FOO' to the cmd_code_t enum in motion.h
 *   3)  Add a field to the command_t struct for the value used by
 *       the set command (if there isn't already one that can be used.)
 *   4)  Add a case to the giant switch statement in command.c to
@@ -55,20 +55,21 @@
 ********************************************************************/
 
 #include <float.h>
-#include "posemath.h"
-#include "rtapi.h"
-#include "rtapi_mutex.h"
-#include "hal.h"
+#include <rtapi.h>
+#include <rtapi_mutex.h>
+#include <rtapi_math.h>
+#include <hal.h>
+#include <motion_types.h>
+#include <posemath.h>
+
+#include "../tp/tp.h"
+#include "../tp/tp_debug.h"
 #include "motion.h"
-#include "tp.h"
 #include "mot_priv.h"
 #include "motion_struct.h"
-#include "rtapi_math.h"
-#include "motion_types.h"
 #include "homing.h"
 #include "axis.h"
 
-#include "tp_debug.h"
 
 #define ABS(x) (((x) < 0) ? -(x) : (x))
 
@@ -258,14 +259,14 @@ STATIC int inRange(EmcPose pos, int id, char *move_type)
 	}
 	if (joint_pos[joint_num] > joint->max_pos_limit) {
             in_range = 0;
-	    reportError(_("%s move on line %d would exceed joint %d's positive limit"),
-			move_type, id, joint_num);
+	    reportError(_("%s move on line %d would exceed joint %d's positive limit max:[%f]"),
+			move_type, id, joint_num, joint->max_pos_limit);
         }
 
         if (joint_pos[joint_num] < joint->min_pos_limit) {
 	    in_range = 0;
-	    reportError(_("%s move on line %d would exceed joint %d's negative limit"),
-			move_type, id, joint_num);
+	    reportError(_("%s move on line %d would exceed joint %d's negative limit min:[%f]"),
+			move_type, id, joint_num, joint->min_pos_limit);
 	}
     }
     return in_range;
@@ -502,11 +503,26 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
 	       does yet), and if in free mode, it disables the free mode traj
 	       planners which stops joint motion */
 	    rtapi_print_msg(RTAPI_MSG_DBG, "ABORT");
-	    rtapi_print_msg(RTAPI_MSG_DBG, " %d", joint_num);
 	    /* check for coord or free space motion active */
 	    if (GET_MOTION_TELEOP_FLAG()) {
                 axis_jog_abort_all(0);
 	    } else if (GET_MOTION_COORD_FLAG()) {
+		/* If motion was being held waiting for spindle at-speed, the
+		   operator most likely aborted because the machine sat idle
+		   with no obvious reason. Tell them why, loudly. A wait that
+		   never released after a spindle stop almost always means
+		   spindle.N.at-speed is not wired, or does not go true once the
+		   spindle has actually stopped. */
+		if (MOTION_ID_VALID(emcmotInternal->coord_tp.spindle.waiting_for_atspeed)) {
+			for (spindle_num = 0; spindle_num < emcmotConfig->numSpindles; spindle_num++) {
+				if (emcmotStatus->spindle_status[spindle_num].state == 0 && !emcmotStatus->spindle_status[spindle_num].at_speed) {
+					reportError(_("Aborted while waiting for spindle %d at-speed after a spindle stop. "
+						"Check that spindle.%d.at-speed is connected and goes true once the spindle has stopped."),
+						spindle_num, spindle_num);
+					break;
+				}
+			}
+		}
 		tpAbort(&emcmotInternal->coord_tp);
 	    } else {
 		for (joint_num = 0; joint_num < ALL_JOINTS; joint_num++) {
@@ -530,11 +546,24 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
 		SET_JOINT_FAULT_FLAG(joint, 0);
 	    }
 	    emcmotStatus->paused = 0;
+	    /* Drop any pending at-speed barrier so it can't strand a later move. */
+	    emcmotStatus->atspeed_next_feed = 0;
+	    // Clear pins on abort so tests see a clean state
+		if (emcmot_hal_data) {
+				*(emcmot_hal_data->interp_arc_radius) = 0.0;
+				*(emcmot_hal_data->interp_arc_center_x) = 0.0;
+				*(emcmot_hal_data->interp_arc_center_y) = 0.0;
+				*(emcmot_hal_data->interp_arc_center_z) = 0.0;
+				*(emcmot_hal_data->interp_straight_heading) = 0.0;
+				*(emcmot_hal_data->interp_normal_heading) = 0.0;
+				*(emcmot_hal_data->iscircle) = 0.0;
+		}
 	    break;
 
 	case EMCMOT_JOG_ABORT:
 	    /* abort one joint number or axis number */
 	    /* can happen at any time */
+	    rtapi_print_msg(RTAPI_MSG_DBG, "JOG_ABORT: %i", joint_num);
 	    if (GET_MOTION_TELEOP_FLAG()) {
 	        /* tell teleop planner to stop */
 	        if ((emcmotCommand->axis >= 0) && (emcmotCommand->axis < EMCMOT_MAX_AXIS)) {
@@ -811,6 +840,7 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
 	        } else {
 		    joint->free_tp.pos_cmd = joint->min_jog_limit;
 	        }
+			joint->free_tp.status = 0;
 	        /* set velocity of jog */
 	        joint->free_tp.max_vel = fabs(emcmotCommand->vel);
 	        /* use max joint accel */
@@ -888,6 +918,7 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
 	        }
 	        /* set target position */
 	        joint->free_tp.pos_cmd = tmp1;
+			joint->free_tp.status = 0;
 	        /* set velocity of jog */
 	        joint->free_tp.max_vel = fabs(emcmotCommand->vel);
 	        /* use max joint accel */
@@ -1032,6 +1063,7 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
 					emcmotCommand->vel,
 					emcmotCommand->ini_maxvel,
 					emcmotCommand->acc,
+					emcmotCommand->ini_maxjerk, 
 					emcmotStatus->enables_new,
 					issue_atspeed,
 					emcmotCommand->turn,
@@ -1091,7 +1123,7 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
                             emcmotCommand->center, emcmotCommand->normal,
                             emcmotCommand->turn, emcmotCommand->motion_type,
                             emcmotCommand->vel, emcmotCommand->ini_maxvel,
-                            emcmotCommand->acc, emcmotStatus->enables_new,
+                            emcmotCommand->acc, emcmotCommand->ini_maxjerk, emcmotStatus->enables_new,
 			    issue_atspeed, emcmotCommand->tag);
         if (res_addcircle < 0) {
             reportError(_("can't add circular move at line %d, error code %d"),
@@ -1160,6 +1192,18 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
 	    joint->acc_limit = emcmotCommand->acc;
 	    break;
 
+	case EMCMOT_SET_JOINT_JERK_LIMIT:
+		/* set joint max jerk */
+		/* can do it at any time */
+		rtapi_print_msg(RTAPI_MSG_DBG, "SET_JOINT_JERK_LIMIT");
+		rtapi_print_msg(RTAPI_MSG_DBG, " j(%d) jerk(%f)", joint_num, emcmotCommand->jerk);
+		emcmot_config_change();
+		if (joint == 0) {
+		break;
+		}
+		joint->jerk_limit = emcmotCommand->jerk;
+		break;
+
 	case EMCMOT_SET_ACC:
 	    /* set the max acceleration */
 	    /* can do it at any time */
@@ -1167,7 +1211,26 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
 	    emcmotStatus->acc = emcmotCommand->acc;
 	    tpSetAmax(&emcmotInternal->coord_tp, emcmotStatus->acc);
 	    break;
+ 
+	case EMCMOT_SET_JERK:
+		/* set the traj jerk for jogging */
+		/* can do it at any time */
+		rtapi_print_msg(RTAPI_MSG_DBG, "SET_JERK, jerk(%f)", emcmotCommand->jerk);
+		emcmotStatus->jerk = emcmotCommand->jerk;
+		break;
 
+	case EMCMOT_SET_PLANNER_TYPE:
+		/* set the type of planner: 0 = trapezoidal, 1 = S-curve */
+		/* can do it at any time */
+		rtapi_print_msg(RTAPI_MSG_DBG, "SET_PLANNER_TYPE, type(%d)", emcmotCommand->planner_type);
+		// Only 0 and 1 are supported, set to 0 if invalid
+		if (emcmotCommand->planner_type != 0 && emcmotCommand->planner_type != 1) {
+			emcmotStatus->planner_type = 0;
+		} else {
+			emcmotStatus->planner_type = emcmotCommand->planner_type;
+		}
+		break;
+				
 	case EMCMOT_PAUSE:
 	    /* pause the motion */
 	    /* can happen at any time */
@@ -1363,7 +1426,10 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
 	                   joint_num);
                 return;
 	    }
-
+	    if ( get_homing_is_active() ) {
+	        reportError("Homing not possible until current homing process is finished.\n");
+	        return;
+	    }
 	    if (!GET_MOTION_ENABLE_FLAG()) {
 		break;
 	    }
@@ -1373,7 +1439,7 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
 	    break;
 
 	case EMCMOT_JOINT_UNHOME:
-            /* unhome the specified joint, or all joints if -1 */
+            /* unhome the specified joint, or all joints if -1, or volatile joints if -2 */
             rtapi_print_msg(RTAPI_MSG_DBG, "JOINT_UNHOME");
             rtapi_print_msg(RTAPI_MSG_DBG, " %d", joint_num);
 
@@ -1383,8 +1449,22 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
                 return;
             }
 
-            //Negative joint_num specifies unhome_method (-1,-2)
-            set_unhomed(joint_num,emcmotStatus->motion_state);
+            // For configs that require homing and have joints configured as VOLATILE_HOME
+            // 'get_allhomed()' will change from TRUE to FALSE. If that happens we need to
+            // switch motion mode to 'free'.
+            if ( get_allhomed() && (joint_num == -2) ) {
+                set_unhomed(joint_num,emcmotStatus->motion_state);
+                if (!get_allhomed()) {
+                    emcmotInternal->teleoperating = 0;
+                    SET_MOTION_TELEOP_FLAG(0);
+                    emcmotInternal->coordinating = 0;
+                    SET_MOTION_COORD_FLAG(0);
+                }
+            }
+            else {
+                set_unhomed(joint_num,emcmotStatus->motion_state);
+            }
+
             break;
 
 	case EMCMOT_CLEAR_PROBE_FLAGS:
@@ -1434,6 +1514,14 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
                 }
             }
 
+	    /* A probe is a feed-type move, so honor any pending at-speed
+	       barrier just like G1: wait for spindle.N.at-speed (spin-up after
+	       M3, or stop after M5) before the probe starts. */
+	    if (emcmotStatus->atspeed_next_feed) {
+		issue_atspeed = 1;
+		emcmotStatus->atspeed_next_feed = 0;
+	    }
+
 	    /* append it to the emcmotInternal->coord_tp */
 	    tpSetId(&emcmotInternal->coord_tp, emcmotCommand->id);
 	    if (-1 == tpAddLine(&emcmotInternal->coord_tp,
@@ -1442,8 +1530,9 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
 				emcmotCommand->vel,
 				emcmotCommand->ini_maxvel,
 				emcmotCommand->acc,
+				emcmotCommand->ini_maxjerk,
 				emcmotStatus->enables_new,
-				0,
+				issue_atspeed,
 				-1,
 				emcmotCommand->tag)) {
 		reportError(_("can't add probe move"));
@@ -1492,6 +1581,7 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
                                     emcmotCommand->vel,
                                     emcmotCommand->ini_maxvel,
                                     emcmotCommand->acc,
+									emcmotCommand->ini_maxjerk,
                                     emcmotStatus->enables_new,
                                     emcmotCommand->scale,
                                     emcmotCommand->tag);
@@ -1536,7 +1626,7 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
 
     case EMCMOT_SET_SPINDLE_PARAMS:
 	    rtapi_print_msg(RTAPI_MSG_DBG, "SPINDLE_SETUP: spindle %d/%d max_pos %f min_pos %f"
-                "max_neg %f min_neg %f, home: %f, %f, %d\n",
+                "max_neg %f min_neg %f, home: %f, %f, %d",
                         emcmotCommand->spindle, emcmotConfig->numSpindles, emcmotCommand->maxLimit,
                         emcmotCommand->min_pos_speed, emcmotCommand->max_neg_speed, emcmotCommand->minLimit,
                         emcmotCommand->search_vel, emcmotCommand->home, emcmotCommand->home_sequence);
@@ -1638,6 +1728,10 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
 	        *(emcmot_hal_data->spindle[n].spindle_orient) = 0;
 	        emcmotStatus->spindle_status[n].orient_state = EMCMOT_ORIENT_NONE;
         }
+        /* Optionally make the spindle stop an at-speed barrier: the next feed
+           move waits until at-speed reflects the stopped state. Safe when
+           unwired since at-speed defaults to 1 (see motion.c). */
+        emcmotStatus->atspeed_next_feed = emcmotCommand->wait_for_spindle_at_speed;
 	    break;
 
 	case EMCMOT_SPINDLE_ORIENT:
@@ -1817,6 +1911,7 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
 	    break;
 
         case EMCMOT_SET_OFFSET:
+            rtapi_print_msg(RTAPI_MSG_DBG, "SET_OFFSET");
             emcmotStatus->tool_offset = emcmotCommand->tool_offset;
             break;
 
@@ -1859,6 +1954,18 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
             axis_set_ext_offset_acc_limit(emcmotCommand->axis, emcmotCommand->ext_offset_acc);
             break;
 
+		case EMCMOT_SET_AXIS_JERK_LIMIT:
+			/* set the max axis jerk */
+			/* can be done at any time */
+			rtapi_print_msg(RTAPI_MSG_DBG, "SET_AXIS_JERK_LIMITS");
+			rtapi_print_msg(RTAPI_MSG_DBG, " %d jerk(%f)", emcmotCommand->axis, emcmotCommand->jerk);
+			emcmot_config_change();
+			if ((emcmotCommand->axis < 0) || (emcmotCommand->axis >= EMCMOT_MAX_AXIS)) {
+			break;
+			}
+			axis_set_jerk_limit(emcmotCommand->axis, emcmotCommand->jerk);
+			break;
+
         case EMCMOT_SET_AXIS_LOCKING_JOINT:
 	    rtapi_print_msg(RTAPI_MSG_DBG, "SET_AXIS_ACC_LOCKING_JOINT");
 	    rtapi_print_msg(RTAPI_MSG_DBG, " %d", emcmotCommand->axis);
@@ -1875,9 +1982,11 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
 	    emcmotStatus->commandStatus = EMCMOT_COMMAND_UNKNOWN_COMMAND;
 	    break;
         case EMCMOT_SET_MAX_FEED_OVERRIDE:
+            rtapi_print_msg(RTAPI_MSG_DBG, "SET_MAX_FEED_OVERRIDE");
             emcmotConfig->maxFeedScale = emcmotCommand->maxFeedScale;
             break;
         case EMCMOT_SETUP_ARC_BLENDS:
+            rtapi_print_msg(RTAPI_MSG_DBG, "SETUP_ARC_BLENDS");
             emcmotConfig->arcBlendEnable = emcmotCommand->arcBlendEnable;
             emcmotConfig->arcBlendFallbackEnable = emcmotCommand->arcBlendFallbackEnable;
             emcmotConfig->arcBlendOptDepth = emcmotCommand->arcBlendOptDepth;
@@ -1886,6 +1995,7 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
             emcmotConfig->arcBlendTangentKinkRatio = emcmotCommand->arcBlendTangentKinkRatio;
             break;
         case EMCMOT_SET_PROBE_ERR_INHIBIT:
+            rtapi_print_msg(RTAPI_MSG_DBG, "SET_PROBE_ERR_INHIBIT");
             emcmotConfig->inhibit_probe_jog_error = emcmotCommand->probe_jog_err_inhibit;
             emcmotConfig->inhibit_probe_home_error = emcmotCommand->probe_home_err_inhibit;
             break;

@@ -19,8 +19,8 @@
 ** along with this program; if not, write to the Free Software
 ** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
-#include "emc.hh"
-#include "emc_nml.hh"
+#include "nml_intf/emc.hh"
+#include "nml_intf/emc_nml.hh"
 #include <unistd.h>
 #include "config.h"
 
@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
     int hdr_ct     = 0;
     int invalid_ct = 0;
     int peek_ct    = 0;
-    RCS_STAT_CHANNEL *stat = 0;
+    RCS_STAT_CHANNEL *stat = NULL;
     char nmlfile[512];
 
     if(argc == 2) {

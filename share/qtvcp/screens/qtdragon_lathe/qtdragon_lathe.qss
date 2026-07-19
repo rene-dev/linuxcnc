@@ -88,6 +88,10 @@ DROLabel[isHomed=false] {
     color: red;
 }
 
+UserDROLabel{
+    font: 18pt "Lato Heavy";
+}
+
 QLabel#lbl_cycle_start,
 QLabel#lbl_home_all {
     font: 10pt "Lato Heavy";
@@ -545,4 +549,12 @@ TouchSpinBox  QPushButton {
     width: 60px;
     height: 100px;
 }
- 
+ QScrollArea > QWidget > QWidget {
+  background-color: #404040;
+}
+
+QTextEdit{
+   background-color: #9a9996;
+    font: 10pt "Lato Heavy";
+    color: white
+}

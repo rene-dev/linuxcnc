@@ -25,10 +25,17 @@ from qtvcp import logger
 LOG = logger.getLogger(__name__)
 
 DBusQtMainLoop = None
-try:
-    from dbus.mainloop.pyqt5 import DBusQtMainLoop
-except ImportError:
-    LOG.warning("Could not import DBusQtMainLoop, is package 'python3-dbus.mainloop.pyqt5' installed?")
+for _mod in ('dbus.mainloop.pyqt5', 'dbus.mainloop.pyqt6'):
+    try:
+        import importlib
+        DBusQtMainLoop = importlib.import_module(_mod).DBusQtMainLoop
+        break
+    except ImportError:
+        pass
+if DBusQtMainLoop is None:
+    LOG.warning("Could not import a DBus Qt main loop integration. "
+                "Install python3-dbus.mainloop.pyqt5 or python3-dbus.mainloop.pyqt6 "
+                "for desktop notification callbacks.")
 
 APP_NAME = ''
 DBUS_IFACE = None
@@ -54,21 +61,30 @@ def init(app_name):
     path = "/org/freedesktop/Notifications"
     interface = "org.freedesktop.Notifications"
 
-    mainloop = None
     try:
-        if DBusQtMainLoop is not None:
-            mainloop = DBusQtMainLoop(set_as_default=True)
+        # Probe on a throwaway no-mainloop connection first. Wiring the
+        # Qt dbus mainloop before a daemon is confirmed leaves a dangling
+        # QSocketNotifier that segfaults on its next dispatch.
+        probe = dbus.SessionBus(private=True)
+        try:
+            present = probe.name_has_owner(name)
+        finally:
+            probe.close()
+        if not present:
+            # No daemon: pop-up notifications cannot be shown.
+            raise RuntimeError('no notification daemon on the session bus; desktop notifications disabled')
 
-        bus = dbus.SessionBus(mainloop)
+        mainloop = DBusQtMainLoop(set_as_default=True) if DBusQtMainLoop else None
+        bus = dbus.SessionBus(mainloop=mainloop)
         proxy = bus.get_object(name, path)
         DBUS_IFACE = dbus.Interface(proxy, interface)
 
         if mainloop is not None:
-            # We have a mainloop, so connect callbacks
             DBUS_IFACE.connect_to_signal('ActionInvoked', _onActionInvoked)
             DBUS_IFACE.connect_to_signal('NotificationClosed', _onNotificationClosed)
     except Exception as e:
         LOG.warning('Desktop Notify not available:: {}'.format(e))
+        DBUS_IFACE = None
 
 
 def _onActionInvoked(nid, action):
@@ -119,6 +135,7 @@ class Notification(object):
         self.hints = {}  # dict of various display hints
         self.actions = OrderedDict()  # actions names and their callbacks
         self.data = {}  # arbitrary user data
+        self.isVisible = False
 
     def show(self):
         try:
@@ -137,7 +154,7 @@ class Notification(object):
                                     )
 
             self.id = int(nid)
-
+            self.isVisible = True
             NOTIFICATIONS[self.id] = self
             return True
         except Exception as e:
@@ -145,6 +162,7 @@ class Notification(object):
 
     def close(self):
         """Ask the notification server to close the notification"""
+        self.isVisible = False
         try:
             if self.id != 0:
                 DBUS_IFACE.CloseNotification(self.id)
@@ -153,6 +171,7 @@ class Notification(object):
 
     def onClose(self, callback):
         """Set the callback called when the notification is closed"""
+        self.isVisible = False
         self._onNotificationClosed = callback
 
     def setUrgency(self, value):
@@ -253,7 +272,7 @@ def onClose(n):
 
 if __name__ == "__main__":
     import sys
-    from PyQt5.QtCore import QCoreApplication
+    from qtpy.QtCore import QCoreApplication
 
     app = QCoreApplication(sys.argv)
 
@@ -276,4 +295,4 @@ if __name__ == "__main__":
     n.onClose(onClose)
 
     n.show()
-    app.exec_()
+    app.exec()

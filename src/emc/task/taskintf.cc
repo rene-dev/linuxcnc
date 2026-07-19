@@ -17,22 +17,24 @@
 #include <string.h>		// memcpy() strncpy()
 #include <unistd.h>             // unlink()
 
-#include "usrmotintf.h"		// usrmotInit(), usrmotReadEmcmotStatus(),
+#include "motion/usrmotintf.h"	// usrmotInit(), usrmotReadEmcmotStatus(),
 				// etc.
-#include "motion.h"		// emcmot_command_t,STATUS, etc.
-#include "homing.h"
-#include "emc.hh"
-#include "emccfg.h"		// EMC_INIFILE
-#include "emcglb.h"		// EMC_INIFILE
-#include "emc_nml.hh"
-#include "rcs_print.hh"
-#include "timer.hh"
-#include "inifile.hh"
-#include "iniaxis.hh"
-#include "inijoint.hh"
-#include "inispindle.hh"
-#include "initraj.hh"
-#include "inihal.hh"
+#include "motion/motion.h"		// emcmot_command_t,STATUS, etc.
+#include "motion/homing.h"
+#include "nml_intf/emc.hh"
+#include "nml_intf/emccfg.h"		// EMC_INIFILE
+#include "nml_intf/emcglb.h"		// EMC_INIFILE
+#include "nml_intf/emc_nml.hh"
+#include "libnml/rcs/rcs_print.hh"
+#include "libnml/os_intf/timer.hh"
+#include <inifile.hh>
+#include "ini/iniaxis.hh"
+#include "ini/inijoint.hh"
+#include "ini/inispindle.hh"
+#include "ini/initraj.hh"
+#include "ini/inihal.hh"
+
+using namespace linuxcnc;
 
 value_inihal_data old_inihal_data;
 
@@ -412,6 +414,29 @@ int emcJointSetMaxAcceleration(int joint, double acc)
     }
     return retval;
 }
+ 
+int emcJointSetMaxJerk(int joint, double jerk)
+{
+    CATCH_NAN(isnan(jerk));
+
+    if (joint < 0 || joint >= EMCMOT_MAX_JOINTS) {
+	return 0;
+    }
+    if (jerk < 0.0) {
+	jerk = 0.0;
+    }
+    JointConfig[joint].MaxJerk = jerk;
+    emcmotCommand.command = EMCMOT_SET_JOINT_JERK_LIMIT;
+    emcmotCommand.joint = joint;
+    emcmotCommand.jerk = jerk;
+    
+    int retval = usrmotWriteEmcmotCommand(&emcmotCommand);
+
+    if (emc_debug & EMC_DEBUG_CONFIG) {
+        rcs_print("%s(%d, %.4f) returned %d\n", __FUNCTION__, joint, jerk, retval);
+    }
+    return retval;
+}
 
 /*! functions involving cartesian Axes (X,Y,Z,A,B,C,U,V,W) */
     
@@ -513,6 +538,30 @@ int emcAxisSetMaxAcceleration(int axis, double acc,double ext_offset_acc)
     return retval;
 }
 
+int emcAxisSetMaxJerk(int axis, double jerk)
+{
+
+    if (axis < 0 || axis >= EMCMOT_MAX_AXIS) {
+        return 0;
+    }
+    if (jerk < 0.0) {
+        jerk = 0.0;
+    }
+
+    if(jerk > 0) AxisConfig[axis].haveMaxJerk = 1;
+    AxisConfig[axis].MaxJerk = jerk;
+
+    emcmotCommand.command = EMCMOT_SET_AXIS_JERK_LIMIT;
+    emcmotCommand.axis = axis;
+    emcmotCommand.jerk = jerk;
+    return usrmotWriteEmcmotCommand(&emcmotCommand);
+
+    if (emc_debug & EMC_DEBUG_CONFIG) {
+        rcs_print("%s(%d, %.4f)\n", __FUNCTION__, axis, jerk);
+    }
+    return 0;
+}
+
 int emcAxisSetLockingJoint(int axis, int joint)
 {
 
@@ -551,6 +600,22 @@ double emcAxisGetMaxAcceleration(int axis)
     }
 
     return AxisConfig[axis].MaxAccel;
+}
+
+int emcAxisHasMaxJerk(int axis)
+{
+    if (axis < 0 || axis >= EMCMOT_MAX_AXIS) {
+        return 0;
+    }
+    return AxisConfig[axis].haveMaxJerk;
+}
+
+double emcAxisGetMaxJerk(int axis)
+{
+    if (axis < 0 || axis >= EMCMOT_MAX_AXIS) {
+        return 0;
+    }
+    return AxisConfig[axis].MaxJerk;
 }
 
 int emcAxisUpdate(EMC_AXIS_STAT stat[], int axis_mask)
@@ -631,6 +696,7 @@ int emcAxisInit(int axis)
 	}
     }
     AxisConfig[axis].Inited = 1;
+    AxisConfig[axis].haveMaxJerk = 0;
     if (0 != iniAxis(axis, emc_inifile)) {
 	retval = -1;
     }
@@ -1091,6 +1157,38 @@ int emcTrajSetAcceleration(double acc)
     return retval;
 }
 
+int emcTrajSetJerk(double jerk)
+{
+    if (jerk < 0.0) {
+	jerk = 0.0;
+    } else if (jerk > TrajConfig.MaxJerk) {
+	jerk = TrajConfig.MaxJerk;
+    }
+
+    emcmotCommand.command = EMCMOT_SET_JERK;
+    emcmotCommand.jerk = jerk;
+
+    int retval = usrmotWriteEmcmotCommand(&emcmotCommand);
+
+    if (emc_debug & EMC_DEBUG_CONFIG) {
+        rcs_print("%s(%.4f) returned %d\n", __FUNCTION__, jerk, retval);
+    }
+    return retval;
+}
+
+int emcTrajPlannerType(int type)
+{
+    emcmotCommand.command = EMCMOT_SET_PLANNER_TYPE;
+    emcmotCommand.planner_type = type;
+
+    int retval = usrmotWriteEmcmotCommand(&emcmotCommand);
+
+    if (emc_debug & EMC_DEBUG_CONFIG) {
+        rcs_print("%s(%d) returned %d\n", __FUNCTION__, type, retval);
+    }
+    return retval;
+}
+
 /*
   emcmot has no limits on max velocity, acceleration so we'll save them
   here and apply them in the functions above
@@ -1124,6 +1222,23 @@ int emcTrajSetMaxAcceleration(double acc)
 
     if (emc_debug & EMC_DEBUG_CONFIG) {
         rcs_print("%s(%.4g)\n", __FUNCTION__, acc);
+    }
+    return 0;
+}
+
+int emcTrajSetMaxJerk(double jerk)
+{
+    if (jerk < 0.0) {
+	jerk = 0.0;
+    } else if (jerk > 1e9) {
+	// Clamp to 1e9 to prevent numerical instability in S-curve calculations
+	jerk = 1e9;
+    }
+
+    TrajConfig.MaxJerk = jerk;
+
+    if (emc_debug & EMC_DEBUG_CONFIG) {
+        rcs_print("%s(%.4f)\n", __FUNCTION__, jerk);
     }
     return 0;
 }
@@ -1377,7 +1492,7 @@ int emcTrajSetTermCond(int cond, double tolerance)
     return usrmotWriteEmcmotCommand(&emcmotCommand);
 }
 
-int emcTrajLinearMove(const EmcPose& end, int type, double vel, double ini_maxvel, double acc,
+int emcTrajLinearMove(const EmcPose& end, int type, double vel, double ini_maxvel, double acc, double ini_maxjerk, 
                       int indexer_jnum)
 {
 #ifdef ISNAN_TRAP
@@ -1399,13 +1514,14 @@ int emcTrajLinearMove(const EmcPose& end, int type, double vel, double ini_maxve
     emcmotCommand.vel = vel;
     emcmotCommand.ini_maxvel = ini_maxvel;
     emcmotCommand.acc = acc;
+    emcmotCommand.ini_maxjerk = ini_maxjerk;
     emcmotCommand.turn = indexer_jnum;
 
     return usrmotWriteEmcmotCommand(&emcmotCommand);
 }
 
 int emcTrajCircularMove(const EmcPose& end, const PM_CARTESIAN& center,
-			const PM_CARTESIAN& normal, int turn, int type, double vel, double ini_maxvel, double acc)
+			const PM_CARTESIAN& normal, int turn, int type, double vel, double ini_maxvel, double acc, double ini_maxjerk)
 {
 #ifdef ISNAN_TRAP
     if (std::isnan(end.tran.x) || std::isnan(end.tran.y) || std::isnan(end.tran.z) ||
@@ -1438,6 +1554,7 @@ int emcTrajCircularMove(const EmcPose& end, const PM_CARTESIAN& center,
     emcmotCommand.vel = vel;
     emcmotCommand.ini_maxvel = ini_maxvel;
     emcmotCommand.acc = acc;
+    emcmotCommand.ini_maxjerk = ini_maxjerk;
 
     return usrmotWriteEmcmotCommand(&emcmotCommand);
 }
@@ -1449,7 +1566,7 @@ int emcTrajClearProbeTrippedFlag()
     return usrmotWriteEmcmotCommand(&emcmotCommand);
 }
 
-int emcTrajProbe(const EmcPose& pos, int type, double vel, double ini_maxvel, double acc, unsigned char probe_type)
+int emcTrajProbe(const EmcPose& pos, int type, double vel, double ini_maxvel, double acc, double ini_maxjerk, unsigned char probe_type)
 {
 #ifdef ISNAN_TRAP
     if (std::isnan(pos.tran.x) || std::isnan(pos.tran.y) || std::isnan(pos.tran.z) ||
@@ -1468,12 +1585,13 @@ int emcTrajProbe(const EmcPose& pos, int type, double vel, double ini_maxvel, do
     emcmotCommand.vel = vel;
     emcmotCommand.ini_maxvel = ini_maxvel;
     emcmotCommand.acc = acc;
+    emcmotCommand.ini_maxjerk = ini_maxjerk;
     emcmotCommand.probe_type = probe_type;
 
     return usrmotWriteEmcmotCommand(&emcmotCommand);
 }
 
-int emcTrajRigidTap(const EmcPose& pos, double vel, double ini_maxvel, double acc, double scale)
+int emcTrajRigidTap(const EmcPose& pos, double vel, double ini_maxvel, double acc, double ini_maxjerk, double scale)
 {
 #ifdef ISNAN_TRAP
     if (std::isnan(pos.tran.x) || std::isnan(pos.tran.y) || std::isnan(pos.tran.z)) {
@@ -1489,6 +1607,7 @@ int emcTrajRigidTap(const EmcPose& pos, double vel, double ini_maxvel, double ac
     emcmotCommand.vel = vel;
     emcmotCommand.ini_maxvel = ini_maxvel;
     emcmotCommand.acc = acc;
+    emcmotCommand.ini_maxjerk = ini_maxjerk;
     emcmotCommand.scale = scale;
 
     return usrmotWriteEmcmotCommand(&emcmotCommand);
@@ -1612,18 +1731,19 @@ int emcTrajUpdate(EMC_TRAJ_STAT * stat)
 
 int emcPositionLoad() {
     double positions[EMCMOT_MAX_JOINTS];
-    IniFile ini;
-    ini.Open(emc_inifile);
-    auto posfile = ini.Find("POSITION_FILE", "TRAJ");
-    ini.Close();
-    if(!posfile || !posfile.value()[0]) return 0;
-    FILE *f = fopen(*posfile, "r");
+    IniFile ini(emc_inifile);
+    if(!ini) {
+        return -1;
+    }
+    auto posfile = ini.findString("POSITION_FILE", "TRAJ");
+    if(!posfile || posfile->empty()) return 0;
+    FILE *f = fopen(posfile->c_str(), "r");
     if(!f) return 0;
     for(int i=0; i<EMCMOT_MAX_JOINTS; i++) {
 	int r = fscanf(f, "%lf", &positions[i]);
 	if(r != 1) {
             fclose(f);
-            rcs_print("%s: failed to load joint %d position from %s, ignoring\n", __FUNCTION__, i, *posfile);
+            rcs_print("%s: failed to load joint %d position from %s, ignoring\n", __FUNCTION__, i, posfile->c_str());
             return -1;
         }
     }
@@ -1631,7 +1751,7 @@ int emcPositionLoad() {
     int result = 0;
     for(int i=0; i<EMCMOT_MAX_JOINTS; i++) {
 	if(emcJointSetMotorOffset(i, -positions[i]) != 0) {
-            rcs_print("%s: failed to set joint %d position (%.6f) from %s, ignoring\n", __FUNCTION__, i, positions[i], *posfile);
+            rcs_print("%s: failed to set joint %d position (%.6f) from %s, ignoring\n", __FUNCTION__, i, positions[i], posfile->c_str());
             result = -1;
         }
     }
@@ -1640,22 +1760,16 @@ int emcPositionLoad() {
 
 
 int emcPositionSave() {
-    IniFile ini;
-    std::optional<const char*> posfile;
-
-    ini.Open(emc_inifile);
-    try {
-        posfile = ini.Find("POSITION_FILE", "TRAJ");
-    } catch (IniFile::Exception e) {
-        ini.Close();
+    IniFile ini(emc_inifile);
+    if(!ini) {
         return -1;
     }
-    ini.Close();
+    auto posfile = ini.findString("POSITION_FILE", "TRAJ");
 
-    if(!posfile || !posfile.value()[0]) return 0;
+    if(!posfile || posfile->empty()) return 0;
     // like the var file, make sure the posfile is recreated according to umask
-    unlink(*posfile);
-    FILE *f = fopen(*posfile, "w");
+    unlink(posfile->c_str());
+    FILE *f = fopen(posfile->c_str(), "w");
     if(!f) return -1;
     for(int i=0; i<EMCMOT_MAX_JOINTS; i++) {
 	int r = fprintf(f, "%.17f\n", emcmotStatus.joint_status[i].pos_fb);
@@ -1869,11 +1983,12 @@ int emcSpindleOn(int spindle, double speed, double css_factor, double offset, in
     return usrmotWriteEmcmotCommand(&emcmotCommand);
 }
 
-int emcSpindleOff(int spindle)
+int emcSpindleOff(int spindle, int wait_for_at_speed)
 {
     emcmotCommand.command = EMCMOT_SPINDLE_OFF;
     emcmotCommand.state = 0;
     emcmotCommand.spindle = spindle;
+    emcmotCommand.wait_for_spindle_at_speed = wait_for_at_speed;
     return usrmotWriteEmcmotCommand(&emcmotCommand);
 }
 
@@ -1958,10 +2073,16 @@ int emcMotionUpdate(EMC_MOTION_STAT * stat)
     }
     // read the emcmot error
     if (0 != usrmotReadEmcmotError(errorString)) {
-	// no error, so ignore
+        // no error, so ignore
     } else {
-	// an error to report
-	emcOperatorError("%s", errorString);
+        // an error to report
+        // Disable stdout print due to this error is from motion
+        // and already printed to stdout
+        // emcOperatorError() also forwards the error to the gui
+        RCS_PRINT_DESTINATION_TYPE prev_dest = get_rcs_print_destination();
+        set_rcs_print_destination(RCS_PRINT_TO_NULL);
+        emcOperatorError("%s", errorString);
+        set_rcs_print_destination(prev_dest);
     }
 
     // save the heartbeat and command number locally,
@@ -1977,6 +2098,8 @@ int emcMotionUpdate(EMC_MOTION_STAT * stat)
     stat->command_type = localMotionCommandType;
     stat->echo_serial_number = localMotionEchoSerialNumber;
     stat->debug = emcmotConfig.debug;
+
+    stat->heartbeat = emcmotStatus.heartbeat; // Motion controller's heartbeat
 
     for (dio = 0; dio < EMCMOT_MAX_DIO; dio++) {
 	stat->synch_di[dio] = emcmotStatus.synch_di[dio];

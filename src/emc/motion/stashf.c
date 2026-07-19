@@ -15,11 +15,12 @@
 //    along with this program; if not, write to the Free Software
 //    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+#include <stdarg.h>
+#include <rtapi_errno.h>
+#include <rtapi_string.h>
+
 #include "stashf.h"
 #include "dbuf.h"
-#include "rtapi_errno.h"
-#include "rtapi_string.h"
-#include <stdarg.h>
 
 #ifdef __KERNEL__
 #include <linux/kernel.h>
@@ -118,6 +119,10 @@ extern int rtapi_snprintf(char *, unsigned long, const char *, ...);
 #else
 #define PRINT(...) snprintf(buf, n, ## __VA_ARGS__)
 #endif
+
+//The *printdbuf() functions translate the fmt
+//and %s args using libintl to the user's language
+
 #define EXTRA buf += result; n -= result; if(n<0) n = 0;
 int snprintdbuf(char *buf, int n, struct dbuf_iter *o) {
 #include "stashf_wrap.h"

@@ -105,10 +105,13 @@ class HAL:
         spindle_on = spindle_cw = spindle_ccw = False
         mist = flood = brake = at_speed = bldc = False
         cstart = abort = sstep = False
+        self.dbouncenames = ""
         if self.a.findsignal("s-encoder-a"):
             spindle_enc = True
-        if self.a.findsignal("probe"):
+        if self.a.findsignal("probe-in"):
             probe = True
+            if self.d.debounce_probe:
+                self.dbouncenames = self.dbouncenames + "dbounce.probe,"
         if self.a.findsignal("abort"):
             abort = True
         if self.a.findsignal("s-pwm-pulse"):
@@ -119,6 +122,8 @@ class HAL:
             cstart = True
         if self.a.findsignal("estop-ext"):
             estop = True
+            if self.d.debounce_estop:
+                self.dbouncenames = self.dbouncenames + "dbounce.estop,"
         if self.a.findsignal("single-step"):
             sstep = True
         if self.a.findsignal("spindle-enable"):
@@ -250,6 +255,11 @@ class HAL:
         if temp:
             print("loadrt mux16 names=%s"% (self.d.mux16names), file=file)
 
+        # load dbounce component:
+        self.dbouncenames = self.dbouncenames.rstrip(",")
+        if not self.dbouncenames == "":
+            print("loadrt dbounce names=%s"% (self.dbouncenames), file=file)
+
         # qtplasmac requires plasmac.comp
         if self.d.frontend == _PD._QTPLASMAC:
             print("loadrt plasmac", file=file)
@@ -327,6 +337,14 @@ class HAL:
             for j in (temp):
                 j ='{0:<24}'.format(j)
                 print("addf %s servo-thread"% j, file=file)
+
+        # dbounce addf
+        if not self.dbouncenames == '':
+            temp=self.dbouncenames.split(",")
+            for j in (temp):
+                j ='{0:<24}'.format(j)
+                print("addf %s servo-thread"% j, file=file)
+
 
         for i in self.d.addcompservo:
             if not i == '':
@@ -484,7 +502,13 @@ class HAL:
             print(file=file)
             print(_("#  ---probe signal---"), file=file)
             print(file=file)
-            print("net probe-in     =>  motion.probe-input", file=file)
+            if self.d.debounce_probe:
+                print("setp dbounce.probe.delay %s" % self.d.debounce_cycle_probe, file=file)
+                print("net probe-in     =>  dbounce.probe.in", file=file)
+                print("net probe-db     <=  dbounce.probe.out", file=file)
+                print("net probe-db     =>  motion.probe-input", file=file)
+            else:
+                print("net probe-in     =>  motion.probe-input", file=file)
             print(file=file)
         if self.d.externaljog:
             print(_("# ---jog button signals---"), file=file)
@@ -773,7 +797,13 @@ class HAL:
             print(file=file)
             print(_("# **** Setup for external estop ladder program -END ****"), file=file)
         elif estop:
-            print("net estop-ext     =>  iocontrol.0.emc-enable-in", file=file)
+            if self.d.debounce_probe:
+                print("setp dbounce.estop.delay %s" % self.d.debounce_cycle_estop, file=file)
+                print("net estop-ext    =>  dbounce.estop.in", file=file)
+                print("net estop-db     <=  dbounce.estop.out", file=file)
+                print("net estop-db     =>  iocontrol.0.emc-enable-in", file=file)
+            else:
+                print("net estop-ext     =>  iocontrol.0.emc-enable-in", file=file)
         else:
             print("net estop-out     =>  iocontrol.0.emc-enable-in", file=file)
         print(file=file)
@@ -822,7 +852,7 @@ class HAL:
                     print(file=f1)
                     print(_("#  ---spindle-at-speed indicator---"), file=f1)
                     print(file=f1)
-                    print(_("net spindle-at-speed => gmoccapy.spindle_at_speed_led"), file=f1)
+                    print("net spindle-at-speed => gmoccapy.spindle_at_speed_led", file=f1)
                     f1.close()
                 elif self.d.frontend == _PD._QTDRAGON:
                     qt = os.path.join(base, "qtvcp_postgui.hal")
@@ -1417,6 +1447,9 @@ class HAL:
                 if self.d[pwmtype] == _PD.PDMP: pulsetype = 3
                 if self.d[pwmtype] == _PD.UDMU: pulsetype = 2
                 print("setp   "+pwmpinname+".output-type %d"% pulsetype, file=file)
+                if '7i97' in pwmpinname:
+                    print("setp   "+pwmpinname+".offset-mode 1", file=file)
+                    print("setp   "+pwmpinname+".dither  1", file=file)
                 print("setp   "+pwmpinname+".scale  [%s_%d]OUTPUT_SCALE"% (title, jnum), file=file)
                 for i in pwminvertlist:
                     print("setp    "+i+".invert_output true", file=file)

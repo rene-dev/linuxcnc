@@ -23,9 +23,9 @@ import os
 import re
 from shutil import copy as COPY
 from importlib import reload
-from PyQt5.QtCore import Qt, QCoreApplication
-from PyQt5.QtWidgets import QFileDialog, QMessageBox, QPushButton, QLabel, QLineEdit
-from PyQt5.QtWidgets import QComboBox
+from qtpy.QtCore import Qt, QCoreApplication
+from qtpy.QtWidgets import QFileDialog, QMessageBox, QPushButton, QLabel, QLineEdit
+from qtpy.QtWidgets import QComboBox
 from qtvcp.core import Status, Action
 from qtvcp.lib.qtplasmac import conv_settings as CONVSET
 from qtvcp.lib.qtplasmac import conv_line as CONVLINE
@@ -207,7 +207,7 @@ def conv_new_pressed(P, W, button):
             msg1 = _translate('HandlerClass', 'If you continue it will be deleted')
         if not P.dialog_show_yesno(QMessageBox.Warning, f'{head}', f'{msg0}\n\n{msg1}\n', f'{btn1}', f'{btn2}'):
             return
-    if P.oldConvButton == 'conv_line':
+    if P.oldConvButton == 'conv_line' and button:
         if W.lType.currentText() == _translate('Conversational', 'LINE POINT ~ POINT'):
             CONVLINE.set_line_point_to_point(P, W)
         elif W.lType.currentText() == _translate('Conversational', 'LINE BY ANGLE'):
@@ -250,7 +250,7 @@ def conv_save_pressed(P, W):
     dlg.setDefaultSuffix('ngc')
     dlg.setDirectory(P.programPrefix)
     name = ''
-    if dlg.exec_():
+    if dlg.exec():
         name = dlg.selectedFiles()[0]
     if name:
         COPY(P.fNgc, name)

@@ -60,17 +60,20 @@ to another.
 #ifndef MOTION_H
 #define MOTION_H
 
-#include "posemath.h"		/* PmCartesian, PmPose, pmCartMag() */
-#include "emcpos.h"		/* EmcPose */
-#include "cubic.h"		/* CUBIC_STRUCT, CUBIC_COEFF */
-#include "emcmotcfg.h"		/* EMCMOT_MAX_JOINTS */
-#include "kinematics.h"
-#include "simple_tp.h"
-#include "rtapi_limits.h"
+#include <rtapi_stdint.h>
 #include <stdarg.h>
-#include "rtapi_bool.h"
+
+#include <rtapi_bool.h>
+#include <rtapi_limits.h>
+#include <posemath.h>		/* PmCartesian, PmPose, pmCartMag() */
+#include <emcpos.h>		/* EmcPose */
+#include "../kinematics/cubic.h"		/* CUBIC_STRUCT, CUBIC_COEFF */
+#include <emcmotcfg.h>		/* EMCMOT_MAX_JOINTS */
+#include <kinematics.h>
+
+#include "simple_tp.h"
 #include "state_tag.h"
-#include "tp_types.h"
+#include "../tp/tp_types.h"
 
 // define a special value to denote an invalid motion ID
 // NB: do not ever generate a motion id of  MOTION_INVALID_ID
@@ -79,16 +82,12 @@ to another.
 #define MOTION_INVALID_ID INT_MIN
 #define MOTION_ID_VALID(x) ((x) != MOTION_INVALID_ID)
 
+#include <rtapi.h>		/* must precede rtapi_atomic.h in kernel mode */
+#include <rtapi_atomic.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-    typedef struct _EMC_TELEOP_DATA {
-	EmcPose currentVel;
-	EmcPose currentAccel;
-	EmcPose desiredVel;
-	EmcPose desiredAccel;
-    } EMC_TELEOP_DATA;
 
 /* This enum lists all the possible commands */
 
@@ -129,6 +128,8 @@ extern "C" {
 	EMCMOT_SET_VEL,		/* set the velocity for subsequent moves */
 	EMCMOT_SET_VEL_LIMIT,	/* set the max vel for all moves (tooltip) */
 	EMCMOT_SET_ACC,		/* set the max accel for moves (tooltip) */
+	EMCMOT_SET_JERK,	/* set the max jerk for moves (tooltip) */
+	EMCMOT_SET_PLANNER_TYPE,	/* set planner type (0=trapezoidal, 1=S-curve) */
 	EMCMOT_SET_TERM_COND,	/* set termination condition (stop, blend) */
 	EMCMOT_SET_NUM_JOINTS,	/* set the number of joints */
 	EMCMOT_SET_NUM_SPINDLES, /* set the number of spindles */
@@ -168,6 +169,7 @@ extern "C" {
 	EMCMOT_SET_JOINT_VEL_LIMIT,     /* set the max joint vel */
 	EMCMOT_SET_JOINT_ACC_LIMIT,     /* set the max joint accel */
 	EMCMOT_SET_JOINT_HOMING_PARAMS, /* sets joint homing parameters */
+	EMCMOT_SET_JOINT_JERK_LIMIT,        /* set the max joint jerk */
 	EMCMOT_UPDATE_JOINT_HOMING_PARAMS, /* updates some joint homing parameters */
 	EMCMOT_SET_JOINT_MOTOR_OFFSET,  /* set the offset between joint and motor */
 	EMCMOT_SET_JOINT_COMP,          /* set a compensation triplet for a joint (nominal, forw., rev.) */
@@ -176,6 +178,7 @@ extern "C" {
         EMCMOT_SET_AXIS_VEL_LIMIT,      /* set the max axis vel */
         EMCMOT_SET_AXIS_ACC_LIMIT,      /* set the max axis acc */
         EMCMOT_SET_AXIS_LOCKING_JOINT,  /* set the axis locking joint */
+	    EMCMOT_SET_AXIS_JERK_LIMIT,         /* set the max axis jerk */
 
         EMCMOT_SET_SPINDLE_PARAMS, /* One command to set all spindle params */
 
@@ -221,6 +224,9 @@ extern "C" {
         int motion_type;        /* this move is because of traverse, feed, arc, or toolchange */
         double spindlesync;     /* user units per spindle revolution, 0 = no sync */
 	double acc;		/* max acceleration */
+	double jerk;			/* jerk for traj */
+    double ini_maxjerk;
+    int planner_type;	/* planner type: 0 = trapezoidal, 1 = S-curve */
 	double backlash;	/* amount of backlash */
 	int id;			/* id for motion */
 	int termCond;		/* termination condition */
@@ -442,6 +448,7 @@ Suggestion: Split this in to an Error and a Status flag register..
 	double min_jog_limit;
 	double vel_limit;	/* upper limit of joint speed */
 	double acc_limit;	/* upper limit of joint accel */
+	double jerk_limit;	/* upper limit of joint jerk */
 	double min_ferror;	/* zero speed following error limit */
 	double max_ferror;	/* max speed following error limit */
 	double backlash;	/* amount of backlash */
@@ -456,6 +463,7 @@ Suggestion: Split this in to an Error and a Status flag register..
 	double pos_cmd;		/* commanded joint position */
 	double vel_cmd;		/* commanded joint velocity */
 	double acc_cmd;		/* commanded joint acceleration */
+	double jerk_cmd;	/* comanded joint jerk */
 	double backlash_corr;	/* correction for backlash */
 	double backlash_filt;	/* filtered backlash correction */
 	double backlash_vel;	/* backlash velocity variable */
@@ -621,7 +629,7 @@ Suggestion: Split this in to an Error and a Status flag register..
 /*! \todo FIXME - all structure members beyond this point are in limbo */
 
 	/* dynamic status-- changes every cycle */
-	unsigned int heartbeat;
+	uint64_t heartbeat;     /* Incremented every time the motion controller is done. */
 	int config_num;		/* incremented whenever configuration
 				   changed. */
 	int id;			/* id for executing motion */
@@ -637,12 +645,20 @@ Suggestion: Split this in to an Error and a Status flag register..
 	/* static status-- only changes upon input commands, e.g., config */
 	double vel;		/* scalar max vel */
 	double acc;		/* scalar max accel */
+	double jerk;		/* jerk for traj */
+    int planner_type;	/* planner type: 0 = trapezoidal, 1 = S-curve */
 
 	int motionType;
 	double distance_to_go;  /* in this move */
 	EmcPose dtg;
 	double current_vel;
 	double requested_vel;
+
+	/* S-curve motion state - for accurate jerk output */
+	double current_acc;     /* current path acceleration */
+	double current_jerk;    /* current path jerk (accurate value from TP) */
+	double decel_dist;      /* S-curve deceleration distance (dlen1) for debugging */
+	PmCartesian current_dir; /* current motion direction unit vector */
 
 	unsigned int tcqlen;
 	EmcPose tool_offset;
@@ -726,14 +742,12 @@ Suggestion: Split this in to an Error and a Status flag register..
         int inhibit_probe_home_error;
     } emcmot_config_t;
 
-/* error structure - A ring buffer used to pass formatted printf strings to usr space */
+/* error structure - lockfree MPSC ring buffer. See emcmotutil.c. */
     typedef struct emcmot_error_t {
-	unsigned char head;	/* flag count for mutex detect */
 	char error[EMCMOT_ERROR_NUM][EMCMOT_ERROR_LEN];
-	int start;		/* index of oldest error */
-	int end;		/* index of newest error */
-	int num;		/* number of items */
-	unsigned char tail;	/* flag count for mutex detect */
+	rtapi_atomic_ullong write_reserve;
+	rtapi_atomic_ullong write_commit;
+	rtapi_atomic_ullong read_seq;
     } emcmot_error_t;
 
 

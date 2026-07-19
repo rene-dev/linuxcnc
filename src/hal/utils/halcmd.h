@@ -40,7 +40,7 @@
 #ifndef HALCMD_H
 #define HALCMD_H
 #include <stdio.h>
-#include "hal.h"
+#include <hal.h>
 
 RTAPI_BEGIN_DECLS
 
@@ -110,7 +110,7 @@ struct halcmd_command {
 extern struct halcmd_command halcmd_commands[];
 extern int halcmd_ncommands;
 
-extern FILE *halcmd_inifile;
+extern const char *halcmd_inifile;
 
 #define MAX_TOK 32
 #define MAX_CMD_LEN 1024

@@ -1,6 +1,8 @@
 import os, time
-from PyQt5 import QtCore, QtWidgets, QtGui
-from PyQt5.QtCore import QCoreApplication
+from qtpy import QtCore, QtWidgets, QtGui
+from qtpy.QtWidgets import QAction, QMenu
+from qtpy.QtGui import QIcon
+from qtpy.QtCore import QCoreApplication
 from qtvcp.widgets.gcode_editor import GcodeEditor as GCODE
 from qtvcp.widgets.gcode_graphics import GCodeGraphics as GRAPHICS
 from qtvcp.widgets.mdi_line import MDILine as MDI_WIDGET
@@ -29,7 +31,7 @@ WRITER = writer.Main()
 QHAL = Qhal()
 
 try:
-    from PyQt5.QtWebEngineWidgets import QWebEnginePage
+    from qtpy.QtWebEngineWidgets import QWebEnginePage
 except:
     LOG.warning('QtDragon Warning with loading QtWebEngineWidget - is python3-pyqt5.qtwebengine installed?')
 
@@ -72,7 +74,7 @@ class HandlerClass:
         self.w = widgets
         self.gcodes = GCodes(widgets)
         # This validator precludes using comma as a decimal
-        self.valid = QtGui.QRegExpValidator(QtCore.QRegExp('-?[0-9]{0,6}[.][0-9]{0,3}'))
+        self.valid = QtGui.QRegularExpressionValidator(QtCore.QRegularExpression('-?[0-9]{0,6}[.][0-9]{0,3}'))
         self.KEYBIND = KEYBIND
         KEYBIND.add_call('Key_F11','on_keycall_F11')
         KEYBIND.add_call('Key_F12','on_keycall_F12')
@@ -153,6 +155,11 @@ class HandlerClass:
         STATUS.connect('graphics-gcode-properties', lambda w, d: self.update_gcode_properties(d))
         STATUS.connect('status-message', lambda w, d, o: self.add_external_status(d,o))
         STATUS.connect('runstop-line-changed', lambda w, l :self.lastRunLine(l))
+        STATUS.connect('cycle-start-request', lambda w, state :self.btn_start_clicked(state))
+        STATUS.connect('cycle-pause-request', lambda w, state: self.btn_pause_clicked(state))
+        STATUS.connect('macro-call-request', lambda w, name: self.request_macro_call(name))
+        STATUS.connect('ok-request', lambda w, state: self.dialog_ext_control(w,1,1))
+        STATUS.connect('cancel-request', lambda w, state: self.dialog_ext_control(w,1,0))
 
         txt1 = _translate("HandlerClass","Setup Tab")
         txt2 = _translate("HandlerClass","If you select a file with .html as a file ending, it will be shown here.")
@@ -187,6 +194,9 @@ class HandlerClass:
 
         # override NGCGui path check
         NgcGui.check_linuxcnc_paths_fail = self.check_linuxcnc_paths_fail_override
+
+        # override action class macro run function 
+        ACTION.RUN_MACRO = self.run_macro
 
     def initialized__(self):
         self.init_pins()
@@ -288,26 +298,14 @@ class HandlerClass:
         self.w.layout_PDF.addWidget(self.PDFView)
         self.PDFView.loadSample('setup_tab')
 
-        # Show assigned macrobuttons define in INI under [MDI_COMMAND_LIST]
-        flag = True
-        for b in range(0,10):
-            button = self.w['macrobutton{}'.format(b)]
-            # prefer named INI MDI commands
-            key = button.property('ini_mdi_key')
-            if key == '' or INFO.get_ini_mdi_command(key) is None:
-                # fallback to legacy nth line
-                key = button.property('ini_mdi_number')
-            try:
-                code = INFO.get_ini_mdi_command(key)
-                if code is None: raise Exception
-                flag = False
-            except:
-                button.hide()
-        # no buttons hide frame
-        if flag:
-            self.w.frame_macro_buttons.hide()
+        self.configureMacroButtons()
 
         self.log_version()
+        STATUS.emit('update-machine-log', '', 'OFF')
+
+        # preset MPG focus object
+        self.MPGFocusWidget = self.w.gcodegraphics
+        self.MPGFocusWidgetBorder= 'stackedWidget_mainTabPage1'
 
     def init_utils(self):
 
@@ -398,14 +396,21 @@ class HandlerClass:
         self.w.chk_use_virtual.setChecked(self.w.PREFS_.getpref('Use virtual keyboard', False, bool, 'CUSTOM_FORM_ENTRIES'))
         self.w.chk_use_tool_sensor.setChecked(self.w.PREFS_.getpref('Use tool sensor', False, bool, 'CUSTOM_FORM_ENTRIES'))
         self.w.chk_use_camera.setChecked(self.w.PREFS_.getpref('Use camera', False, bool, 'CUSTOM_FORM_ENTRIES'))
+        self.w.chk_auto_mode_ext_macro.setChecked(self.w.PREFS_.getpref('Auto mode external macro', True, bool, 'CUSTOM_FORM_ENTRIES'))
+        self.w.chk_auto_mode_macro_buttons.setChecked(self.w.PREFS_.getpref('Auto mode macro buttons', True, bool, 'CUSTOM_FORM_ENTRIES'))
+        # make sure the button's property are current
+        self.chk_auto_mode_macro_changed(self.w.chk_auto_mode_macro_buttons.isChecked())
         self.w.chk_alpha_mode.setChecked(self.w.PREFS_.getpref('Use alpha display mode', False, bool, 'CUSTOM_FORM_ENTRIES'))
         self.w.chk_inhibit_selection.setChecked(self.w.PREFS_.getpref('Inhibit display mouse selection', True, bool, 'CUSTOM_FORM_ENTRIES'))
         self.cam_xscale_changed(self.w.PREFS_.getpref('Camview xscale', 100, int, 'CUSTOM_FORM_ENTRIES'))
         self.cam_yscale_changed(self.w.PREFS_.getpref('Camview yscale', 100, int, 'CUSTOM_FORM_ENTRIES'))
         self.w.camview._camNum = self.w.PREFS_.getpref('Camview cam number', 0, int, 'CUSTOM_FORM_ENTRIES')
+        self.w.camview.setAPI(self.w.PREFS_.getpref('Camview cam api', 'ANY', str, 'CUSTOM_FORM_ENTRIES'))
+        self.w.camview.setResolution(self.w.PREFS_.getpref('Camview cam resolution', 'DEFAULT', str, 'CUSTOM_FORM_ENTRIES'))
 
     def closing_cleanup__(self):
         if not self.w.PREFS_: return
+        LOG.debug("Saving Preferences")
         if self.last_loaded_program is not None:
             self.w.PREFS_.putpref('last_loaded_directory', os.path.dirname(self.last_loaded_program), str, 'BOOK_KEEPING')
             self.w.PREFS_.putpref('last_loaded_file', self.last_loaded_program, str, 'BOOK_KEEPING')
@@ -433,11 +438,15 @@ class HandlerClass:
         self.w.PREFS_.putpref('Use virtual keyboard', self.w.chk_use_virtual.isChecked(), bool, 'CUSTOM_FORM_ENTRIES')
         self.w.PREFS_.putpref('Use tool sensor', self.w.chk_use_tool_sensor.isChecked(), bool, 'CUSTOM_FORM_ENTRIES')
         self.w.PREFS_.putpref('Use camera', self.w.chk_use_camera.isChecked(), bool, 'CUSTOM_FORM_ENTRIES')
+        self.w.PREFS_.putpref('Auto mode external macro', self.w.chk_auto_mode_ext_macro.isChecked(), bool, 'CUSTOM_FORM_ENTRIES')
+        self.w.PREFS_.putpref('Auto mode macro buttons', self.w.chk_auto_mode_macro_buttons.isChecked(), bool, 'CUSTOM_FORM_ENTRIES')
         self.w.PREFS_.putpref('Use alpha display mode', self.w.chk_alpha_mode.isChecked(), bool, 'CUSTOM_FORM_ENTRIES')
         self.w.PREFS_.putpref('Inhibit display mouse selection', self.w.chk_inhibit_selection.isChecked(), bool, 'CUSTOM_FORM_ENTRIES')
         self.w.PREFS_.putpref('Camview xscale', self.cam_xscale_percent(), int, 'CUSTOM_FORM_ENTRIES')
         self.w.PREFS_.putpref('Camview yscale', self.cam_yscale_percent(), int, 'CUSTOM_FORM_ENTRIES')
         self.w.PREFS_.putpref('Camview cam number', self.w.camview._camNum, int, 'CUSTOM_FORM_ENTRIES')
+        self.w.PREFS_.putpref('Camview cam api', self.w.camview.getAPIName(self.w.camview._camNum), str, 'CUSTOM_FORM_ENTRIES')
+        self.w.PREFS_.putpref('Camview cam resolution', self.w.camview.resolution, str, 'CUSTOM_FORM_ENTRIES')
 
     def init_widgets(self):
         self.adjust_stacked_widgets(TAB_MAIN)
@@ -476,6 +485,38 @@ class HandlerClass:
         # hide user tab button if no user tabs
         if self.w.stackedWidget_mainTab.count() == 11:
             self.w.btn_user.hide()
+
+        # see if a popup window panels is required
+        self.Btn = None
+        if not INFO.ZIPPED_TABS is None:
+            for name, loc, cmd in INFO.ZIPPED_TABS:
+                if loc =='WINDOW':
+
+                    # add panel to a dialog window
+                    self.w['popup'] = d = QtWidgets.QDialog(self.w)
+                    temp = self.w[name.replace(' ','_')]
+                    # set to apropriate size for panel
+                    d.setMinimumSize(600,400)
+                    d.setWindowTitle(name)
+                    d.setWindowFlags(d.windowFlags() | QtCore.Qt.WindowStaysOnTopHint)
+                    d.finished.connect(self.onClosePopup)
+                    d._lastgeometry = None
+
+                    layout = QtWidgets.QGridLayout(d)
+                    layout.setContentsMargins(0,0,0,0)
+                    layout.addWidget(temp, 0, 0)
+
+                    # add launch button to screen
+                    self.btn = QtWidgets.QPushButton(self.w)
+                    self.btn.setEnabled(True)
+                    self.btn.setMinimumSize(64, 40)
+                    self.btn.setIconSize(QtCore.QSize(38, 38))
+                    self.btn.setIcon(QtGui.QIcon(':/qt-project.org/styles/commonstyle/images/up-32.png'))
+                    self.btn.clicked.connect(self.togglePopup)
+                    self.w.layout_buttonbar.insertWidget(len(self.w.layout_buttonbar) - 4, self.btn)
+
+                    # only one allowed
+                    break
 
     def init_probe(self):
         probe = INFO.get_error_safe_setting('PROBE', 'USE_PROBE', 'none').lower()
@@ -672,6 +713,9 @@ class HandlerClass:
         return KEYBIND.manage_function_calls(self,event,is_pressed,key,shift,cntrl)
 
     def before_loop__(self):
+        # Should be initialized and ready to log good info 
+        STATUS.emit('update-machine-log', '', 'ON')
+
         # no spindle lift without pins connected
         self.spindle_lift_pins_present = True
         for i in ('qtdragon.eoffset-is-active','qtdragon.spindle-inhibit','qtdragon.eoffset-clear',
@@ -811,11 +855,12 @@ class HandlerClass:
     def all_homed(self, obj):
         self.home_all = True
         self.w.btn_home_all.setText(_translate("HandlerClass","ALL\nHOMED"))
+        self.add_status(_translate("HandlerClass","All homed"))
         if self.first_turnon is True:
             self.first_turnon = False
             if self.w.chk_reload_tool.isChecked():
                 command = "M61 Q{} G43".format(self.reload_tool)
-                ACTION.CALL_MDI(command)
+                ACTION.CALL_MDI(command, mode_return=True)
             if self.last_loaded_program is not None and self.w.chk_reload_program.isChecked():
                 if os.path.isfile(self.last_loaded_program):
                     self.w.cmb_gcode_history.addItem(self.last_loaded_program)
@@ -862,7 +907,49 @@ class HandlerClass:
     # Log the last run line (in auto mode) if stopped
     def lastRunLine(self, line):
         if line >0:
-            self.add_status('last running line before stoppage: {}'.format(line))
+            self.add_status(_translate("HandlerClass",'last running line before stoppage: {}'.format(line)))
+
+    # called from hal_glib to run macros from external event
+    def request_macro_call(self, data):
+        if not self.w.chk_auto_mode_ext_macro.isChecked() and not STATUS.is_mdi_mode():
+            self.add_status(_translate("HandlerClass",'Machine must be in MDI mode to run macros'), WARNING)
+            return
+
+        if 'ini-macro-cmd' in data:
+            data = data.replace('ini-macro-cmd-','')
+            try:
+                temp = INFO.MACRO_COMMAND_DICT.get(data).get('cmd')
+                self.run_macro(data=temp,mode_return=True)
+                return
+            except:
+                self.add_status(_translate(f"HandlerClass",'External requested INI macro data not recognized:{data}'), CRITICAL)
+
+        elif 'ini-mdi-cmd' in data:
+            for b in range(0,10):
+                button = self.w['macrobutton{}'.format(b)]
+                # prefer named INI MDI commands
+                key = button.property('ini_mdi_key')
+                code = INFO.get_ini_mdi_command(key)
+                #print(data,key,code)
+                if key == '' or code is None:
+                    # fallback to legacy nth line
+                    key = button.property('ini_mdi_number')
+                    code = INFO.get_ini_mdi_command(key)
+                    if code is None:
+                        continue
+                if str(key) in data:
+                    #print('match',button.objectName())
+                    text = button.text().replace('\n',' ')
+                    self.add_status(_translate("HandlerClass",'Running macro: {} {}'.format(key, text)))
+                    try:
+                        button.click()
+                    except Exception as e:
+                        self.add_status(_translate("HandlerClass",'Error running macro: {} {}\n{}'.format(key, text, e)))
+                    break
+            else:
+                self.add_status(_translate(f"HandlerClass",'External requested INI mdi {data} does not match button name/number'), CRITICAL)
+        else:
+            self.add_status(_translate(f"HandlerClass",'External requested INI macro data not recognized:{data}'), CRITICAL)
 
     #######################
     # CALLBACKS FROM FORM #
@@ -876,14 +963,15 @@ class HandlerClass:
             pass
         # if you select the tab showing, force the DRO to show
         elif index == self.w.stackedWidget_mainTab.currentIndex():
-            self.w.stackedWidget_dro.setCurrentIndex(0)
-
             if index == TAB_MAIN and STATUS.is_auto_mode():
                 self._maintab_cycle +=1
         if index is None: return
 
         # adjust the stack widgets depending on modes
         self.adjust_stacked_widgets(index)
+
+    def hideVirtualKeyboard(self):
+        self.w.stackedWidget_dro.setCurrentIndex(0)
 
     # gcode frame
     def cmb_gcode_history_clicked(self):
@@ -1065,7 +1153,7 @@ class HandlerClass:
 
         self.add_status(_translate("HandlerClass","Laser offsets set"))
         command = "G10 L20 P0 X{:3.4f} Y{:3.4f}".format(x, y)
-        ACTION.CALL_MDI(command)
+        ACTION.CALL_MDI(command, mode_return=True)
     
     def btn_ref_camera_clicked(self):
         x = float(self.w.lineEdit_camera_x.text())
@@ -1080,7 +1168,7 @@ class HandlerClass:
 
         self.add_status(_translate("HandlerClass","Camera offsets set"))
         command = "G10 L20 P0 X{:3.4f} Y{:3.4f}".format(x, y)
-        ACTION.CALL_MDI(command)
+        ACTION.CALL_MDI(command, mode_return=True)
     
     # tool tab
     def btn_m61_clicked(self):
@@ -1089,7 +1177,7 @@ class HandlerClass:
             self.add_status(_translate("HandlerClass","Select only 1 tool to load"), WARNING)
         elif checked:
             self.add_status("{} {}".format(_translate("HandlerClass","Loaded tool"), checked[0]))
-            ACTION.CALL_MDI("M61 Q{} G43".format(checked[0]))
+            ACTION.CALL_MDI("M61 Q{} G43".format(checked[0]), mode_return=True)
         else:
             self.add_status(_translate("HandlerClass","No tool selected"), CRITICAL)
 
@@ -1176,6 +1264,14 @@ class HandlerClass:
     def chk_use_camera_changed(self, state):
         self.w.btn_ref_camera.setEnabled(state)
         self.w.btn_camera.show() if state else self.w.btn_camera.hide()
+
+    def chk_auto_mode_macro_changed(self, state):
+        for b in range(0,10):
+            button = self.w['macrobutton{}'.format(b)]
+            button.setProperty('mdi_mode_check_action',not state)
+
+    def chk_auto_mode_external_macro_changed(self, state):
+        pass
 
     def chk_use_sensor_changed(self, state):
         self.w.btn_touch_sensor.setEnabled(state)
@@ -1380,6 +1476,42 @@ class HandlerClass:
         #self.set_statusbar('MPG output Selected: {}'.format(cmd.toolTip()),DEFAULT,noLog=True)
         self._lastSelectButton = button
 
+    # if a macro has been requested, do path checks and run it
+    def run_macro( self, data = None ):
+        o_codes = data.split()
+        command = str( "O<" + o_codes[0] + "> call" )
+
+        # confirm oword path exists
+        rtn = ACTION.check_macro_path(command)
+        if not rtn is True:
+            for i in rtn:
+                self.add_status(i, WARNING)
+            return
+
+        for code in o_codes[1:]:
+            # wait but don't block:
+            parameter, ok = self.w.calculatorDialog_.getValue(f"Enter a value for: {code}:")
+            if not ok:
+                self.add_status('Macro cancelled')
+                return
+            command = command + " [" + str(parameter) + "] "
+
+        # pop a dialog of the properties
+        msg = QtWidgets.QMessageBox()
+        msg.setIcon(QtWidgets.QMessageBox.Information)
+        msg.setText(_translate("HandlerClass",f"Run Macro Command: {command}"))
+        msg.setWindowTitle(_translate("HandlerClass","Confirm To Run Macro Command"))
+        msg.setStandardButtons(QtWidgets.QMessageBox.Ok|QtWidgets.QMessageBox.Cancel)
+        msg.show()
+        retval = msg.exec_()
+        if retval == QtWidgets.QMessageBox.Ok:
+            self.add_status(f'Run Macro Command:{command}')
+            ACTION.SET_GRAPHICS_VIEW('clear')
+            ACTION.CALL_MDI(command, mode_return=True)
+            return
+
+        self.add_status('Macro cancelled')
+
     #####################
     # GENERAL FUNCTIONS #
     #####################
@@ -1535,6 +1667,12 @@ class HandlerClass:
                 rate = rate * 2
             ACTION.JOG(joint, direction, rate, distance)
         else:
+            # incremental jogging?
+            if joint in (3,4,5,'A','B','C'): # angualar axis
+                if STATUS.get_jog_increment_angular() != 0: return
+            elif STATUS.get_jog_increment() != 0: return
+
+            # otherwise stop jogging when key released
             ACTION.JOG(joint, 0, 0, 0)
 
     def add_status(self, message, alertLevel = DEFAULT, noLog = False):
@@ -1831,7 +1969,8 @@ class HandlerClass:
         # show ngcgui info tab if utilities tab is selected
         # but only if the utilities tab has ngcgui selected
         if main_index == TAB_UTILITIES:
-            if self.w.tabWidget_utilities.currentIndex() == 2:
+            num = self.w.tabWidget_utilities.currentIndex()
+            if 'ngc' in self.w.tabWidget_utilities.tabText(num).lower():
                 self.w.stackedWidget.setCurrentIndex(PAGE_NGCGUI)
             else:
                 self.w.stackedWidget.setCurrentIndex(PAGE_GCODE)
@@ -1894,6 +2033,12 @@ class HandlerClass:
             self.w.frame_top_left.show()
             self.w.frm_backplot.show()
 
+
+        if main_index == TAB_MAIN and mode =='':
+            self.w.userReferenceWidget.show()
+        else:
+            self.w.userReferenceWidget.hide()
+
         # adjust window splitter size as per saved adjustments
 
         name = 'splitterSettings-{}{}'.format(tabId,mode)
@@ -1907,6 +2052,12 @@ class HandlerClass:
                 self.w.splitter_h.restoreState(QtCore.QByteArray(splitterSetting))
             except Exception as e:
                 print(e)
+
+        # if you click the current tab again, hide/show the lower page to
+        # expand the upper page.
+        if currentIndex == requestedIndex and not mode_change:
+            self.w.lower_widget.setVisible(not self.w.lower_widget.isVisible())
+
 
     # set axis 4/5 dro widgets to the proper axis
     # TODO do this with all the axes for more flexibility
@@ -2014,9 +2165,21 @@ class HandlerClass:
 
     def dialog_ext_control(self, pin, value, answer):
         if value:
-            if not self._dialog_message is None:
-                name = self._dialog_message.get('NAME')
-                STATUS.emit('dialog-update',{'NAME':name,'response':answer})
+            # search for a visible notification first
+            # and close it
+            chk = self.w._NOTICE.find_visible()
+            if not chk is None:
+                chk.close()
+                return
+
+            # search the registered dialogs for a match
+            dlist = self.w.getRegisteredDialogList()
+            for i in (dlist):
+                if i.isVisible():
+                    LOG.verbose('Found dialog',i.objectName())
+                    name = i.getIdName()
+                    STATUS.emit('dialog-update',{'NAME':name,'response':answer})
+                    return
 
     def log_version(self):
         if INFO.RIP_FLAG:
@@ -2031,6 +2194,123 @@ class HandlerClass:
                  t)
         self.add_status(mess, CRITICAL,noLog=True)
         STATUS.emit('update-machine-log', mess, None)
+
+    # show/hide macro buttons depending on the INI definitions
+    def configureMacroButtons(self):
+        # Show assigned macrobuttons define in INI under [MDI_COMMAND_LIST]
+        flag = True
+        for b in range(0,10):
+            button = self.w['macrobutton{}'.format(b)]
+            # prefer named INI MDI commands
+            key = button.property('ini_mdi_key')
+            if key == '' or INFO.get_ini_mdi_command(key) is None:
+                # fallback to legacy nth line
+                key = button.property('ini_mdi_number')
+            try:
+                code = INFO.get_ini_mdi_command(key)
+                if code is None: raise Exception
+                flag = False
+            except:
+                button.hide()
+
+        # add any INI defined macros if there is less then
+        # ten INI MDI commands
+        start = len(INFO.MDI_COMMAND_DICT)
+        for b in range(start,10):
+            button = self.w['macrobutton{}'.format(b)]
+            adj = b-start
+            # prefer named INI MDI commands
+            try:
+                # find what ini_mdi button we are going to convert
+                key = button.property('ini_mdi_key')
+
+                code = INFO.get_ini_macro_command(key)
+                if code is None:
+                    code = INFO.get_ini_macro_command(b-start)
+                    if code is None:
+                        raise Exception
+                    else: key = b-start
+
+                flag = False
+                button.show()
+
+                try:
+                    label = INFO.get_ini_macro_label(key)
+                    label = label.replace(r'\n', '\n')
+                    button.setText(label)
+                except:
+                    pass
+
+                try:
+                    tooltiplabel = 'INI MACRO CMD {}:\n'.format(key)
+                    tooltiplabel += INFO.get_ini_macro_command(key).replace(';', '\n')
+                    button.setToolTip(tooltiplabel)
+                except Exception as e:
+                    pass
+                button.setProperty('ini_mdi_command_action', False)
+                button.setProperty('ini_macro_command_action', True)
+                button.setProperty('ini_macro_number',b-start)
+                button.setProperty('ini_macro_key',key)
+            except Exception as e:
+                button.hide()
+
+        # no buttons hide frame
+        if flag:
+            self.w.frame_macro_buttons.hide()
+
+        # if there are more then 10 add a menu to the last button for selection
+        if len(INFO.MDI_COMMAND_DICT)>10:
+            button.setText(_translate("HandlerClass",'MORE\nMACROS'))
+            button.setProperty('ini_mdi_command_action', False)
+            button.setProperty('no_action', True)
+            button.setToolTip('')
+            SettingMenu = QMenu(button)
+            button.setMenu(SettingMenu)
+            for i in range(0,len(INFO.MDI_COMMAND_DICT)-10):
+                try:
+                    name = 'MACRO{}'.format(i+10)
+                    label = INFO.MDI_COMMAND_DICT[name]['label']
+                except:
+                    label = INFO.MDI_COMMAND_LABEL_LIST[i+10]
+
+                action = QAction(QIcon.fromTheme('application-exit'), label.replace("\\n"," "), button)
+                action.triggered.connect(lambda s, i=i, b=button : self.midiAction(b, i+10))
+                # tooltips don't work on Qmenu items unless in toolbar
+                #tooltiplabel = 'INI MDI CMD {}:\n'.format(name)
+                #tooltiplabel += INFO.get_ini_mdi_command(key).replace(';', '\n')
+                #action.setToolTip(tooltiplabel)
+
+                SettingMenu.addAction(action)
+
+    # use the button to run macros selected from the buttons menu
+    def midiAction(self, button, num):
+        name = 'MACRO{}'.format(num)
+        try:
+            code = INFO.MDI_COMMAND_DICT[name]['cmd']
+            button.setProperty('ini_mdi_key', name)
+        except:
+            code = INFO.MDI_COMMAND_LIST[num]
+            button.setProperty('ini_mdi_key', '')
+            button.setProperty('ini_mdi_number', num)
+            print('number',num,button.ini_mdi_num)
+        button.setProperty('ini_mdi_command_action', True)
+
+        button.pressed.emit()
+        button.setProperty('ini_mdi_command_action', False)
+
+    # show/hide a popup window panel (if defined in the INI)
+    def togglePopup(self):
+        if self.w['popup'].isVisible():
+            self.w['popup']._lastgeometry = self.w['popup'].geometry()
+            self.w['popup'].hide()
+        else:
+            self.w['popup'].show()
+            if not self.w['popup']._lastgeometry is None:
+                self.w['popup'].setGeometry(self.w['popup']._lastgeometry)
+
+
+    def onClosePopup(self, *args):
+        self.w['popup']._lastgeometry = self.w['popup'].geometry()
 
     #####################
     # KEY BINDING CALLS #

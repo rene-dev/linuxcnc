@@ -19,7 +19,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "rs274ngc.hh"
-#include "interp_return.hh"
+#include "nml_intf/interp_return.hh"
 #include "interp_internal.hh"
 #include "rs274ngc_interp.hh"
 
@@ -108,9 +108,10 @@ int Interp::write_g_codes(block_pointer block,   //!< pointer to a block of RS27
      7) ? (530 + (10 * settings->origin_index)) : (584 +
                                                    settings->origin_index);
   settings->active_g_codes[9] =
-    (settings->tool_offset.tran.x || settings->tool_offset.tran.y || settings->tool_offset.tran.z ||
-     settings->tool_offset.a || settings->tool_offset.b || settings->tool_offset.c ||
-     settings->tool_offset.u || settings->tool_offset.v || settings->tool_offset.w) ? G_43 : G_49;
+    (settings->g43_with_zero_offset ||
+     settings->tool_offset.tran.x || settings->tool_offset.tran.y || settings->tool_offset.tran.z ||
+	 settings->tool_offset.a || settings->tool_offset.b || settings->tool_offset.c ||
+	 settings->tool_offset.u || settings->tool_offset.v || settings->tool_offset.w) ? G_43 : G_49;
   settings->active_g_codes[10] = (settings->retract_mode == RETRACT_MODE::OLD_Z) ? G_98 : G_99;
   // Three modes:  G_64, G_61, G_61_1 or CANON_CONTINUOUS/EXACT_PATH/EXACT_STOP
   settings->active_g_codes[11] =
@@ -225,7 +226,7 @@ int Interp::write_state_tag(block_pointer block,
     bool in_sub = (settings->call_level > 0 && settings->remap_level == 0);
     bool external_sub = strcmp(settings->filename,
 			       settings->sub_context[0].filename);
-    strncpy(state.filename, settings->filename, sizeof(state.filename));
+    rtapi_strxcpy(state.filename, settings->filename);
     state.filename[sizeof(state.filename)-1] = 0;
 
     state.flags[GM_FLAG_IN_REMAP] = in_remap;
@@ -279,7 +280,8 @@ int Interp::write_state_tag(block_pointer block,
     state.flags[GM_FLAG_G92_IS_APPLIED] = settings->parameters[5210];
 
     state.flags[GM_FLAG_TOOL_OFFSETS_ON] =
-	(settings->tool_offset.tran.x ||
+    (settings->g43_with_zero_offset ||
+     settings->tool_offset.tran.x ||
 	 settings->tool_offset.tran.y ||
 	 settings->tool_offset.tran.z ||
 	 settings->tool_offset.a ||
@@ -331,6 +333,27 @@ int Interp::write_state_tag(block_pointer block,
 
     state.fields_float[GM_FIELD_FLOAT_FEED] = settings->feed_rate;
     state.fields_float[GM_FIELD_FLOAT_SPEED] = settings->speed[0];
+
+    // Pack new geometric data. block is NULL on the M70 save path
+    // (save_settings() in interp_convert.cc), so guard against null deref.
+    if(nullptr != block){
+        state.fields_float[GM_FIELD_FLOAT_STRAIGHT_HEADING] = block->arc_heading;
+        state.fields_float[GM_FIELD_FLOAT_ARC_RADIUS]       = block->arc_radius;
+        state.fields_float[GM_FIELD_FLOAT_ARC_CENTER_X]     = block->arc_center_x;
+        state.fields_float[GM_FIELD_FLOAT_ARC_CENTER_Y]     = block->arc_center_y;
+        state.fields_float[GM_FIELD_FLOAT_ARC_CENTER_Z]     = block->arc_center_z;
+        state.fields_float[GM_FIELD_FLOAT_NORMAL_HEADING]   = block->normal_heading;
+        state.flags[GM_FLAG_IS_CIRCLE]                      = block->iscircle;
+    }
+    else{
+        state.fields_float[GM_FIELD_FLOAT_STRAIGHT_HEADING] = 0.0;
+        state.fields_float[GM_FIELD_FLOAT_ARC_RADIUS]       = 0.0;
+        state.fields_float[GM_FIELD_FLOAT_ARC_CENTER_X]     = 0.0;
+        state.fields_float[GM_FIELD_FLOAT_ARC_CENTER_Y]     = 0.0;
+        state.fields_float[GM_FIELD_FLOAT_ARC_CENTER_Z]     = 0.0;
+        state.fields_float[GM_FIELD_FLOAT_NORMAL_HEADING]   = 0.0;
+        state.flags[GM_FLAG_IS_CIRCLE]                      = false;
+    }
 
     return 0;
 }

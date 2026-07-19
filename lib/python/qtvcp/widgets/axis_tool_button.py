@@ -16,9 +16,9 @@
 
 import hal
 
-from PyQt5.QtWidgets import QToolButton, QMenu, QAction
-from PyQt5.QtCore import pyqtProperty
-from PyQt5.QtGui import QIcon
+from qtpy.QtWidgets import QToolButton, QMenu, QAction
+from qtpy.QtCore import Property
+from qtpy.QtGui import QIcon
 
 from qtvcp.widgets.widget_baseclass import _HalWidgetBase
 from qtvcp.widgets.indicatorMixIn import IndicatedMixIn
@@ -251,6 +251,8 @@ class AxisToolButton(QToolButton, IndicatedMixIn):
                 self.hal_pin_axis.set(False)
 
     def ChangeState(self, joint = None, axis = None):
+        #print(self.objectName(),'change',joint,axis,self._axis)
+        # joint mode
         if STATUS.is_joint_mode():
             if int(joint) != self._joint:
                 self._block_signal = True
@@ -258,28 +260,36 @@ class AxisToolButton(QToolButton, IndicatedMixIn):
                 self._block_signal = False
                 if self._halpin_option and self._joint != -1:
                     self.hal_pin_joint.set(False)
+            else:
+                self._block_signal = True
+                self.setChecked(True)
+                self._block_signal = False
+                if self._halpin_option and self._axis != '':
+                    self.hal_pin_joint.set(True)
+        # axis mode
         else:
-            if str(axis) != self._axis:
+            if str(axis) != self._axis and self.isChecked():
                 self._block_signal = True
                 self.setChecked(False)
                 self._block_signal = False
                 if self._halpin_option and self._axis != '':
                     self.hal_pin_joint.set(False)
+            elif str(axis) == self._axis and not self.isChecked():
+                self._block_signal = True
+                self.setChecked(True)
+                self._block_signal = False
+                if self._halpin_option and self._axis != '':
+                    self.hal_pin_joint.set(True)
 
     def modeChanged(self, mode):
         self.selectJoint()
-        return
-        if mode == STATUS.linuxcnc.TRAJ_MODE_FREE:
-            ACTION.SET_SELECTED_JOINT(self._joint)
-        else:
-            ACTION.SET_SELECTED_AXIS(self._axis)
 
     def _switch_units(self, widget, data):
         self.display_units_mm = data
 
     #########################################################################
     # This is how designer can interact with our widget properties.
-    # designer will show the pyqtProperty properties in the editor
+    # designer will show the Property properties in the editor
     # it will use the get set and reset calls to do those actions
     #
     ########################################################################
@@ -292,7 +302,7 @@ class AxisToolButton(QToolButton, IndicatedMixIn):
         return self._joint
     def reset_joint(self):
         self._joint = -1
-    joint_number = pyqtProperty(int, get_joint, set_joint, reset_joint)
+    joint_number = Property(int, get_joint, set_joint, reset_joint)
 
     def set_axis(self, data):
         if data.upper() in('X','Y','Z','A','B','C','U','V','W'):
@@ -301,11 +311,14 @@ class AxisToolButton(QToolButton, IndicatedMixIn):
             self.goToG53Button.setText(text)
             text = 'Go To G5x Origin in {}'.format(self._axis)
             self.goToG5xButton.setText(text)
+        else:
+             self._axis = str('')
+
     def get_axis(self):
         return self._axis
     def reset_axis(self):
         self._axis = 'X'
-    axis_letter = pyqtProperty(str, get_axis, set_axis, reset_axis)
+    axis_letter = Property(str, get_axis, set_axis, reset_axis)
 
     def set_halpin_option(self, value):
         self._halpin_option = value
@@ -313,7 +326,7 @@ class AxisToolButton(QToolButton, IndicatedMixIn):
         return self._halpin_option
     def reset_halpin_option(self):
         self._halpin_option = True
-    halpin_option = pyqtProperty(bool, get_halpin_option, set_halpin_option, reset_halpin_option)
+    halpin_option = Property(bool, get_halpin_option, set_halpin_option, reset_halpin_option)
 
     def set_dialog_code(self, data):
         self.dialog_code = data
@@ -321,7 +334,7 @@ class AxisToolButton(QToolButton, IndicatedMixIn):
         return self.dialog_code
     def reset_dialog_code(self):
         self.dialog_code = 'ENTRY'
-    dialog_code_string = pyqtProperty(str, get_dialog_code, set_dialog_code, reset_dialog_code)
+    dialog_code_string = Property(str, get_dialog_code, set_dialog_code, reset_dialog_code)
 
     ####################
     ## menu properties
@@ -334,7 +347,7 @@ class AxisToolButton(QToolButton, IndicatedMixIn):
         return self._showSet
     def reset_showSet(self):
         self._showSet = True
-    showSetOrigin = pyqtProperty(bool, get_showSet, set_showSet, reset_showSet)
+    showSetOrigin = Property(bool, get_showSet, set_showSet, reset_showSet)
 
     def set_showZero(self, data):
         self._showZero = data
@@ -343,7 +356,7 @@ class AxisToolButton(QToolButton, IndicatedMixIn):
         return self._showZero
     def reset_showZero(self):
         self._showZero = True
-    showZeroOrigin = pyqtProperty(bool, get_showZero, set_showZero, reset_showZero)
+    showZeroOrigin = Property(bool, get_showZero, set_showZero, reset_showZero)
 
     def set_showGoto(self, data):
         self._showGoto = data
@@ -353,7 +366,7 @@ class AxisToolButton(QToolButton, IndicatedMixIn):
         return self._showGoto
     def reset_showGoto(self):
         self._showGoto = False
-    showGotoOrigin = pyqtProperty(bool, get_showGoto, set_showGoto, reset_showGoto)
+    showGotoOrigin = Property(bool, get_showGoto, set_showGoto, reset_showGoto)
 
     def set_showLast(self, data):
         self._showLast = data
@@ -362,7 +375,7 @@ class AxisToolButton(QToolButton, IndicatedMixIn):
         return self._showLast
     def reset_showLast(self):
         self._showLast = True
-    showLast = pyqtProperty(bool, get_showLast, set_showLast, reset_showLast)
+    showLast = Property(bool, get_showLast, set_showLast, reset_showLast)
 
     def set_showDivide(self, data):
         self._showDivide = data
@@ -371,7 +384,7 @@ class AxisToolButton(QToolButton, IndicatedMixIn):
         return self._showDivide
     def reset_showDivide(self):
         self._showDivide = True
-    showDivide = pyqtProperty(bool, get_showDivide, set_showDivide, reset_showDivide)
+    showDivide = Property(bool, get_showDivide, set_showDivide, reset_showDivide)
 
     def __getitem__(self, item):
         return getattr(self, item)
@@ -381,11 +394,11 @@ class AxisToolButton(QToolButton, IndicatedMixIn):
 # for testing without editor:
 def main():
     import sys
-    from PyQt5.QtWidgets import QApplication
+    from qtpy.QtWidgets import QApplication
     app = QApplication(sys.argv)
     widget = AxisToolButton()
     widget.show()
 
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 if __name__ == "__main__":
     main()

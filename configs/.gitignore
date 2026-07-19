@@ -13,3 +13,6 @@ position*.txt
 *.ini.expanded
 hallib
 *_cmds.hal
+*.pref
+mdi-history.dat
+resources.py

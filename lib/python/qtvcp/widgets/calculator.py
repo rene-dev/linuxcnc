@@ -2,13 +2,13 @@
 import math
 import sys
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QApplication, QGridLayout, QLayout, QLineEdit,
+from qtpy.QtCore import Qt
+from qtpy.QtWidgets import (QApplication, QGridLayout, QLayout, QLineEdit,
         QSizePolicy, QPushButton, QDialog, QDialogButtonBox, QMenu, QAction,
         QVBoxLayout, QToolButton, QLabel)
-from PyQt5.QtGui import QDoubleValidator
-from PyQt5.QtGui import QIcon
-from PyQt5 import QtCore
+from qtpy.QtGui import QDoubleValidator
+from qtpy.QtGui import QIcon
+from qtpy import QtCore
 from qtvcp.core import Status, Info
 STATUS = Status()
 INFO = Info()
@@ -18,10 +18,10 @@ INFO = Info()
 
 
 class CalculatorLineEdit(QLineEdit):
-    operatorKeyPressed = QtCore.pyqtSignal(str)
-    digitKeyPressed = QtCore.pyqtSignal(str)
-    fieldKeyPressed = QtCore.pyqtSignal(str)
-    cancelKeyPressed = QtCore.pyqtSignal()
+    operatorKeyPressed = QtCore.Signal(str)
+    digitKeyPressed = QtCore.Signal(str)
+    fieldKeyPressed = QtCore.Signal(str)
+    cancelKeyPressed = QtCore.Signal()
 
     def __init__(self, parent=None):
         super(CalculatorLineEdit, self).__init__(parent)
@@ -628,6 +628,29 @@ class Calculator(QDialog):
     def applyAction(self):
         pass
 
+    # wait but don't block
+    # return a display value and ok/cancel
+    def getValue(self, title=None):
+        self.setWindowTitle(title)
+        self.show()
+        self.applyNextButton.setVisible(False)
+        self.nextButton.setVisible(False)
+        self.backButton.setVisible(False)
+        self._flag = True
+        while self._flag:
+            QApplication.processEvents()
+        return (self.display.text(), self._result)
+
+    def accept(self):
+        super(Calculator, self).accept()
+        self._result = True
+        self._flag = False
+
+    def reject(self):
+        super(Calculator, self).reject()
+        self._result = False
+        self._flag = False
+
 if __name__ == '__main__':
 
     import sys
@@ -635,4 +658,4 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     calc = Calculator()
     calc.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

@@ -43,19 +43,18 @@
 #include <getopt.h>
 #include <string.h>
 
-#include "emc/linuxcnc.h"
-#include "rcs.hh"
-#include "posemath.h"		// PM_POSE, TO_RAD
-#include "emc.hh"		// EMC NML
-#include "canon.hh"		// CANON_UNITS, CANON_UNITS_INCHES,MM,CM
-#include "emcglb.h"		// EMC_NMLFILE, TRAJ_MAX_VELOCITY, etc.
-#include "emccfg.h"		// DEFAULT_TRAJ_MAX_VELOCITY
-#include "inifile.hh"		// INIFILE
+#include <rtapi_string.h>
+#include <linuxcnc.h>
+#include <posemath.h>		// PM_POSE, TO_RAD
+#include "libnml/rcs/rcs.hh"
+#include "nml_intf/emc.hh"		// EMC NML
+#include "nml_intf/canon.hh"		// CANON_UNITS, CANON_UNITS_INCHES,MM,CM
+#include "nml_intf/emcglb.h"		// EMC_NMLFILE, TRAJ_MAX_VELOCITY, etc.
+#include "nml_intf/emccfg.h"		// DEFAULT_TRAJ_MAX_VELOCITY
 #include "config.h"		// Standard path definitions
-#include "rcs_print.hh"
+#include "libnml/rcs/rcs_print.hh"
 #include "sockets.h"		// TCP/IP common socket functions
 #include "shcom.hh"		// Common NML messaging routines
-#include <rtapi_string.h>
 
 #define DEFAULT_SERVER		"localhost"
 #define DEFAULT_PORT            13666
@@ -293,7 +292,7 @@ struct option longopts[] = {
   {"autostart", 1, NULL, 'a'},
   {"server", 1, NULL, 's'},
   {"delay", 1, NULL, 'w'},
-  {0,0,0,0}
+  {NULL,0,NULL,0}
   };
 
 int sockfd = -1;
@@ -1605,27 +1604,27 @@ static void thisQuit()
 
     deleteScreens();
 
-    if (emcStatusBuffer != 0) {
+    if (emcStatusBuffer != NULL) {
 	// wait until current message has been received
 	emcCommandWaitReceived();
     }
 
     // clean up NML buffers
 
-    if (emcErrorBuffer != 0) {
+    if (emcErrorBuffer != NULL) {
 	delete emcErrorBuffer;
-	emcErrorBuffer = 0;
+	emcErrorBuffer = NULL;
     }
 
-    if (emcStatusBuffer != 0) {
+    if (emcStatusBuffer != NULL) {
 	delete emcStatusBuffer;
-	emcStatusBuffer = 0;
-	emcStatus = 0;
+	emcStatusBuffer = NULL;
+	emcStatus = NULL;
     }
 
-    if (emcCommandBuffer != 0) {
+    if (emcCommandBuffer != NULL) {
 	delete emcCommandBuffer;
-	emcCommandBuffer = 0;
+	emcCommandBuffer = NULL;
     }
 
     exit(0);
@@ -1682,14 +1681,14 @@ static void initMain()
     linearUnitConversion = LINEAR_UNITS_INCH;
     units = unInch; 
     angularUnitConversion = ANGULAR_UNITS_AUTO;
-    emcCommandBuffer = 0;
-    emcStatusBuffer = 0;
-    emcStatus = 0;
+    emcCommandBuffer = NULL;
+    emcStatusBuffer = NULL;
+    emcStatus = NULL;
 
-    emcErrorBuffer = 0;
-    error_string[LINELEN-1] = 0;
-    operator_text_string[LINELEN-1] = 0;
-    operator_display_string[LINELEN-1] = 0;
+    emcErrorBuffer = NULL;
+    error_string.clear();
+    operator_text_string.clear();
+    operator_display_string.clear();
     programStartLine = 0;
 }
 

@@ -24,8 +24,8 @@ import sys
 import os
 import gcode
 import linuxcnc
-from PyQt5.QtCore import pyqtProperty, QTimer, Qt
-from PyQt5.QtGui import QColor
+from qtpy.QtCore import Property, QTimer, Qt
+from qtpy.QtGui import QColor
 
 from qt5_graphics import Lcnc_3dGraphics
 from qtvcp.widgets.widget_baseclass import _HalWidgetBase
@@ -119,6 +119,8 @@ class  GCodeGraphics(Lcnc_3dGraphics, _HalWidgetBase):
 
     # when qtvcp closes, this gets called
     def _hal_cleanup(self):
+        self.timer.stop()
+        self.logger.stop()
         if self.PREFS_:
             v,z,x,y,lat,lon = self.getRecordedViewSettings()
             LOG.debug('Saving {} data to file.'.format(self.HAL_NAME_))
@@ -396,14 +398,14 @@ class  GCodeGraphics(Lcnc_3dGraphics, _HalWidgetBase):
         return self.current_view
     def resetview(self):
         self.set_view('p')
-    _view = pyqtProperty(str, getview, setview, resetview)
+    _view = Property(str, getview, setview, resetview)
 
     # DRO
     def setdro(self, state):
         self.setEnableDRO(state)
     def getdro(self):
         return self.getEnableDRO()
-    _dro = pyqtProperty(bool, getdro, setdro)
+    _dro = Property(bool, getdro, setdro)
 
     # DTG
     def setdtg(self, state):
@@ -411,7 +413,7 @@ class  GCodeGraphics(Lcnc_3dGraphics, _HalWidgetBase):
         self.update()
     def getdtg(self):
         return self.show_dtg
-    _dtg = pyqtProperty(bool, getdtg, setdtg)
+    _dtg = Property(bool, getdtg, setdtg)
 
     # METRIC
     def setmetric(self, state):
@@ -419,7 +421,7 @@ class  GCodeGraphics(Lcnc_3dGraphics, _HalWidgetBase):
         self.update()
     def getmetric(self):
         return self.metric_units
-    _metric = pyqtProperty(bool, getmetric, setmetric)
+    _metric = Property(bool, getmetric, setmetric)
 
     # overlay
     def setoverlay(self, overlay):
@@ -429,7 +431,7 @@ class  GCodeGraphics(Lcnc_3dGraphics, _HalWidgetBase):
         return self.show_overlay
     def resetoverlay(self):
         self.show_overlay(False)
-    _overlay = pyqtProperty(bool, getoverlay, setoverlay, resetoverlay)
+    _overlay = Property(bool, getoverlay, setoverlay, resetoverlay)
 
     # show Offsets
     def setShowOffsets(self, state):
@@ -437,7 +439,7 @@ class  GCodeGraphics(Lcnc_3dGraphics, _HalWidgetBase):
         self.update()
     def getShowOffsets(self):
         return self.show_offsets
-    _offsets = pyqtProperty(bool, getShowOffsets, setShowOffsets)
+    _offsets = Property(bool, getShowOffsets, setShowOffsets)
 
     # show small origin
     def setShowSmallOrigin(self, state):
@@ -445,7 +447,7 @@ class  GCodeGraphics(Lcnc_3dGraphics, _HalWidgetBase):
         self.update()
     def getShowSmallOrigin(self):
         return self.show_small_origin
-    _small_origin = pyqtProperty(bool, getShowSmallOrigin, setShowSmallOrigin)
+    _small_origin = Property(bool, getShowSmallOrigin, setShowSmallOrigin)
 
     def getGridColor(self):
         return self._gridColor
@@ -455,7 +457,7 @@ class  GCodeGraphics(Lcnc_3dGraphics, _HalWidgetBase):
         self.update()
     def resetGridColor(self):
         self._gridColor = QColor(200, 138, 138)
-    grid_color = pyqtProperty(QColor, getGridColor, setGridColor, resetGridColor)
+    grid_color = Property(QColor, getGridColor, setGridColor, resetGridColor)
 
     def getOverlayColor(self):
         return self._overlayColor
@@ -465,7 +467,7 @@ class  GCodeGraphics(Lcnc_3dGraphics, _HalWidgetBase):
         self.update()
     def resetOverlayColor(self):
         self._overlayColor = QColor(0, 0, 191, 150)
-    overlay_color = pyqtProperty(QColor, getOverlayColor, setOverlayColor, resetOverlayColor)
+    overlay_color = Property(QColor, getOverlayColor, setOverlayColor, resetOverlayColor)
 
     def getOverlayAlpha(self):
         return self._overlayAlpha
@@ -475,7 +477,7 @@ class  GCodeGraphics(Lcnc_3dGraphics, _HalWidgetBase):
         self.update()
     def resetOverlayAlpha(self):
         self._overlayAlpha = 0.75
-    overlay_alpha = pyqtProperty(float, getOverlayAlpha, setOverlayAlpha, resetOverlayAlpha)
+    overlay_alpha = Property(float, getOverlayAlpha, setOverlayAlpha, resetOverlayAlpha)
 
     def getBackgroundColor(self):
         return self._backgroundColor
@@ -492,7 +494,7 @@ class  GCodeGraphics(Lcnc_3dGraphics, _HalWidgetBase):
         self.gradient_color1 = (value.redF(), value.greenF(), value.blueF())
         self.colors['back'] = (value.redF(), value.greenF(), value.blueF())
         self.update()
-    background_color = pyqtProperty(QColor, getBackgroundColor, setBackgroundColor, resetBackgroundColor)
+    background_color = Property(QColor, getBackgroundColor, setBackgroundColor, resetBackgroundColor)
 
     # use gradient background
     def setGradientBackground(self, state):
@@ -500,7 +502,7 @@ class  GCodeGraphics(Lcnc_3dGraphics, _HalWidgetBase):
         self.update()
     def getGradientBackground(self):
         return self.use_gradient_background
-    _use_gradient_background = pyqtProperty(bool, getGradientBackground, setGradientBackground)
+    _use_gradient_background = Property(bool, getGradientBackground, setGradientBackground)
 
     def getJogColor(self):
         return self._jogColor
@@ -514,7 +516,7 @@ class  GCodeGraphics(Lcnc_3dGraphics, _HalWidgetBase):
     def resetJogColor(self):
         self._jogColor = QColor(0, 0, 0, 0)
 
-    jog_color = pyqtProperty(QColor, getJogColor, setJogColor, resetJogColor)
+    jog_color = Property(QColor, getJogColor, setJogColor, resetJogColor)
 
     def getFeedColor(self):
         return self._feedColor
@@ -529,7 +531,7 @@ class  GCodeGraphics(Lcnc_3dGraphics, _HalWidgetBase):
     def resetFeedColor(self):
         self._feedColor = QColor(0, 0, 0, 0)
 
-    Feed_color = pyqtProperty(QColor, getFeedColor, setFeedColor, resetFeedColor)
+    Feed_color = Property(QColor, getFeedColor, setFeedColor, resetFeedColor)
 
     def getRapidColor(self):
         return self._rapidColor
@@ -543,7 +545,7 @@ class  GCodeGraphics(Lcnc_3dGraphics, _HalWidgetBase):
     def resetRapidColor(self):
         self._rapidColor = QColor(0, 0, 0, 0)
 
-    Rapid_color = pyqtProperty(QColor, getRapidColor, setRapidColor, resetRapidColor)
+    Rapid_color = Property(QColor, getRapidColor, setRapidColor, resetRapidColor)
 
     # Inhibit external controls
     def setInhibitControls(self, state):
@@ -554,7 +556,7 @@ class  GCodeGraphics(Lcnc_3dGraphics, _HalWidgetBase):
     def resetInhibitControls(self):
         self._disable_STATUS_signals = False
         self.updateSignals(False)
-    InhibitControls = pyqtProperty(bool, getInhibitControls, setInhibitControls,resetInhibitControls)
+    InhibitControls = Property(bool, getInhibitControls, setInhibitControls,resetInhibitControls)
 
     # set Mouse button controls
     def setMouseButtonMode(self, value):
@@ -565,7 +567,7 @@ class  GCodeGraphics(Lcnc_3dGraphics, _HalWidgetBase):
     def resetMouseButtonMode(self):
         self._mouseMode = 0
         self.updateMouseMode(0)
-    MouseButtonMode = pyqtProperty(int, getMouseButtonMode, setMouseButtonMode,resetMouseButtonMode)
+    MouseButtonMode = Property(int, getMouseButtonMode, setMouseButtonMode,resetMouseButtonMode)
 
     # set mouse wheel zoom inversion
     def setMouseWheelInvertZoom(self, state):
@@ -574,7 +576,7 @@ class  GCodeGraphics(Lcnc_3dGraphics, _HalWidgetBase):
         return self._invertWheelZoom
     def resetMouseWheelInvertZoom(self):
         self._invertWheelZoom = False
-    MouseWheelInvertZoom = pyqtProperty(bool, getMouseWheelInvertZoom, setMouseWheelInvertZoom, resetMouseWheelInvertZoom)
+    MouseWheelInvertZoom = Property(bool, getMouseWheelInvertZoom, setMouseWheelInvertZoom, resetMouseWheelInvertZoom)
 
 # For testing purposes, include code to allow a widget to be created and shown
 # if this file is run.
@@ -582,12 +584,12 @@ class  GCodeGraphics(Lcnc_3dGraphics, _HalWidgetBase):
 if __name__ == "__main__":
 
     import sys
-    from PyQt5.QtWidgets import QApplication
+    from qtpy.QtWidgets import QApplication
 
     app = QApplication(sys.argv)
     widget =  GCodeGraphics()
     widget.use_gradient_background = True
     widget.enable_dro = True
     widget.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 

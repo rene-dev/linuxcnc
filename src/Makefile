@@ -57,7 +57,7 @@ endif
 ifeq ($(MAKECMDGOALS),)
 TRIVIAL_BUILD=no
 else
-ifeq ($(filter-out docclean clean setuid install tags swish,$(MAKECMDGOALS)),)
+ifeq ($(filter-out docclean clean setuid setcap install tags swish,$(MAKECMDGOALS)),)
 TRIVIAL_BUILD=yes
 else
 TRIVIAL_BUILD=no
@@ -135,12 +135,18 @@ cxx-option = $(shell if $(CXX) $(CXXFLAGS) $(1) -S -o /dev/null -xc++ /dev/null 
 ifeq ($(origin KERNELRELEASE),undefined)
 # When KERNELRELEASE is not defined, this is the userspace build.
 # The "modules" target is the gateway to the kernel module build.
-build-software: userspace modules
+build-software: headers userspace modules
 ifeq ($(RUN_IN_PLACE),yes)
 ifneq ($(BUILD_SYS),uspace)
 	@if [ -f ../bin/linuxcnc_module_helper ]; then if ! [ `id -u` = 0 -a -O ../bin/linuxcnc_module_helper -a -u ../bin/linuxcnc_module_helper ]; then $(VECHO) "You now need to run 'sudo make setuid' in order to run in place."; fi; fi
 else
-	@if [ -f ../bin/rtapi_app ]; then if ! [ `id -u` = 0 -a -O  ../bin/rtapi_app -a -u ../bin/rtapi_app ]; then $(VECHO) "You now need to run 'sudo make setuid' in order to run in place with access to hardware."; fi; fi
+	@if [ -f ../bin/rtapi_app ]; then \
+	    if [ `id -u` = 0 -a -O ../bin/rtapi_app -a -u ../bin/rtapi_app ]; then :; \
+	    elif PATH="/sbin:/usr/sbin:$$PATH" command -v getcap >/dev/null 2>&1 \
+	         && [ -n "`PATH=/sbin:/usr/sbin:$$PATH getcap ../bin/rtapi_app 2>/dev/null`" ]; then :; \
+	    else $(VECHO) "You now need to run 'sudo make setuid' or 'sudo make setcap' in order to run in place with access to hardware."; \
+	    fi; \
+	fi
 endif
 endif
 
@@ -164,7 +170,7 @@ GENERATED_MANPAGES :=
 
 # Submakefiles from each of these directories will be included if they exist
 SUBDIRS := \
-    libnml/linklist libnml/cms libnml/rcs libnml/inifile libnml/os_intf \
+    libnml/linklist libnml/cms libnml/rcs libnml/os_intf \
     libnml/nml libnml/buffer libnml/posemath libnml \
     \
     rtapi/examples/timer rtapi/examples/semaphore rtapi/examples/shmem \
@@ -213,9 +219,9 @@ PROGRAMS :=
 # file names, but this is what allows 'make src.i' to produce proper
 # preprocessed source when src.c needs a customized compile flag.
 # See Submakefile.skel for an example.
-TOOBJS = $(patsubst %.cc,objects/%.o,$(patsubst %.c,objects/%.o,$(1)))
-TODEPS = $(patsubst %.cc,objects/%.d,$(patsubst %.c,objects/%.d,$(1)))
-TOOBJSDEPS = $(call TOOBJS,$(1)) $(call TODEPS, $(1)) $(patsubst %.cc,%.ii,$(patsubst %.c,%.i,$(1)))
+TOOBJS = $(patsubst %.cpp,objects/%.o,$(patsubst %.cc,objects/%.o,$(patsubst %.c,objects/%.o,$(1))))
+TODEPS = $(patsubst %.cpp,objects/%.d,$(patsubst %.cc,objects/%.d,$(patsubst %.c,objects/%.d,$(1))))
+TOOBJSDEPS = $(call TOOBJS,$(1)) $(call TODEPS, $(1)) $(patsubst %.cpp,%.ii,$(patsubst %.cc,%.ii,$(patsubst %.c,%.i,$(1))))
 
 SUBMAKEFILES := $(patsubst %,%/Submakefile,$(SUBDIRS))
 -include $(wildcard $(SUBMAKEFILES))
@@ -223,14 +229,14 @@ SUBMAKEFILES := $(patsubst %,%/Submakefile,$(SUBDIRS))
 # This checks that all the things listed in USERSRCS are either C files
 # or C++ files
 ASSERT_EMPTY = $(if $(1), $(error "Should be empty but is not: $(1)"))
-$(call ASSERT_EMPTY,$(filter-out %.c %.cc, $(USERSRCS)))
+$(call ASSERT_EMPTY,$(filter-out %.c %.cc %.cpp, $(USERSRCS)))
 
 $(call TOOBJS,$(PYSRCS)) : EXTRAFLAGS += -fPIC -fno-strict-aliasing
 USERSRCS += $(PYSRCS)
 
 # Find the list of object files for each type of source file
 CUSERSRCS := $(filter %.c,$(USERSRCS))
-CXXUSERSRCS := $(filter %.cc,$(USERSRCS))
+CXXUSERSRCS := $(filter %.cc %.cpp,$(USERSRCS))
 CUSEROBJS := $(call TOOBJS,$(CUSERSRCS))
 CXXUSEROBJS += $(call TOOBJS,$(CXXUSERSRCS))
 
@@ -245,7 +251,7 @@ $(shell $(VECHO) 1>&2 Done reading dependencies)
 endif
 
 # Each directory in $(INCLUDES) is passed as a -I directory when compiling.
-INCLUDE := $(patsubst %,-I%, $(INCLUDES)) -I$(RTDIR)/include
+INCLUDE := $(patsubst %,-I%, $(INCLUDES)) -I$(RTDIR)/include -I../include
 INCLUDE += $(PYTHON_CPPFLAGS)
 INCLUDE += $(LIBTIRPC_CFLAGS)
 
@@ -279,7 +285,25 @@ $(sort $(CUSEROBJS)) : objects/%.o: %.c
 		-MP -MD -MF "${@:.o=.d}" -MT "$@" \
 		$< -o $@
 
-$(sort $(CXXUSEROBJS)) : objects/%.o: %.cc
+# Cruckig (pure C) source files — compiled as C, no C++ needed
+# Headers are local ("" includes relative to cruckig/), no -I needed
+objects/emc/tp/cruckig/%.o : emc/tp/cruckig/%.c
+	$(ECHO) Compiling $<
+	@mkdir -p $(dir $@)
+	@rm -f $@
+	$(Q)$(CC) -c $(CFLAGS) $(EXTRAFLAGS) \
+		-MP -MD -MF "${@:.o=.d}" -MT "$@" \
+		$< -o $@
+
+$(sort $(patsubst %.cpp,objects/%.o,$(filter %.cpp,$(CXXUSERSRCS)))) : objects/%.o: %.cpp
+	$(ECHO) Compiling $<
+	@mkdir -p $(dir $@)
+	@rm -f $@
+	$(Q)$(CXX) -c $(CXXFLAGS) $(EXTRAFLAGS) \
+		-MP -MD -MF "${@:.o=.d}" -MT "$@" \
+		$< -o $@
+
+$(sort $(patsubst %.cc,objects/%.o,$(filter %.cc,$(CXXUSERSRCS)))) : objects/%.o: %.cc
 	$(ECHO) Compiling $<
 	@mkdir -p $(dir $@)
 	@rm -f $@
@@ -292,7 +316,19 @@ $(sort $(patsubst %.c,%.i,$(CUSERSRCS))): %.i: %.c
 	$(ECHO) Preprocessing $< to $@
 	$(Q)$(CC) -dD $(CFLAGS) $(EXTRAFLAGS) -E $< -o $@
 
-$(sort $(patsubst %.cc,%.ii,$(CXXUSERSRCS))): %.ii: %.cc
+$(sort $(patsubst %.cc,%.ii,$(filter %.cc,$(RUCKIG_CXX_FILES)))): %.ii: %.cc
+	$(ECHO) Preprocessing $< to $@
+	$(Q)$(CXX) -dD $(CXXFLAGS) $(EXTRAFLAGS) -std=c++20 -E $< -o $@
+
+$(sort $(patsubst %.cpp,%.ii,$(filter %.cpp,$(RUCKIG_CXX_FILES)))): %.ii: %.cpp
+	$(ECHO) Preprocessing $< to $@
+	$(Q)$(CXX) -dD $(CXXFLAGS) $(EXTRAFLAGS) -std=c++20 -E $< -o $@
+
+$(sort $(patsubst %.cc,%.ii,$(filter %.cc,$(NON_RUCKIG_CXX_FILES)))): %.ii: %.cc
+	$(ECHO) Preprocessing $< to $@
+	$(Q)$(CXX) -dD $(CXXFLAGS) $(EXTRAFLAGS) -E $< -o $@
+
+$(sort $(patsubst %.cpp,%.ii,$(filter %.cpp,$(NON_RUCKIG_CXX_FILES)))): %.ii: %.cpp
 	$(ECHO) Preprocessing $< to $@
 	$(Q)$(CXX) -dD $(CXXFLAGS) $(EXTRAFLAGS) -E $< -o $@
 
@@ -321,6 +357,7 @@ INFILES = \
 	../tcl/linuxcnc.tcl ../scripts/halrun ../scripts/rip-environment \
 	../scripts/linuxcncmkdesktop \
 	../lib/python/nf.py \
+	../lib/python/lcnc_realtime.py \
 	../share/desktop-directories/linuxcnc-doc.directory \
 	../share/desktop-directories/linuxcnc-ref.directory \
 	../share/desktop-directories/linuxcnc-cnc.directory \
@@ -337,116 +374,48 @@ INFILES = \
 $(INFILES): %: %.in config.status
 	@./config.status --file=$@
 
-build-software: $(INFILES)
+build-software: headers $(INFILES)
 
 # For each file to be copied to ../include, its location in the source tree
-# is listed here.  Note that due to $(INCLUDE), defined above, the include
-# files in the source tree are the ones used when building linuxcnc.  The copy
-# in ../include is used when building external components of linuxcnc.
+# is listed here.
+# Note that due to $(INCLUDE), defined above, the include files in the source
+# tree are normally the ones used or not found at all when building linuxcnc if
+# you are not aware of the differences between "" and <> includes.
+#
+# All sources should #include <> (like in #include <rtapi.h>) for these special
+# headers in the ../include directory to ensure they are used.
+# The *only* exception is those sources that use the include and reside in the
+# /same/ source directory as the include. That means that the local version
+# should have precedence over the global one.
+#
+# If you add to these headers, then you must make absolutely sure that they are
+# required for out-of-tree components and that the proper #include type is
+# used.
+#
 SRCHEADERS := \
+    hal/hal.h \
+    hal/drivers/mesa-hostmot2/hostmot2-serial.h \
     emc/linuxcnc.h \
-    emc/ini/emcIniFile.hh \
-    emc/ini/iniaxis.hh \
-    emc/ini/inijoint.hh \
-    emc/ini/inispindle.hh \
-    emc/ini/initraj.hh \
-    emc/ini/inihal.hh \
-    emc/kinematics/cubic.h \
     emc/kinematics/kinematics.h \
-    emc/kinematics/switchkins.h \
-    emc/kinematics/genhexkins.h \
-    emc/kinematics/genserkins.h \
-    emc/kinematics/pentakins.h \
-    emc/kinematics/pumakins.h \
-    emc/tp/tc.h \
-    emc/tp/tc_types.h \
-    emc/tp/tcq.h \
-    emc/tp/tp.h \
-    emc/tp/tp_types.h \
-    emc/tp/spherical_arc.h \
-    emc/tp/blendmath.h \
     emc/motion/emcmotcfg.h \
-    emc/motion/motion.h \
-    emc/motion/homing.h \
-    emc/motion/simple_tp.h \
-    emc/motion/state_tag.h \
-    emc/motion/usrmotintf.h \
-    emc/motion/axis.h \
-    emc/nml_intf/canon.hh \
-    emc/nml_intf/canon_position.hh \
-    emc/nml_intf/emctool.h \
-    emc/nml_intf/emc.hh \
-    emc/nml_intf/emc_nml.hh \
-    emc/nml_intf/emccfg.h \
-    emc/nml_intf/emcglb.h \
+    emc/ini/inifile.hh \
+    emc/ini/inifile.h \
     emc/nml_intf/emcpos.h \
     emc/nml_intf/emcpose.h \
-    emc/nml_intf/interp_return.hh \
-    emc/nml_intf/interpl.hh \
     emc/nml_intf/motion_types.h \
-    emc/nml_intf/debugflags.h \
-    emc/rs274ngc/interp_internal.hh \
-    emc/rs274ngc/interp_fwd.hh \
-    emc/rs274ngc/interp_base.hh \
-    emc/rs274ngc/modal_state.hh \
-    emc/rs274ngc/rs274ngc.hh \
-    emc/rs274ngc/saicanon.hh \
-    emc/tooldata/tooldata.hh \
-    hal/hal.h \
-    hal/hal_parport.h \
-    hal/drivers/mesa-hostmot2/hostmot2-serial.h \
-    libnml/buffer/locmem.hh \
-    libnml/buffer/memsem.hh \
-    libnml/buffer/phantom.hh \
-    libnml/buffer/physmem.hh \
-    libnml/buffer/recvn.h \
-    libnml/buffer/rem_msg.hh \
-    libnml/buffer/sendn.h \
-    libnml/buffer/shmem.hh \
-    libnml/buffer/tcpmem.hh \
-    libnml/cms/cms.hh \
-    libnml/cms/cms_aup.hh \
-    libnml/cms/cms_cfg.hh \
-    libnml/cms/cms_dup.hh \
-    libnml/cms/cms_srv.hh \
-    libnml/cms/cms_up.hh \
-    libnml/cms/cms_user.hh \
-    libnml/cms/cms_xup.hh \
-    libnml/cms/cmsdiag.hh \
-    libnml/cms/tcp_opts.hh \
-    libnml/cms/tcp_srv.hh \
-    libnml/inifile/inifile.h \
-    libnml/inifile/inifile.hh \
-    libnml/linklist/linklist.hh \
-    libnml/nml/cmd_msg.hh \
-    libnml/nml/nml.hh \
-	libnml/nml/nml_oi.hh \
-    libnml/nml/nml_srv.hh \
-    libnml/nml/nml_type.hh \
-    libnml/nml/nmldiag.hh \
-    libnml/nml/nmlmsg.hh \
-    libnml/nml/stat_msg.hh \
-    libnml/os_intf/_sem.h \
-    libnml/os_intf/sem.hh \
-    libnml/os_intf/_shm.h \
-    libnml/os_intf/shm.hh \
-    libnml/os_intf/_timer.h \
-    libnml/os_intf/timer.hh \
-    libnml/posemath/posemath.h \
-    libnml/posemath/gotypes.h \
     libnml/posemath/gomath.h \
+    libnml/posemath/gotypes.h \
+    libnml/posemath/posemath.h \
     libnml/posemath/sincos.h \
-    libnml/rcs/rcs.hh \
-    libnml/rcs/rcs_exit.hh \
-    libnml/rcs/rcs_print.hh \
-    libnml/rcs/rcsversion.h \
     rtapi/rtapi.h \
     rtapi/rtapi_app.h \
     rtapi/rtapi_atomic.h \
     rtapi/rtapi_bitops.h \
     rtapi/rtapi_bool.h \
     rtapi/rtapi_byteorder.h \
+    rtapi/rtapi_ctype.h \
     rtapi/rtapi_device.h \
+    rtapi/rtapi_errno.h \
     rtapi/rtapi_firmware.h \
     rtapi/rtapi_gfp.h \
     rtapi/rtapi_io.h \
@@ -460,8 +429,6 @@ SRCHEADERS := \
     rtapi/rtapi_pci.h \
     rtapi/rtapi_slab.h \
     rtapi/rtapi_stdint.h \
-    rtapi/rtapi_ctype.h \
-    rtapi/rtapi_errno.h \
     rtapi/rtapi_string.h \
     rtapi/rtapi_vsnprintf.h
 
@@ -568,6 +535,7 @@ genclean:
 	find . -name '*.o' |xargs rm -f
 	-rm -rf objects
 	-rm -f $(TARGETS)
+	-rm -f ../lib/*.so.[0-9]*
 	-rm -f $(GENERATED_MANPAGES)
 	-rm -f ../rtlib/*.$(MODULE_EXT)
 	-rm -f hal/components/conv_*.comp
@@ -608,13 +576,32 @@ endif
 	chown root ../bin/linuxcnc_module_helper
 	chmod 4750 ../bin/linuxcnc_module_helper
 
+# File capabilities alternative to setuid (uspace only).
+# Grants rtapi_app the kernel privileges it needs without running as root:
+#   cap_ipc_lock   - mlock() for realtime memory
+#   cap_net_admin  - raw socket access for hm2_eth / iptables management
+#   cap_sys_rawio  - iopl() and /dev/mem for parallel port and PCI I/O
+#   cap_sys_nice   - SCHED_FIFO scheduling and CPU affinity
+# Linux capabilities are not inherited across exec(), so /sbin/iptables
+# launched from rtapi_app would run unprivileged.  rtapi_app raises
+# cap_net_admin into its ambient set at startup so it survives execve().
+# Clears any setuid bit left by a prior 'make setuid' so the two paths don't
+# silently stack.
+setcap:
+ifeq ($(BUILD_SYS),uspace)
+	chmod u-s ../bin/rtapi_app
+	setcap cap_ipc_lock,cap_net_admin,cap_sys_rawio,cap_sys_nice+ep ../bin/rtapi_app
+else
+	@echo "setcap target is only supported for uspace builds" >&2; exit 1
+endif
+
 # These rules allows a header file from this directory to be installed into
 # ../include.  A pair of rules like these will exist in the Submakefile
 # of each file that contains headers.
-$(patsubst %,../include/%,$(wildcard *.h)): ../include/%.h: %.h
-	$(Q)-cp $^ $@
-$(patsubst %,../include/%,$(wildcard *.hh)): ../include/%.hh: %.hh
-	$(Q)-cp $^ $@
+#$(patsubst %,../include/%,$(wildcard *.h)): ../include/%.h: %.h
+#	$(Q)-cp $^ $@
+#$(patsubst %,../include/%,$(wildcard *.hh)): ../include/%.hh: %.hh
+#	$(Q)-cp $^ $@
 
 INSTALL=install -o root
 DIR=$(INSTALL) -d -m 0755
@@ -651,7 +638,7 @@ else
 DOCS=README.adoc INSTALL.adoc AUTHORS
 
 # FIXME figure out how to install translated docs in subdirs
-DOCS_HELP=$(call GLOB,../docs/help/*.adoc)
+DOCS_HELP=$(call GLOB,../docs/src/help/*.adoc)
 
 NC_FILES=$(filter-out %/butterfly.ngc,$(call GLOB,../nc_files/*))
 TCL=$(call GLOB,../tcl/*.tcl)
@@ -694,9 +681,9 @@ install-dirs:
 		$(DESTDIR)$(datadir)/linuxcnc/hallib
 
 install-kernel-indep: install-dirs
-	$(FILE) ../docs/man/man1/*.1 $(DESTDIR)$(mandir)/man1
-	$(FILE) $(wildcard ../docs/man/man3/*.3) $(DESTDIR)$(mandir)/man3
-	$(FILE) $(wildcard ../docs/man/man9/*.9) $(DESTDIR)$(mandir)/man9
+	$(FILE) ../docs/build/man/man1/*.1 $(DESTDIR)$(mandir)/man1
+	$(FILE) $(wildcard ../docs/build/man/man3/*.3) $(DESTDIR)$(mandir)/man3
+	$(FILE) $(wildcard ../docs/build/man/man9/*.9) $(DESTDIR)$(mandir)/man9
 	$(FILE) objects/*.msg $(DESTDIR)$(tcldir)/msgs
 	$(EXE) ../scripts/realtime $(DESTDIR)$(prefix)/lib/linuxcnc
 	$(EXE) ../scripts/halrun $(DESTDIR)$(bindir)
@@ -728,8 +715,9 @@ install-kernel-indep: install-dirs
 	$(EXE) ../scripts/gladevcp_demo $(DESTDIR)$(bindir)
 	$(EXE) ../scripts/linuxcncmkdesktop $(DESTDIR)$(bindir)
 	$(EXE) ../bin/update_ini $(DESTDIR)$(bindir)
+	$(EXE) ../bin/linuxcnc_check_ini $(DESTDIR)$(bindir)
 	$(EXE) ../scripts/halreport $(DESTDIR)$(bindir)
-	$(FILE) $(filter ../lib/%.a ../lib/%.so.0,$(TARGETS)) $(DESTDIR)$(libdir)
+	$(FILE) $(filter ../lib/%.a ../lib/%.so.0 ../lib/%.so.1,$(TARGETS)) $(DESTDIR)$(libdir)
 	cp --no-dereference $(wildcard ../lib/*.so) $(DESTDIR)$(libdir)
 	-ldconfig $(DESTDIR)$(libdir)
 	$(FILE) ../lib/linuxcnc/canterp.so $(DESTDIR)$(libdir)/linuxcnc/
@@ -812,6 +800,7 @@ install-python: install-dirs
 	$(EXE) ../bin/pncconf $(DESTDIR)$(bindir)
 	$(EXE) ../bin/pyui $(DESTDIR)$(bindir)
 	$(EXE) ../bin/hal_input $(DESTDIR)$(bindir)
+	$(EXE) ../bin/hal_bridge $(DESTDIR)$(bindir)
 	$(EXE) ../bin/mitsub_vfd $(DESTDIR)$(bindir)
 	$(EXE) ../bin/mqtt-publisher $(DESTDIR)$(bindir)
 	$(EXE) ../bin/z_level_compensation $(DESTDIR)$(bindir)
@@ -882,11 +871,8 @@ endif
 # "kbuild" system.  $(BASEPWD) is used here, instead of relative paths, because
 # that's what kbuild seems to require
 
-EXTRA_CFLAGS := $(filter-out -ffast-math,$(RTFLAGS)) -D__MODULE__ -I$(BASEPWD)/../include -I$(BASEPWD) -I$(BASEPWD)/libnml/linklist \
-	-I$(BASEPWD)/libnml/cms -I$(BASEPWD)/libnml/rcs -I$(BASEPWD)/libnml/inifile \
-	-I$(BASEPWD)/libnml/os_intf -I$(BASEPWD)/libnml/nml -I$(BASEPWD)/libnml/buffer \
-	-I$(BASEPWD)/libnml/posemath -I$(BASEPWD)/rtapi -I$(BASEPWD)/hal \
-	-I$(BASEPWD)/emc/nml_intf -I$(BASEPWD)/emc/kinematics -I$(BASEPWD)/emc/tp -I$(BASEPWD)/emc/motion \
+EXTRA_CFLAGS := $(filter-out -ffast-math,$(RTFLAGS)) -D__MODULE__ \
+	-I$(BASEPWD)/../include -I$(BASEPWD) \
 	-DSEQUENTIAL_SUPPORT -DHAL_SUPPORT -DDYNAMIC_PLCSIZE -DRT_SUPPORT -DOLD_TIMERS_MONOS_SUPPORT -DMODBUS_IO_MASTER \
 	-fno-fast-math $(call cc-option,-mieee-fp) -fno-unsafe-math-optimizations \
 	-Wno-declaration-after-statement \
@@ -922,6 +908,8 @@ obj-$(CONFIG_BOSS_PLC) += boss_plc.o
 boss_plc-objs := hal/components/boss_plc.o $(MATHSTUB)
 obj-$(CONFIG_DEBOUNCE) += debounce.o
 debounce-objs := hal/components/debounce.o $(MATHSTUB)
+obj-$(CONFIG_DEMUX_GENERIC) += demux_generic.o
+demux_generic-objs := hal/components/demux_generic.o $(MATHSTUB)
 obj-$(CONFIG_ENCODER) += encoder.o
 encoder-objs := hal/components/encoder.o $(MATHSTUB)
 obj-$(CONFIG_ENUM) += enum.o
@@ -1061,7 +1049,6 @@ hm2_pci-objs  :=			  \
     $(MATHSTUB)
 hm2_eth-objs  :=			  \
     hal/drivers/mesa-hostmot2/hm2_eth.o   \
-    hal/drivers/mesa-hostmot2/eshellf.o   \
     $(MATHSTUB)
 hm2_spi-objs  :=			  \
     hal/drivers/mesa-hostmot2/hm2_spi.o   \
@@ -1070,7 +1057,7 @@ hm2_spi-objs  :=			  \
 hm2_rpspi-objs  :=			  \
     hal/drivers/mesa-hostmot2/hm2_rpspi.o \
     hal/drivers/mesa-hostmot2/llio_info.o \
-    hal/drivers/mesa-hostmot2/eshellf.o   \
+    hal/drivers/mesa-hostmot2/kmod_check.o \
     $(MATHSTUB)
 hm2_spix-objs  :=			  \
     hal/drivers/mesa-hostmot2/hm2_spix.o  \
@@ -1078,7 +1065,7 @@ hm2_spix-objs  :=			  \
     hal/drivers/mesa-hostmot2/spix_rpi3.o \
     hal/drivers/mesa-hostmot2/spix_spidev.o \
     hal/drivers/mesa-hostmot2/llio_info.o \
-    hal/drivers/mesa-hostmot2/eshellf.o \
+    hal/drivers/mesa-hostmot2/kmod_check.o \
     $(MATHSTUB)
 hm2_modbus-objs  :=			  \
     hal/drivers/mesa-hostmot2/hm2_modbus.o \
@@ -1228,6 +1215,27 @@ motmod-objs += emc/motion/simple_tp.o
 motmod-objs += emc/motion/emcmotutil.o
 motmod-objs += emc/motion/stashf.o
 motmod-objs += emc/motion/dbuf.o
+motmod-objs += emc/tp/sp_scurve.o
+motmod-objs += emc/tp/ruckig_wrapper.o
+motmod-objs += emc/tp/cruckig/block.o
+motmod-objs += emc/tp/cruckig/brake.o
+motmod-objs += emc/tp/cruckig/calculator.o
+motmod-objs += emc/tp/cruckig/cruckig.o
+motmod-objs += emc/tp/cruckig/input_parameter.o
+motmod-objs += emc/tp/cruckig/output_parameter.o
+motmod-objs += emc/tp/cruckig/profile.o
+motmod-objs += emc/tp/cruckig/roots.o
+motmod-objs += emc/tp/cruckig/trajectory.o
+motmod-objs += emc/tp/cruckig/position_first_step1.o
+motmod-objs += emc/tp/cruckig/position_first_step2.o
+motmod-objs += emc/tp/cruckig/position_second_step1.o
+motmod-objs += emc/tp/cruckig/position_second_step2.o
+motmod-objs += emc/tp/cruckig/position_third_step1.o
+motmod-objs += emc/tp/cruckig/position_third_step2.o
+motmod-objs += emc/tp/cruckig/velocity_second_step1.o
+motmod-objs += emc/tp/cruckig/velocity_second_step2.o
+motmod-objs += emc/tp/cruckig/velocity_third_step1.o
+motmod-objs += emc/tp/cruckig/velocity_third_step2.o
 
 obj-m += homemod.o
 homemod-objs := emc/motion/homemod.o
@@ -1242,6 +1250,27 @@ tpmod-objs += emc/tp/spherical_arc.o
 tpmod-objs += emc/tp/blendmath.o
 tpmod-objs += emc/nml_intf/emcpose.o
 tpmod-objs += libnml/posemath/_posemath.o
+tpmod-objs += emc/tp/sp_scurve.o
+tpmod-objs += emc/tp/ruckig_wrapper.o
+tpmod-objs += emc/tp/cruckig/block.o
+tpmod-objs += emc/tp/cruckig/brake.o
+tpmod-objs += emc/tp/cruckig/calculator.o
+tpmod-objs += emc/tp/cruckig/cruckig.o
+tpmod-objs += emc/tp/cruckig/input_parameter.o
+tpmod-objs += emc/tp/cruckig/output_parameter.o
+tpmod-objs += emc/tp/cruckig/profile.o
+tpmod-objs += emc/tp/cruckig/roots.o
+tpmod-objs += emc/tp/cruckig/trajectory.o
+tpmod-objs += emc/tp/cruckig/position_first_step1.o
+tpmod-objs += emc/tp/cruckig/position_first_step2.o
+tpmod-objs += emc/tp/cruckig/position_second_step1.o
+tpmod-objs += emc/tp/cruckig/position_second_step2.o
+tpmod-objs += emc/tp/cruckig/position_third_step1.o
+tpmod-objs += emc/tp/cruckig/position_third_step2.o
+tpmod-objs += emc/tp/cruckig/velocity_second_step1.o
+tpmod-objs += emc/tp/cruckig/velocity_second_step2.o
+tpmod-objs += emc/tp/cruckig/velocity_third_step1.o
+tpmod-objs += emc/tp/cruckig/velocity_third_step2.o
 tpmod-objs += libnml/posemath/sincos.o $(MATHSTUB)
 
 TORTOBJS = $(foreach file,$($(patsubst %.o,%,$(1))-objs), objects/rt$(file))
@@ -1262,8 +1291,18 @@ modules: $(patsubst %.o,../rtlib/%.so,$(obj-m))
 
 RTFLAGS += -fno-strict-aliasing -fwrapv
 
-# Rules to make .o (object) files
-$(sort $(RTOBJS)) : objects/rt%.o : %.c
+# Rules to make .o (object) files for C files
+$(sort $(filter-out objects/rtemc/tp/cruckig/%,$(RTOBJS))) : objects/rt%.o : %.c
+	$(ECHO) Compiling realtime $<
+	@rm -f $@
+	@mkdir -p $(dir $@)
+	$(Q)$(CC) -c $(OPT) $(DEBUG) $(EXTRA_DEBUG) -DRTAPI \
+		$(EXTRA_CFLAGS) \
+		-MP -MD -MF "${@:.o=.d}" -MT "$@" \
+		$< -o $@
+
+# Rules for cruckig C files in realtime modules
+objects/rtemc/tp/cruckig/%.o : emc/tp/cruckig/%.c
 	$(ECHO) Compiling realtime $<
 	@rm -f $@
 	@mkdir -p $(dir $@)
@@ -1295,6 +1334,7 @@ endif
 ../rtlib/classicladder_rt$(MODULE_EXT): $(addprefix objects/rt,$(classicladder_rt-objs))
 ../rtlib/boss_plc$(MODULE_EXT): $(addprefix objects/rt,$(boss_plc-objs))
 ../rtlib/debounce$(MODULE_EXT): $(addprefix objects/rt,$(debounce-objs))
+../rtlib/demux_generic$(MODULE_EXT): $(addprefix objects/rt,$(demux_generic-objs))
 ../rtlib/encoder$(MODULE_EXT): $(addprefix objects/rt,$(encoder-objs))
 ../rtlib/enum$(MODULE_EXT): $(addprefix objects/rt,$(enum-objs))
 ../rtlib/counter$(MODULE_EXT): $(addprefix objects/rt,$(counter-objs))
@@ -1423,7 +1463,7 @@ swish:
 		$(dir $(BASEPWD))scripts \
 		$(dir $(BASEPWD))configs \
 		$(dir $(BASEPWD))docs/src \
-		$(dir $(BASEPWD))docs/man/man1
+		$(dir $(BASEPWD))docs/build/man/man1
 
 # When you depend on objects/var-ZZZ you are depending on the contents of the
 # variable ZZZ, which is assumed to depend on a Makefile, a Submakefile, or
@@ -1434,6 +1474,9 @@ objects/var-%: Makefile $(wildcard $(SUBMAKEFILES)) Makefile.inc
 	@sh move-if-change $@.tmp $@
 
 ../lib/%.so: ../lib/%.so.0
+	ln -sf $(notdir $<) $@
+
+../lib/%.so: ../lib/%.so.1
 	ln -sf $(notdir $<) $@
 
 cscope:

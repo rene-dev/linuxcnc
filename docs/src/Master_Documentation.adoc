@@ -17,6 +17,8 @@ include::getting-started/about-linuxcnc.adoc[]
 
 include::getting-started/system-requirements.adoc[]
 
+include::getting-started/hardware-interface.adoc[]
+
 include::getting-started/getting-linuxcnc.adoc[]
 
 include::getting-started/running-linuxcnc.adoc[]
@@ -88,6 +90,8 @@ include::hal/basic-hal.adoc[]
 
 include::hal/twopass.adoc[]
 
+include::hal/tools.adoc[]
+
 include::hal/tutorial.adoc[]
 
 include::hal/hal-examples.adoc[]
@@ -110,8 +114,6 @@ include::hal/halmodule.adoc[]
 
 include::hal/canonical-devices.adoc[]
 
-include::hal/tools.adoc[]
-
 
 :leveloffset: 1
 = Hardware Drivers
@@ -132,6 +134,8 @@ include::drivers/hal_gpio.adoc[]
 include::drivers/hostmot2.adoc[]
 
 include::drivers/mb2hal.adoc[]
+
+include::drivers/mesa_modbus.adoc[]
 
 include::drivers/mitsub-vfd.adoc[]
 
@@ -267,6 +271,8 @@ include::gui/gladevcp.adoc[]
 
 include::gui/gladevcp-libraries.adoc[]
 
+include::gui/gladevcp-panels.adoc[]
+
 include::gui/qtvcp.adoc[]
 
 include::gui/qtvcp-vcp-panels.adoc[]
@@ -293,6 +299,8 @@ include::gui/panelui.adoc[]
 include::config/python-interface.adoc[]
 
 include::config/python-hal-interface.adoc[]
+
+include::config/python-lcnc_realtime.adoc[]
 
 include::gui/gstat.adoc[]
 

@@ -73,18 +73,20 @@ minval() {
 #
 
 # Enable (val > MAX) test
+V=1
 test	"$1" = 'float' -o \
 	"$2" = 'bit' -o \
 	\( "$2" = 's32' -a "$1" != 'bit' \) -o \
 	\( "$1" = 'u64' -a "$2" != 'float' \) -o \
-	\( "$1" = 's64' -a "$2" = 'u32' \)
-MAXEN="s,@MAXEN@,$?,g"
+	\( "$1" = 's64' -a "$2" = 'u32' \) && V=0
+MAXEN="s,@MAXEN@,$V,g"
 
 # Enable (val < MIN) test
+V=1
 test	"$1" = 'float' -o \
 	\( "$1" = 's64' -a "$2" != 'float' \) -o \
-	\( "$1" = 's32' -a \( "$2" = 'u32' -o "$2" = 'u64' -o "$2" = 'bit' \) \)
-MINEN="s,@MINEN@,$?,g"
+	\( "$1" = 's32' -a \( "$2" = 'u32' -o "$2" = 'u64' -o "$2" = 'bit' \) \) && V=0
+MINEN="s,@MINEN@,$V,g"
 
 # Disable clamp code
 if test	"$2" = 'float' -o \
@@ -93,8 +95,6 @@ if test	"$2" = 'float' -o \
 	\( "$1" = 's32' -a "$2" = 's64' \)
 then CC="s,@CC@,//,g"; else CC="s,@CC@,,g"; fi
 
-if test "$1" = 'float' -o "$2" = 'float'; then FP="s,@FP@,,g"; else FP="s,@FP@,nofp,g"; fi
-
 IN="s,@IN@,$1,g"
 OUT="s,@OUT@,$2,g"
 MIN="s,@MIN@,$(minval "$2"),g"
@@ -102,4 +102,4 @@ MAX="s,@MAX@,$(maxval "$2"),g"
 TYPI="s,@TYPI@,$(utype "$1"),g"
 TYPO="s,@TYPO@,$(utype "$2"),g"
 
-exec sed -e "$IN; $OUT; $CC; $MIN; $MAX; $FP; $TYPI; $TYPO; $MINEN; $MAXEN;"
+exec sed -e "$IN; $OUT; $CC; $MIN; $MAX; $TYPI; $TYPO; $MINEN; $MAXEN;"

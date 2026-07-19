@@ -15,14 +15,14 @@
 
 #include <locale.h>
 #include <algorithm>
-#include "linuxcnc.h"
+#include <linuxcnc.h>
 #include <limits.h>
 #include <stdio.h>
 #include <set>
 #include <map>
 #include <bitset>
-#include "canon.hh"
-#include "emcpos.h"
+#include "nml_intf/canon.hh"
+#include <emcpos.h>
 #include "libintl.h"
 #include <boost/python/object_fwd.hpp>
 #include <cmath>
@@ -30,7 +30,7 @@
 #include "interp_parameter_def.hh"
 #include "interp_fwd.hh"
 #include "interp_base.hh"
-#include "tooldata.hh"
+#include "tooldata/tooldata.hh"
 
 
 #define _(s) gettext(s)
@@ -495,6 +495,15 @@ struct block_struct
   long     offset{};   // start of line in file
   int      o_type{};
   int      call_type{}; // oword-sub, python oword-sub, remap
+  
+  // Add Geometic fields
+  double arc_center_x{};
+  double arc_center_y{};
+  double arc_center_z{};
+  double arc_radius{};
+  double arc_heading{};
+  double normal_heading{};
+  bool iscircle{};
   const char    *o_name{};   // !!!KL be sure to free this
   double   params[INTERP_SUB_PARAMS]{};
   int param_cnt{};
@@ -648,6 +657,10 @@ struct setup
   setup();
   ~setup();
 
+  // Not copyable
+  setup(const setup&) = delete;
+  setup& operator= (const setup&) = delete;
+
   double AA_axis_offset;        // A-axis g92 offset
   double AA_current;            // current A-axis position
   double AA_origin_offset;      // A-axis origin offset
@@ -684,6 +697,8 @@ struct setup
   CANON_MOTION_MODE control_mode;       // exact path or cutting mode
     double tolerance;           // G64 blending tolerance
     double naivecam_tolerance;  // G64 naive cam tolerance
+    double tolerance_default;   // G64 P Default value, -1 to disable
+    double naivecam_tolerance_default; // G64 Q Default Value, -1 to disable 
   int current_pocket;             // carousel slot (index) number of current tool
   double current_x;             // current X-axis position
   double current_y;             // current Y-axis position
@@ -757,6 +772,7 @@ struct setup
   CANON_TOOL_TABLE tool_table[CANON_POCKETS_MAX];      // index is pocket number
   double traverse_rate;         // rate for traverse motions
   double orient_offset;         // added to M19 R word, from [RS274NGC]ORIENT_OFFSET
+  bool g43_with_zero_offset;    // added to allow active G43 with tool offset values all zero
 
   /* stuff for subroutines and control structures */
   int defining_sub;                  // true if in a subroutine defn
@@ -808,7 +824,17 @@ struct setup
     // control to skip to beginning of file
     bool loop_on_main_m99;
 
-  int disable_g92_persistence;
+  bool disable_g92_persistence;
+  bool disable_auto_g54;
+
+// add new geometric fields for our new tags
+  double heading;
+  double radius;
+  double center_x;
+  double center_y;
+  double center_z;
+  double normal_heading;
+  bool iscircle;
 
 #define FEATURE(x) (_setup.feature_set & FEATURE_ ## x)
 #define FEATURE_RETAIN_G43           0x00000001

@@ -19,7 +19,7 @@
 # In the designer editor, it is possible to select what the button will do.
 ###############################################################################
 
-from PyQt5 import QtCore
+from qtpy import QtCore
 import linuxcnc
 
 from qtvcp.widgets.widget_baseclass import _HalWidgetBase
@@ -40,7 +40,11 @@ AUX_PRGM = Aux_program_loader()
 LOG = logger.getLogger(__name__)
 
 # Force the log level for this module
-# LOG.setLevel(logger.INFO) # One of DEBUG, INFO, WARNING, ERROR, CRITICAL
+LOG.setLevel(logger.DEBUG) # One of DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+DEFAULT = 0
+WARNING = 1
+CRITICAL = 2
 
 class ActionButton(IndicatedPushButton):
     def __init__(self, parent=None):
@@ -48,6 +52,7 @@ class ActionButton(IndicatedPushButton):
         self._block_signal = False
         self._designer_block_signal = False
         self._designer_running = False
+        self._no_action = False
         self.estop = False
         self.machine_on = False
         self.home = False
@@ -102,6 +107,8 @@ class ActionButton(IndicatedPushButton):
         self.optional_stop = False
         self.mdi_command = False
         self.ini_mdi_command = False
+        self.is_in_mdi_mode_check = False
+        self.ini_macro_command = False
         self.dro_relative = False
         self.dro_absolute = False
         self.dro_dtg = False
@@ -120,9 +127,11 @@ class ActionButton(IndicatedPushButton):
         self.float_alt = 50.0
         self.view_type = 'p'
         self.command_text = ''
+        self.ini_mdi_keystring = ''
+        self.ini_macro_keystring = ''
         # legacy attribute
         self.ini_mdi_num = -1
-        self.ini_mdi_keystring = ''
+        self.ini_macro_num = -1
         self._textTemplate = '%1.3f in'
         self._alt_textTemplate = '%1.2f mm'
         self._run_from_line_int = 0
@@ -413,7 +422,7 @@ class ActionButton(IndicatedPushButton):
             STATUS.connect('mode-manual', lambda w: self.setEnabled(True))
             STATUS.connect('mode-auto', lambda w: self.setEnabled(False))
             STATUS.connect('optional-stop-changed', lambda w, data: self._safecheck(data))
-        elif self.mdi_command or self.ini_mdi_command:
+        elif self.mdi_command or self.ini_mdi_command or self.ini_macro_command:
             STATUS.connect('state-off', lambda w: self.setEnabled(False))
             STATUS.connect('state-estop', lambda w: self.setEnabled(False))
             STATUS.connect('interp-idle', lambda w: self.setEnabled(homed_on_test()))
@@ -421,6 +430,8 @@ class ActionButton(IndicatedPushButton):
             STATUS.connect('not-all-homed', lambda w, axis: self.setEnabled(False))
             if self.ini_mdi_command:
                 self.setMDILabel()
+            elif self.ini_macro_command:
+                self.setMacroLabel()
         elif self.dro_absolute or self.dro_relative or self.dro_dtg:
             pass
         elif True in(self.exit, self.machine_log_dialog):
@@ -432,6 +443,8 @@ class ActionButton(IndicatedPushButton):
             STATUS.connect('all-homed', lambda w: self.setEnabled(True))
             STATUS.connect('interp-idle', lambda w: self.setEnabled(homed_on_test()))
             STATUS.connect('interp-run', lambda w: self.setEnabled(False))
+        elif self._no_action:
+            pass
 
         # connect a signal and callback function to the button
         if self.isCheckable():
@@ -462,7 +475,10 @@ class ActionButton(IndicatedPushButton):
     def action(self, state=None):
         # don't do anything if the signal is blocked
         if self._block_signal: return
-        if self.estop:
+        if self._no_action:
+            # can be patched by handler
+            self.noActionFunction(self, state)
+        elif self.estop:
             if self.isCheckable():
                 if STATUS.estop_is_clear():
                     ACTION.SET_ESTOP_STATE(STATUS.STATE_ESTOP)
@@ -695,21 +711,77 @@ class ActionButton(IndicatedPushButton):
                 else:
                     ACTION.SET_BLOCK_DELETE_OFF()
         elif self.mdi_command:
+            if self.is_in_mdi_mode_check and not STATUS.is_mdi_mode():
+                try:
+                    self.QTVCP_INSTANCE_.add_status('MDI COMMAND: Not in MDI Mode', WARNING, noLog=False)
+                except:
+                    pass
+                return
             self.command_text = str(self.command_text)
             LOG.debug("MDI STRING COMMAND: {}".format(self.command_text))
             ACTION.CALL_MDI(self.command_text)
+
         elif self.ini_mdi_command:
+            if self.is_in_mdi_mode_check and not STATUS.is_mdi_mode():
+                try:
+                    self.QTVCP_INSTANCE_.add_status('INI MDI COMMAND: Not in MDI Mode', WARNING, noLog=False)
+                except:
+                    pass
+                return
+            ACTION.RECORD_CURRENT_MODE()
             # we prefer named INI MDI commands:
             if not self.ini_mdi_keystring == '' and \
                     not INFO.get_ini_mdi_command(self.ini_mdi_keystring) is None:
-                LOG.debug("INI MDI COMMAND #: {}".format(self.ini_mdi_keystring))
+                cmd = INFO.get_ini_mdi_command(self.ini_mdi_keystring)
+                LOG.debug("INI MDI COMMAND #: {},{}".format(self.ini_mdi_keystring,cmd))
                 ACTION.CALL_INI_MDI(self.ini_mdi_keystring)
+
             # legacy version (nth line)
             elif not self.ini_mdi_num <0 and \
                     not INFO.get_ini_mdi_command(self.ini_mdi_num) is None:
-                LOG.debug("INI MDI COMMAND #: {}".format(self.ini_mdi_num))
+                cmd = INFO.get_ini_mdi_command(self.ini_mdi_num)
+                LOG.debug("INI MDI COMMAND #: {},{}".format(self.ini_mdi_num,cmd))
                 ACTION.CALL_INI_MDI(self.ini_mdi_num)
 
+            # set the indicator that the MDI command is running
+            # if the indicator option is turned on and a command is started running
+            if not STATUS.get_current_command() == '':
+                if self._is_mdi_command_finished:
+                    self._watch_command_flag = True
+            # nothing moved reset mode
+            else:
+                ACTION.RESTORE_RECORDED_MODE()
+        elif self.ini_macro_command:
+            #print('macro',self.ini_macro_keystring,self.ini_macro_num)
+            if self.is_in_mdi_mode_check and not STATUS.is_mdi_mode():
+                try:
+                    self.QTVCP_INSTANCE_.add_status('INI MACRO COMMAND: Not in MDI Mode', WARNING, noLog=False)
+                except:
+                    pass
+                return
+            ACTION.RECORD_CURRENT_MODE()
+            # we prefer named INI MACRO commands:
+            if not self.ini_macro_keystring == '' and \
+                    not INFO.get_ini_macro_command(self.ini_macro_keystring) is None:
+                LOG.debug("INI MACRO COMMAND #: {}".format(self.ini_macro_keystring))
+                temp = INFO.MACRO_COMMAND_DICT.get(self.ini_macro_keystring).get('cmd')
+                self.runMacro(temp)
+
+            # legacy version (nth line)
+            elif not self.ini_macro_num <0 and \
+                    not INFO.get_ini_macro_command(self.ini_macro_num) is None:
+                LOG.debug("INI MACRO COMMAND #: {}".format(self.ini_macro_num))
+                temp = INFO.MACRO_COMMAND_DICT.get(str(self.ini_macro_num)).get('cmd')
+                self.runMacro(temp)
+
+            # set the indicator that the MDI command is running
+            # if the indicator option is turned on and a command is started running
+            if not STATUS.get_current_command() == '':
+                if self._is_mdi_command_finished:
+                    self._watch_command_flag = True
+            # nothing moved reset mode
+            else:
+                ACTION.RESTORE_RECORDED_MODE()
         elif self.dro_absolute:
             STATUS.emit('dro-reference-change-request', 0)
         elif self.dro_relative:
@@ -740,11 +812,11 @@ class ActionButton(IndicatedPushButton):
                 state = not self._indicator_state
             self.python_command(state)
 
-    @QtCore.pyqtSlot(int,name='setRunFromLine')
+    @QtCore.Slot(int,name='setRunFromLine')
     def updateRunFromLine(self, data):
         self._run_from_line_int = int(data)
 
-    @QtCore.pyqtSlot(str,name='setRunFromLine')
+    @QtCore.Slot(str,name='setRunFromLine')
     def updateRunFromLine(self, data):
         try:
             self._run_from_line_int = int(data)
@@ -868,9 +940,48 @@ class ActionButton(IndicatedPushButton):
             msg = 'MDI_COMMAND_{} Not found under [MDI_COMMAND_LIST] in INI file'.format(key)
             self.setToolTip(msg)
 
+    # see if the INI specified an optional new label
+    # if so apply it, otherwise skip and use the original text
+    def setMacroLabel(self):
+        key = None
+        # we prefer named INI MDI commands
+        if not self.ini_macro_keystring == '' and \
+                not INFO.get_ini_macro_command(self.ini_macro_keystring) is None:
+            key = self.ini_macro_keystring
+            # legacy version (nth line)
+        elif not self.ini_macro_num <0 and \
+                not INFO.get_ini_macro_command(self.ini_macro_num) is None:
+            key = self.ini_macro_num
+
+        # change the button label if supplied in the INI
+        try:
+            label = INFO.get_ini_macro_label(key)
+            label = label.replace(r'\n', '\n')
+            self.setText(label)
+        except:
+            pass
+
+        # add tool tip of the command
+        try:
+            tooltiplabel = 'INI MDI CMD {}:\n'.format(key)
+            tooltiplabel += INFO.get_ini_macro_command(key).replace(';', '\n')
+            self.setToolTip(tooltiplabel)
+        except Exception as e:
+            # if the MDI command is missing set a tooltip to say so
+            # otherwise set any optional label
+            msg = 'MDI_COMMAND_{} Not found under [MDI_COMMAND_LIST] in INI file'.format(key)
+            self.setToolTip(msg)
+
+    # re-definable
+    def noActionFunction(self, widget, state):
+        pass
+    # re-definable
+    def runMacro(self, key):
+        ACTION.RUN_MACRO(key)
+
     #########################################################################
     # This is how designer can interact with our widget properties.
-    # designer will show the pyqtProperty properties in the editor
+    # designer will show the Property properties in the editor
     # it will use the get set and reset calls to do those actions
     #
     # _toggle_properties makes it so we can only select one option
@@ -892,13 +1003,22 @@ class ActionButton(IndicatedPushButton):
                 'launch_calibration',
                  'exit', 'machine_log_dialog', 'zero_g5x', 'zero_g92', 'zero_zrot',
                  'origin_offset_dialog', 'run_from_status', 'run_from_slot',
-                 'tool_chooser_dialog', 'lathe_mirror_x')
+                 'tool_chooser_dialog', 'lathe_mirror_x', 'no', 'ini_macro_command')
 
         for i in data:
             if not i == picked:
                 self[i+'_action'] = False
 
     # BOOL VARIABLES----------------------
+    def set_no_action(self, data):
+        self._no_action = data
+        if data:
+            self._toggle_properties('no')
+    def get_no_action(self):
+        return self._no_action
+    def reset_no_action(self):
+        self._no_action = False
+
     def set_estop(self, data):
         self.estop = data
         if data:
@@ -1391,6 +1511,22 @@ class ActionButton(IndicatedPushButton):
     def reset_ini_mdi_command(self):
         self.ini_mdi_command = False
 
+    def set_mdi_mode_check(self, data):
+        self.is_in_mdi_mode_check = data
+    def get_mdi_mode_check(self):
+        return self.is_in_mdi_mode_check
+    def reset_mdi_mode_check(self):
+        self.is_in_mdi_mode_check = False
+
+    def set_ini_macro_command(self, data):
+        self.ini_macro_command = data
+        if data:
+            self._toggle_properties('ini_macro_command')
+    def get_ini_macro_command(self):
+        return self.ini_macro_command
+    def reset_ini_macro_command(self):
+        self.ini_macro_command = False
+
     def set_dro_absolute(self, data):
         self.dro_absolute = data
         if data:
@@ -1532,77 +1668,94 @@ class ActionButton(IndicatedPushButton):
     def reset_ini_mdi_key(self):
         self.ini_mdi_keystring = ''
 
+    def set_ini_macro_key(self, data):
+        self.ini_macro_keystring = data
+    def get_ini_macro_key(self):
+        return self.ini_macro_keystring
+    def reset_ini_macro_key(self):
+        self.ini_macro_keystring = ''
+
+    def set_ini_macro_num(self, data):
+        self.ini_macro_num = data
+    def get_ini_macro_num(self):
+        return self.ini_macro_num
+    def reset_ini_macro_num(self):
+        self.ini_macro_num = -1
+
     # designer will show these properties in this order:
     # BOOL
-    estop_action = QtCore.pyqtProperty(bool, get_estop, set_estop, reset_estop)
-    machine_on_action = QtCore.pyqtProperty(bool, get_machine_on, set_machine_on, reset_machine_on)
-    auto_action = QtCore.pyqtProperty(bool, get_auto, set_auto, reset_auto)
-    mdi_action = QtCore.pyqtProperty(bool, get_mdi, set_mdi, reset_mdi)
-    manual_action = QtCore.pyqtProperty(bool, get_manual, set_manual, reset_manual)
-    run_action = QtCore.pyqtProperty(bool, get_run, set_run, reset_run)
-    run_from_status_action = QtCore.pyqtProperty(bool, get_run_from_status, set_run_from_status, reset_run_from_status)
-    run_from_slot_action = QtCore.pyqtProperty(bool, get_run_from_slot, set_run_from_slot, reset_run_from_slot)
-    abort_action = QtCore.pyqtProperty(bool, get_abort, set_abort, reset_abort)
-    pause_action = QtCore.pyqtProperty(bool, get_pause, set_pause, reset_pause)
-    step_action = QtCore.pyqtProperty(bool, get_step, set_step, reset_step)
-    load_dialog_action = QtCore.pyqtProperty(bool, get_load_dialog, set_load_dialog, reset_load_dialog)
-    camview_dialog_action = QtCore.pyqtProperty(bool,
+    no_action = QtCore.Property(bool, get_no_action, set_no_action, reset_no_action)
+    estop_action = QtCore.Property(bool, get_estop, set_estop, reset_estop)
+    machine_on_action = QtCore.Property(bool, get_machine_on, set_machine_on, reset_machine_on)
+    auto_action = QtCore.Property(bool, get_auto, set_auto, reset_auto)
+    mdi_action = QtCore.Property(bool, get_mdi, set_mdi, reset_mdi)
+    manual_action = QtCore.Property(bool, get_manual, set_manual, reset_manual)
+    run_action = QtCore.Property(bool, get_run, set_run, reset_run)
+    run_from_status_action = QtCore.Property(bool, get_run_from_status, set_run_from_status, reset_run_from_status)
+    run_from_slot_action = QtCore.Property(bool, get_run_from_slot, set_run_from_slot, reset_run_from_slot)
+    abort_action = QtCore.Property(bool, get_abort, set_abort, reset_abort)
+    pause_action = QtCore.Property(bool, get_pause, set_pause, reset_pause)
+    step_action = QtCore.Property(bool, get_step, set_step, reset_step)
+    load_dialog_action = QtCore.Property(bool, get_load_dialog, set_load_dialog, reset_load_dialog)
+    camview_dialog_action = QtCore.Property(bool,
                                                 get_camview_dialog, set_camview_dialog, reset_camview_dialog)
-    origin_offset_dialog_action = QtCore.pyqtProperty(bool,
+    origin_offset_dialog_action = QtCore.Property(bool,
                                                       get_origin_offset_dialog, set_origin_offset_dialog,
                                                       reset_origin_offset_dialog)
-    tool_offset_dialog_action = QtCore.pyqtProperty(bool,
+    tool_offset_dialog_action = QtCore.Property(bool,
                                                       get_tool_offset_dialog, set_tool_offset_dialog,
                                                       reset_tool_offset_dialog)
-    tool_chooser_dialog_action = QtCore.pyqtProperty(bool,
+    tool_chooser_dialog_action = QtCore.Property(bool,
                                                       get_tool_chooser_dialog, set_tool_chooser_dialog,
                                                       reset_tool_chooser_dialog)
-    macro_dialog_action = QtCore.pyqtProperty(bool, get_macro_dialog, set_macro_dialog, reset_macro_dialog)
-    launch_halmeter_action = QtCore.pyqtProperty(bool, get_launch_halmeter, set_launch_halmeter, reset_launch_halmeter)
-    launch_status_action = QtCore.pyqtProperty(bool, get_launch_status, set_launch_status, reset_launch_status)
-    launch_halshow_action = QtCore.pyqtProperty(bool, get_launch_halshow, set_launch_halshow, reset_launch_halshow)
-    launch_halscope_action = QtCore.pyqtProperty(bool, get_launch_halscope, set_launch_halscope, reset_launch_halscope)
-    launch_calibration_action = QtCore.pyqtProperty(bool, get_launch_calibration, set_launch_calibration, reset_launch_calibration)
-    home_action = QtCore.pyqtProperty(bool, get_home, set_home, reset_home)
-    unhome_action = QtCore.pyqtProperty(bool, get_unhome, set_unhome, reset_unhome)
-    home_select_action = QtCore.pyqtProperty(bool, get_home_select, set_home_select, reset_home_select)
-    unhome_select_action = QtCore.pyqtProperty(bool, get_unhome_select, set_unhome_select, reset_unhome_select)
-    zero_axis_action = QtCore.pyqtProperty(bool, get_zero_axis, set_zero_axis, reset_zero_axis)
-    zero_g5x_action = QtCore.pyqtProperty(bool, get_zero_g5x, set_zero_g5x, reset_zero_g5x)
-    zero_g92_action = QtCore.pyqtProperty(bool, get_zero_g92, set_zero_g92, reset_zero_g92)
-    zero_zrot_action = QtCore.pyqtProperty(bool, get_zero_zrot, set_zero_zrot, reset_zero_zrot)
-    jog_joint_pos_action = QtCore.pyqtProperty(bool, get_jog_joint_pos, set_jog_joint_pos, reset_jog_joint_pos)
-    jog_joint_neg_action = QtCore.pyqtProperty(bool, get_jog_joint_neg, set_jog_joint_neg, reset_jog_joint_neg)
-    jog_selected_pos_action = QtCore.pyqtProperty(bool, get_jog_selected_pos, set_jog_selected_pos, reset_jog_selected_pos)
-    jog_selected_neg_action = QtCore.pyqtProperty(bool, get_jog_selected_neg, set_jog_selected_neg, reset_jog_selected_neg)
-    jog_incr_action = QtCore.pyqtProperty(bool, get_jog_incr, set_jog_incr, reset_jog_incr)
-    jog_rate_action = QtCore.pyqtProperty(bool, get_jog_rate, set_jog_rate, reset_jog_rate)
-    feed_over_action = QtCore.pyqtProperty(bool, get_feed_over, set_feed_over, reset_feed_over)
-    rapid_over_action = QtCore.pyqtProperty(bool, get_rapid_over, set_rapid_over, reset_rapid_over)
-    max_velocity_over_action = QtCore.pyqtProperty(bool, get_max_velocity_over, set_max_velocity_over, reset_max_velocity_over)
-    spindle_over_action = QtCore.pyqtProperty(bool, get_spindle_over, set_spindle_over, reset_spindle_over)
-    spindle_fwd_action = QtCore.pyqtProperty(bool, get_spindle_fwd, set_spindle_fwd, reset_spindle_fwd)
-    spindle_rev_action = QtCore.pyqtProperty(bool, get_spindle_rev, set_spindle_rev, reset_spindle_rev)
-    spindle_stop_action = QtCore.pyqtProperty(bool, get_spindle_stop, set_spindle_stop, reset_spindle_stop)
-    spindle_up_action = QtCore.pyqtProperty(bool, get_spindle_up, set_spindle_up, reset_spindle_up)
-    spindle_down_action = QtCore.pyqtProperty(bool, get_spindle_down, set_spindle_down, reset_spindle_down)
-    view_change_action = QtCore.pyqtProperty(bool, get_view_change, set_view_change, reset_view_change)
-    limits_override_action = QtCore.pyqtProperty(bool, get_limits_override, set_limits_override, reset_limits_override)
-    flood_action = QtCore.pyqtProperty(bool, get_flood, set_flood, reset_flood)
-    mist_action = QtCore.pyqtProperty(bool, get_mist, set_mist, reset_mist)
-    block_delete_action = QtCore.pyqtProperty(bool, get_block_delete, set_block_delete, reset_block_delete)
-    optional_stop_action = QtCore.pyqtProperty(bool, get_optional_stop, set_optional_stop, reset_optional_stop)
-    mdi_command_action = QtCore.pyqtProperty(bool, get_mdi_command, set_mdi_command, reset_mdi_command)
-    ini_mdi_command_action = QtCore.pyqtProperty(bool, get_ini_mdi_command, set_ini_mdi_command, reset_ini_mdi_command)
-    dro_absolute_action = QtCore.pyqtProperty(bool, get_dro_absolute, set_dro_absolute, reset_dro_absolute)
-    dro_relative_action = QtCore.pyqtProperty(bool, get_dro_relative, set_dro_relative, reset_dro_relative)
-    dro_dtg_action = QtCore.pyqtProperty(bool, get_dro_dtg, set_dro_dtg, reset_dro_dtg)
-    exit_action = QtCore.pyqtProperty(bool, get_exit, set_exit, reset_exit)
-    machine_log_dialog_action = QtCore.pyqtProperty(bool, get_machine_log_dialog, set_machine_log_dialog, reset_machine_log_dialog)
-    lathe_mirror_x_action = QtCore.pyqtProperty(bool, get_lathe_mirror_x, set_lathe_mirror_x, reset_lathe_mirror_x)
+    macro_dialog_action = QtCore.Property(bool, get_macro_dialog, set_macro_dialog, reset_macro_dialog)
+    launch_halmeter_action = QtCore.Property(bool, get_launch_halmeter, set_launch_halmeter, reset_launch_halmeter)
+    launch_status_action = QtCore.Property(bool, get_launch_status, set_launch_status, reset_launch_status)
+    launch_halshow_action = QtCore.Property(bool, get_launch_halshow, set_launch_halshow, reset_launch_halshow)
+    launch_halscope_action = QtCore.Property(bool, get_launch_halscope, set_launch_halscope, reset_launch_halscope)
+    launch_calibration_action = QtCore.Property(bool, get_launch_calibration, set_launch_calibration, reset_launch_calibration)
+    home_action = QtCore.Property(bool, get_home, set_home, reset_home)
+    unhome_action = QtCore.Property(bool, get_unhome, set_unhome, reset_unhome)
+    home_select_action = QtCore.Property(bool, get_home_select, set_home_select, reset_home_select)
+    unhome_select_action = QtCore.Property(bool, get_unhome_select, set_unhome_select, reset_unhome_select)
+    zero_axis_action = QtCore.Property(bool, get_zero_axis, set_zero_axis, reset_zero_axis)
+    zero_g5x_action = QtCore.Property(bool, get_zero_g5x, set_zero_g5x, reset_zero_g5x)
+    zero_g92_action = QtCore.Property(bool, get_zero_g92, set_zero_g92, reset_zero_g92)
+    zero_zrot_action = QtCore.Property(bool, get_zero_zrot, set_zero_zrot, reset_zero_zrot)
+    jog_joint_pos_action = QtCore.Property(bool, get_jog_joint_pos, set_jog_joint_pos, reset_jog_joint_pos)
+    jog_joint_neg_action = QtCore.Property(bool, get_jog_joint_neg, set_jog_joint_neg, reset_jog_joint_neg)
+    jog_selected_pos_action = QtCore.Property(bool, get_jog_selected_pos, set_jog_selected_pos, reset_jog_selected_pos)
+    jog_selected_neg_action = QtCore.Property(bool, get_jog_selected_neg, set_jog_selected_neg, reset_jog_selected_neg)
+    jog_incr_action = QtCore.Property(bool, get_jog_incr, set_jog_incr, reset_jog_incr)
+    jog_rate_action = QtCore.Property(bool, get_jog_rate, set_jog_rate, reset_jog_rate)
+    feed_over_action = QtCore.Property(bool, get_feed_over, set_feed_over, reset_feed_over)
+    rapid_over_action = QtCore.Property(bool, get_rapid_over, set_rapid_over, reset_rapid_over)
+    max_velocity_over_action = QtCore.Property(bool, get_max_velocity_over, set_max_velocity_over, reset_max_velocity_over)
+    spindle_over_action = QtCore.Property(bool, get_spindle_over, set_spindle_over, reset_spindle_over)
+    spindle_fwd_action = QtCore.Property(bool, get_spindle_fwd, set_spindle_fwd, reset_spindle_fwd)
+    spindle_rev_action = QtCore.Property(bool, get_spindle_rev, set_spindle_rev, reset_spindle_rev)
+    spindle_stop_action = QtCore.Property(bool, get_spindle_stop, set_spindle_stop, reset_spindle_stop)
+    spindle_up_action = QtCore.Property(bool, get_spindle_up, set_spindle_up, reset_spindle_up)
+    spindle_down_action = QtCore.Property(bool, get_spindle_down, set_spindle_down, reset_spindle_down)
+    view_change_action = QtCore.Property(bool, get_view_change, set_view_change, reset_view_change)
+    limits_override_action = QtCore.Property(bool, get_limits_override, set_limits_override, reset_limits_override)
+    flood_action = QtCore.Property(bool, get_flood, set_flood, reset_flood)
+    mist_action = QtCore.Property(bool, get_mist, set_mist, reset_mist)
+    block_delete_action = QtCore.Property(bool, get_block_delete, set_block_delete, reset_block_delete)
+    optional_stop_action = QtCore.Property(bool, get_optional_stop, set_optional_stop, reset_optional_stop)
+    mdi_command_action = QtCore.Property(bool, get_mdi_command, set_mdi_command, reset_mdi_command)
+    ini_mdi_command_action = QtCore.Property(bool, get_ini_mdi_command, set_ini_mdi_command, reset_ini_mdi_command)
+    mdi_mode_check_action = QtCore.Property(bool, get_mdi_mode_check, set_mdi_mode_check, reset_mdi_mode_check)
+    ini_macro_command_action = QtCore.Property(bool, get_ini_macro_command, set_ini_macro_command, reset_ini_macro_command)
+    dro_absolute_action = QtCore.Property(bool, get_dro_absolute, set_dro_absolute, reset_dro_absolute)
+    dro_relative_action = QtCore.Property(bool, get_dro_relative, set_dro_relative, reset_dro_relative)
+    dro_dtg_action = QtCore.Property(bool, get_dro_dtg, set_dro_dtg, reset_dro_dtg)
+    exit_action = QtCore.Property(bool, get_exit, set_exit, reset_exit)
+    machine_log_dialog_action = QtCore.Property(bool, get_machine_log_dialog, set_machine_log_dialog, reset_machine_log_dialog)
+    lathe_mirror_x_action = QtCore.Property(bool, get_lathe_mirror_x, set_lathe_mirror_x, reset_lathe_mirror_x)
 
 
-    home_no_unhome_option = QtCore.pyqtProperty(bool, get_home_no_unhome, set_home_no_unhome, reset_home_no_unhome)
+    home_no_unhome_option = QtCore.Property(bool, get_home_no_unhome, set_home_no_unhome, reset_home_no_unhome)
 
     def set_template_label(self, data):
         self.template_label = data
@@ -1610,22 +1763,24 @@ class ActionButton(IndicatedPushButton):
         return self.template_label
     def reset_template_label(self):
         self.template_label = False
-    template_label_option = QtCore.pyqtProperty(bool, get_template_label, set_template_label, reset_template_label)
+    template_label_option = QtCore.Property(bool, get_template_label, set_template_label, reset_template_label)
 
 
     # NON BOOL
-    joint_number = QtCore.pyqtProperty(int, get_joint, set_joint, reset_joint)
-    axis_letter = QtCore.pyqtProperty(str, get_axis, set_axis, reset_axis)
-    incr_imperial_number = QtCore.pyqtProperty(float, get_incr_imperial, set_incr_imperial, reset_incr_imperial)
-    incr_mm_number = QtCore.pyqtProperty(float, get_incr_mm, set_incr_mm, reset_incr_mm)
-    incr_angular_number = QtCore.pyqtProperty(float, get_incr_angle, set_incr_angle, reset_incr_angle)
-    toggle_float_option = QtCore.pyqtProperty(bool, get_toggle_float, set_toggle_float, reset_toggle_float)
-    float_num = QtCore.pyqtProperty(float, get_float, set_float, reset_float)
-    float_alt_num = QtCore.pyqtProperty(float, get_float_alt, set_float_alt, reset_float_alt)
-    view_type_string = QtCore.pyqtProperty(str, get_view_type, set_view_type, reset_view_type)
-    command_text_string = QtCore.pyqtProperty(str, get_command_text, set_command_text, reset_command_text)
-    ini_mdi_number = QtCore.pyqtProperty(int, get_ini_mdi_num, set_ini_mdi_num, reset_ini_mdi_num)
-    ini_mdi_key = QtCore.pyqtProperty(str, get_ini_mdi_key, set_ini_mdi_key, reset_ini_mdi_key)
+    joint_number = QtCore.Property(int, get_joint, set_joint, reset_joint)
+    axis_letter = QtCore.Property(str, get_axis, set_axis, reset_axis)
+    incr_imperial_number = QtCore.Property(float, get_incr_imperial, set_incr_imperial, reset_incr_imperial)
+    incr_mm_number = QtCore.Property(float, get_incr_mm, set_incr_mm, reset_incr_mm)
+    incr_angular_number = QtCore.Property(float, get_incr_angle, set_incr_angle, reset_incr_angle)
+    toggle_float_option = QtCore.Property(bool, get_toggle_float, set_toggle_float, reset_toggle_float)
+    float_num = QtCore.Property(float, get_float, set_float, reset_float)
+    float_alt_num = QtCore.Property(float, get_float_alt, set_float_alt, reset_float_alt)
+    view_type_string = QtCore.Property(str, get_view_type, set_view_type, reset_view_type)
+    command_text_string = QtCore.Property(str, get_command_text, set_command_text, reset_command_text)
+    ini_mdi_number = QtCore.Property(int, get_ini_mdi_num, set_ini_mdi_num, reset_ini_mdi_num)
+    ini_mdi_key = QtCore.Property(str, get_ini_mdi_key, set_ini_mdi_key, reset_ini_mdi_key)
+    ini_macro_number = QtCore.Property(int, get_ini_macro_num, set_ini_macro_num, reset_ini_macro_num)
+    ini_macro_key = QtCore.Property(str, get_ini_macro_key, set_ini_macro_key, reset_ini_macro_key)
 
     def set_textTemplate(self, data):
         self._textTemplate = data
@@ -1634,7 +1789,7 @@ class ActionButton(IndicatedPushButton):
         return self._textTemplate
     def reset_textTemplate(self):
         self._textTemplate = '%1.3f in'
-    textTemplate = QtCore.pyqtProperty(str, get_textTemplate, set_textTemplate, reset_textTemplate)
+    textTemplate = QtCore.Property(str, get_textTemplate, set_textTemplate, reset_textTemplate)
 
     def set_alt_textTemplate(self, data):
         self._alt_textTemplate = data
@@ -1642,7 +1797,7 @@ class ActionButton(IndicatedPushButton):
         return self._alt_textTemplate
     def reset_alt_textTemplate(self):
         self._alt_textTemplate = '%1.2f mm'
-    alt_textTemplate = QtCore.pyqtProperty(str, get_alt_textTemplate, set_alt_textTemplate, reset_alt_textTemplate)
+    alt_textTemplate = QtCore.Property(str, get_alt_textTemplate, set_alt_textTemplate, reset_alt_textTemplate)
 
     ##############################
     # required class boiler code #
@@ -1656,7 +1811,7 @@ class ActionButton(IndicatedPushButton):
 if __name__ == "__main__":
 
     import sys
-    from PyQt5.QtWidgets import QApplication
+    from qtpy.QtWidgets import QApplication
     app = QApplication(sys.argv)
 
     widget = ActionButton('Action')
@@ -1669,4 +1824,4 @@ if __name__ == "__main__":
     widget._hal_init()
 
     widget.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

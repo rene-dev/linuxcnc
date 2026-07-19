@@ -44,10 +44,10 @@
 #include <ctype.h>
 #include <string.h>
 
-#include "rtapi.h"		// RTAPI realtime OS API
+#include <rtapi.h>		// RTAPI realtime OS API
 #include <rtapi_mutex.h>
 #include <rtapi_string.h>	// rtapi_strlcpy()
-#include "hal.h"		// HAL public API decls
+#include <hal.h>		// HAL public API decls
 #include "../hal_priv.h"	// private HAL decls
 
 #include <gtk/gtk.h>
@@ -133,7 +133,6 @@ void init_vert(void)
 
 int set_active_channel(int chan_num)
 {
-    int n, count;
     scope_vert_t *vert;
     scope_chan_t *chan;
     if (( chan_num < 1 ) || ( chan_num > 16 )) {
@@ -147,16 +146,6 @@ int set_active_channel(int chan_num)
 	if (ctrl_shm->state != IDLE) {
 	    /* acquisition in progress, must restart it */
             prepare_scope_restart();
-	}
-	count = 0;
-	for (n = 0; n < 16; n++) {
-	    if (vert->chan_enabled[n]) {
-		count++;
-	    }
-	}
-	if (count >= ctrl_shm->sample_len) {
-	    /* max number of channels already enabled */
-	    return -2;
 	}
 	if (chan->name == NULL) {
 	    /* no signal source */
@@ -287,6 +276,7 @@ int set_channel_source(int chan_num, int type, char *name)
     vert->data_offset[chan_num - 1] = -1;
     /* set scale and offset to nominal values */
     chan->vert_offset = 0.0;
+    chan->saved_vert_offset = 0.0;
     chan->scale_index = 0;
     /* return success */
     return 0;
@@ -401,6 +391,8 @@ int set_vert_offset(double setting, int ac_coupled)
     /* set the new offset */
     chan->vert_offset = setting;
     chan->ac_offset = ac_coupled;
+    /* copy the offset to restore when toggling AC coupling */
+    chan->saved_vert_offset = chan->vert_offset;
     /* update the offset display */
     if (chan->data_type == HAL_BIT) {
 	snprintf(buf1, BUFLEN, "----");
@@ -727,15 +719,23 @@ static gboolean dialog_set_offset(int chan_num)
             vert->offset_entry, FALSE, TRUE, 0);
 
     /* update elements */
-    snprintf(data.buf, BUFLEN, "%f", chan->vert_offset);
+    snprintf(data.buf, BUFLEN, "%f", chan->saved_vert_offset);
+    /* get AC coupling setting from channel */
+    data.ac_coupled = chan->ac_offset;
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(vert->offset_ac), data.ac_coupled);
+    gtk_widget_set_sensitive(GTK_WIDGET(vert->offset_entry), !data.ac_coupled);
+
     gtk_entry_set_text(GTK_ENTRY(vert->offset_entry), data.buf);
     gtk_entry_set_max_length(GTK_ENTRY(vert->offset_entry), BUFLEN-1);
-    /* point at first char */
-    gtk_editable_set_position(GTK_EDITABLE(vert->offset_entry), 0);
-    /* select all chars, so if the user types the original value goes away */
-    gtk_editable_select_region(GTK_EDITABLE(vert->offset_entry), 0, strlen(data.buf));
-    /* make it active so user doesn't have to click on it */
-    gtk_widget_grab_focus(GTK_WIDGET(vert->offset_entry));
+    
+    if (!data.ac_coupled) {
+        /* point at first char */
+        gtk_editable_set_position(GTK_EDITABLE(vert->offset_entry), 0);
+        /* select all chars, so if the user types the original value goes away */
+        gtk_editable_select_region(GTK_EDITABLE(vert->offset_entry), 0, strlen(data.buf));
+        /* make it active so user doesn't have to click on it */
+        gtk_widget_grab_focus(GTK_WIDGET(vert->offset_entry));
+    }
 
     /* signals */
     g_signal_connect(vert->offset_ac, "toggled",
@@ -769,6 +769,14 @@ static void offset_changed(GtkEditable * editable, struct offset_data *data)
       gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(ctrl_usr->vert.offset_ac));
     gtk_widget_set_sensitive(ctrl_usr->vert.offset_entry, !data->ac_coupled);
 
+    if (!data->ac_coupled) {
+        /* select all chars, so if the user types the original value goes away */
+        gtk_editable_select_region(
+            GTK_EDITABLE(ctrl_usr->vert.offset_entry), 0, strlen(data->buf));
+        /* make it active so user doesn't have to click on it */
+        gtk_widget_grab_focus(GTK_WIDGET(ctrl_usr->vert.offset_entry));
+    }
+
     /* maybe user typed something, save it in the buffer */
     text = gtk_entry_get_text(GTK_ENTRY(ctrl_usr->vert.offset_entry));
     snprintf(data->buf, BUFLEN, "%s", text);
@@ -788,10 +796,8 @@ static void offset_activated(GtkEntry *entry, GtkWidget *dialog)
 static void chan_sel_button(GtkWidget * widget, gpointer gdata)
 {
     long chan_num;
-    int n, count;
     scope_vert_t *vert;
     scope_chan_t *chan;
-    GtkWidget *dialog;
 
     vert = &(ctrl_usr->vert);
     chan_num = (long) gdata;
@@ -807,31 +813,6 @@ static void chan_sel_button(GtkWidget * widget, gpointer gdata)
         if (ctrl_shm->state != IDLE) {
             /* acquisition in progress, must restart it */
             prepare_scope_restart();
-        }
-        count = 0;
-        for (n = 0; n < 16; n++) {
-            if (vert->chan_enabled[n]) {
-            count++;
-            }
-        }
-        if (count >= ctrl_shm->sample_len) {
-            /* max number of channels already enabled */
-            /* force the button to pop back out */
-            ignore_click = 1;
-            gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(widget), FALSE);
-            dialog = gtk_message_dialog_new(GTK_WINDOW(ctrl_usr->main_win),
-                                            GTK_DIALOG_MODAL,
-                                            GTK_MESSAGE_INFO,
-                                            GTK_BUTTONS_CLOSE,
-                                            _("Too many channels"));
-            gtk_message_dialog_format_secondary_text(
-                    GTK_MESSAGE_DIALOG(dialog),
-                    _("You cannot add another channel.\n\n"
-                    "Either turn off one or more channels, or shorten\n"
-                    "the record length to allow for more channels"));
-            gtk_dialog_run(GTK_DIALOG(dialog));
-            gtk_widget_destroy(dialog);
-            return;
         }
         if (chan->name == NULL) {
             /* need to assign a source */
@@ -1085,11 +1066,11 @@ void channel_changed(void)
     vert = &(ctrl_usr->vert);
     /* add a name to apply CSS for highlighted channel */
     if (last_channel != vert->selected) {
-        if (last_channel) {
-            gtk_widget_set_name(chan_buttons[last_channel-1],"");
+        if ((last_channel >= 1) && (last_channel <= 16)) {
+            gtk_widget_set_name(chan_buttons[last_channel - 1], "");
         }
-        if (vert->selected) {
-            gtk_widget_set_name(chan_buttons[vert->selected-1],"selected");
+        if ((vert->selected >= 1) && (vert->selected <= 16)) {
+            gtk_widget_set_name(chan_buttons[vert->selected - 1], "selected");
         }
         last_channel = vert->selected;
     }
@@ -1172,6 +1153,9 @@ static void write_chan_config(FILE *fp, scope_chan_t *chan)
     } else if ( chan->data_source_type == 2 ) {
 	// pin
 	fprintf(fp, "PARAM %s\n", chan->name);
+    } else if ( chan->is_phantom ) {
+	// phantom channel - save as comment for reference
+	fprintf(fp, "# PHANTOM %s\n", chan->name);
     } else {
 	// not configured
 	return;

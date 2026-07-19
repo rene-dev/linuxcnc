@@ -1,6 +1,7 @@
 //    This is a component of AXIS, a front-end for LinuxCNC
 //    Copyright 2004, 2005, 2006 Jeff Epler <jepler@unpythonic.net> and
 //    Chris Radek <chris@timeguy.com>
+//    Copyright 2026 B.Stultiens
 //
 //    This program is free software; you can redistribute it and/or modify
 //    it under the terms of the GNU General Public License as published by
@@ -17,33 +18,32 @@
 //    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 #define PY_SSIZE_T_CLEAN
-#define __STDC_FORMAT_MACROS
 #include <Python.h>
 #include <structseq.h>
 #include <pthread.h>
 #include <structmember.h>
-#include <inttypes.h>
 #include "config.h"
-#include "rcs.hh"
-#include "emc.hh"
-#include "emc_nml.hh"
-#include "kinematics.h"
+#include "libnml/rcs/rcs.hh"
+#include "nml_intf/emc.hh"
+#include "nml_intf/emc_nml.hh"
+#include <kinematics.h>
 #include "config.h"
-#include "inifile.hh"
-#include "timer.hh"
-#include "nml_oi.hh"
-#include "rcs_print.hh"
-#include <rtapi_string.h>
+#include <inifile.hh>
+#include "libnml/os_intf/timer.hh"
+#include "libnml/nml/nml_oi.hh"
+#include "libnml/rcs/rcs_print.hh"
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "tooldata.hh"
+#include "tooldata/tooldata.hh"
 
 #include <cmath>
 
 #include <epoxy/gl.h>
 #include <epoxy/glx.h>
 #include <algorithm>
+
+using namespace linuxcnc;
 
 #define LOCAL_SPINDLE_FORWARD (1)
 #define LOCAL_SPINDLE_REVERSE (-1)
@@ -72,14 +72,11 @@
 #define LOCAL_AUTO_REVERSE (4)
 #define LOCAL_AUTO_FORWARD (5)
 
-/* This definition of offsetof avoids the g++ warning
- * 'invalid offsetof from non-POD type'.
- */
-#pragma GCC diagnostic ignored "-Winvalid-offsetof"
-
 struct pyIniFile {
     PyObject_HEAD
-    IniFile *i;
+    // The 'inifile' member is a pointer because we don't
+    // have C++ constructor semantics here
+    std::string *inifile;
 };
 
 struct pyStatChannel {
@@ -103,61 +100,760 @@ struct pyErrorChannel {
 static PyObject *m = NULL, *error = NULL;
 
 static int Ini_init(pyIniFile *self, PyObject *a, PyObject * /*k*/) {
-    char *inifile;
+    const char *inifile = NULL;
     if(!PyArg_ParseTuple(a, "s", &inifile)) return -1;
 
-    if(!self->i)
-        self->i = new IniFile();
+    if(!inifile)
+        return -1;
 
-    if (!self->i->Open(inifile)) {
+    self->inifile = new std::string(inifile);
+
+    IniFile ini(self->inifile); // Test open (will parse and cache the file)
+    if (!ini) {
         PyErr_Format( error, "inifile.open(%s) failed", inifile);
         return -1;
     }
     return 0;
 }
 
-static PyObject *Ini_find(pyIniFile *self, PyObject *args) {
-    const char *s1, *s2;
+//
+// PyBool linuxcnc.ini.hasvariable(string:section, string:variable)
+//
+// Find [section]variable and return true if found. The 'section' may be an
+// empty string and the first occurrence of 'variable' in any section is
+// searched.
+//
+static PyObject *Ini_has_variable(pyIniFile *self, PyObject *args)
+{
+    const char *sect = "", *var;
     int num = 1;
-    if(!PyArg_ParseTuple(args, "ss|i:find", &s1, &s2, &num)) return NULL;
+    if(!PyArg_ParseTuple(args, "s|si:hasvariable", &sect, &var, &num))
+        return NULL;
 
-    if (auto out = self->i->Find(s2, s1, num))
-        return PyUnicode_FromString(out.value());
+    IniFile ini(self->inifile);
+    if(!ini) {
+        PyErr_Format(error, "Internal: ini-file could not be reopened");
+        return NULL;
+    }
 
-    Py_INCREF(Py_None);
-    return Py_None;
+    return PyBool_FromLong((long)ini.hasVariable(num, var, sect));
 }
 
-static PyObject *Ini_findall(pyIniFile *self, PyObject *args) {
-    const char *s1, *s2;
+//
+// PyBool linuxcnc.ini.hassection(string:section)
+//
+// Find [section] and return true if found.
+//
+static PyObject *Ini_has_section(pyIniFile *self, PyObject *args)
+{
+    const char *sect;
+    if(!PyArg_ParseTuple(args, "s:hassection", &sect))
+        return NULL;
+
+    IniFile ini(self->inifile);
+    if(!ini) {
+        PyErr_Format(error, "Internal: ini-file could not be reopened");
+        return NULL;
+    }
+
+    return PyBool_FromLong((long)ini.hasSection(sect));
+}
+
+//
+// The prototype of PyArg_ParseTupleAndKeywords() was originally using char**
+// for the keyword array. This is obviously problematic and was changed in 3.13
+// to const. C++ will generate an error when demoting const to non-const
+// pointers. We need to support multiple python versions and make this
+// patchwork to support them all.
+#if PY_VERSION_HEX >= 0x030d00f0	// 3.13
+#define PARSE_KW_CONST const
+#else
+#define PARSE_KW_CONST
+#endif
+
+static PARSE_KW_CONST char kw_empty[] = "";
+static PARSE_KW_CONST char kw_fallback[] = "fallback";
+static PARSE_KW_CONST char *kw_eeefn[] = { kw_empty, kw_empty, kw_empty, kw_fallback, NULL };
+static PARSE_KW_CONST char *kw_efn[]   = { kw_empty, kw_fallback, NULL };
+
+#undef PARSE_KW_CONST
+
+//
+// PyBool|None linuxcnc.ini.getbool(string:section, string:variable [, int:num] [, fallback=val])
+//
+// Find [section]variable and convert it to boolean. Valid boolean values are
+// (case insensitive) {true, yes, on, 1} and {false, no, off, 0}.
+// The optional named argument fallback= defines the object to return when the
+// variable is not found or invalid. The optional named option num= selects the
+// num'th variable of the section (default to 1).
+//
+static PyObject *Ini_get_bool(pyIniFile *self, PyObject *args, PyObject *kwargs)
+{
+    const char *sect, *var;
     int num = 1;
-    if(!PyArg_ParseTuple(args, "ss:findall", &s1, &s2)) return NULL;
+    PyObject *def = Py_None;
+    if(!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|i$O:getbool", kw_eeefn, &sect, &var, &num, &def))
+        return NULL;
+
+    if(num < 1) {
+        PyErr_Format(error, "Argument 'num' must be >= 1");
+        return NULL;
+    }
+
+    IniFile ini(self->inifile);
+    if(!ini) {
+        PyErr_Format(error, "Internal: ini-file could not be reopened");
+        return NULL;
+    }
+
+    if(auto v = ini.findBool(num, var, sect))
+        return PyBool_FromLong(*v);
+
+    // Not found or error
+    // We have a fallback set by argument or as None
+    Py_INCREF(def);
+    return def;
+}
+
+//
+// PyLong|None linuxcnc.ini.getsint(string:section, string:variable [, int:num] [, fallback=val])
+//
+// Find [section]variable and convert it to a signed integer.
+// The optional named argument fallback= defines the value to return when the
+// variable is not found or invalid. The optional named option num= selects the
+// num'th variable of the section (default to 1).
+//
+static PyObject *Ini_get_sint(pyIniFile *self, PyObject *args, PyObject *kwargs)
+{
+    const char *sect, *var;
+    int num = 1;
+    PyObject *def = Py_None;
+    if(!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|i$O:getsint", kw_eeefn, &sect, &var, &num, &def))
+        return NULL;
+
+    if(num < 1) {
+        PyErr_Format(error, "Argument 'num' must be >= 1");
+        return NULL;
+    }
+
+    IniFile ini(self->inifile);
+    if(!ini) {
+        PyErr_Format(error, "Internal: ini-file could not be reopened");
+        return NULL;
+    }
+
+    if(auto v = ini.findSInt(num, var, sect))
+        return PyLong_FromLongLong(*v);
+
+    // Not found or error
+    // We have a fallback set by argument or as None
+    Py_INCREF(def);
+    return def;
+}
+
+//
+// PyLong|None linuxcnc.ini.getuint(string:section, string:variable [, int:num] [, fallback=val])
+//
+// Find [section]variable and convert it to an unsigned integer.
+// The optional named argument fallback= defines the value to return when the
+// variable is not found or invalid. The optional named option num= selects the
+// num'th variable of the section (default to 1).
+//
+static PyObject *Ini_get_uint(pyIniFile *self, PyObject *args, PyObject *kwargs)
+{
+    const char *sect, *var;
+    int num = 1;
+    PyObject *def = Py_None;
+    if(!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|i$O:getuint", kw_eeefn, &sect, &var, &num, &def))
+        return NULL;
+
+    if(num < 1) {
+        PyErr_Format(error, "Argument 'num' must be >= 1");
+        return NULL;
+    }
+
+    IniFile ini(self->inifile);
+    if(!ini) {
+        PyErr_Format(error, "Internal: ini-file could not be reopened");
+        return NULL;
+    }
+
+    if(auto v = ini.findUInt(num, var, sect))
+        return PyLong_FromUnsignedLongLong(*v);
+
+    // Not found or error
+    // We have a fallback set by argument or as None
+    Py_INCREF(def);
+    return def;
+}
+
+//
+// PyFloat|None linuxcnc.ini.getreal(string:section, string:variable [, int:num] [, fallback=val])
+//
+// Find [section]variable and convert it to an unsigned integer.
+// The optional named argument fallback= defines the value to return when the
+// variable is not found or invalid. The optional named option num= selects the
+// num'th variable of the section (default to 1).
+//
+static PyObject *Ini_get_real(pyIniFile *self, PyObject *args, PyObject *kwargs)
+{
+    const char *sect, *var;
+    int num = 1;
+    PyObject *def = Py_None;
+    if(!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|i$O:getreal", kw_eeefn, &sect, &var, &num, &def))
+        return NULL;
+
+    if(num < 1) {
+        PyErr_Format(error, "Argument 'num' must be >= 1");
+        return NULL;
+    }
+
+    IniFile ini(self->inifile);
+    if(!ini) {
+        PyErr_Format(error, "Internal: ini-file could not be reopened");
+        return NULL;
+    }
+
+    if(auto v = ini.findReal(num, var, sect))
+        return PyFloat_FromDouble(*v);
+
+    // Not found or error
+    // We have a fallback set by argument or as None
+    Py_INCREF(def);
+    return def;
+}
+
+//
+// PyString|None linuxcnc.ini.getstring(string:section, string:variable [, int:num] [, fallback=val])
+//
+// Find [section]variable and convert it to a string.
+// The optional named argument fallback= defines the value to return when the
+// variable is not found or invalid. The optional named option num= selects the
+// num'th variable of the section (default to 1).
+//
+static PyObject *Ini_get_string(pyIniFile *self, PyObject *args, PyObject *kwargs)
+{
+    const char *sect, *var;
+    int num = 1;
+    PyObject *def = Py_None;
+    if(!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|i$O:getstring", kw_eeefn, &sect, &var, &num, &def))
+        return NULL;
+
+    if(num < 1) {
+        PyErr_Format(error, "Argument 'num' must be >= 1");
+        return NULL;
+    }
+
+    IniFile ini(self->inifile);
+    if(!ini) {
+        PyErr_Format(error, "Internal: ini-file could not be reopened");
+        return NULL;
+    }
+
+    if(auto v = ini.findString(num, var, sect))
+        return PyUnicode_FromString(v->c_str());
+
+    // Not found or error
+    // We have a fallback set by argument or as None
+    Py_INCREF(def);
+    return def;
+}
+
+//
+// PyList(PyTuple(variable,value)) linuxcnc.ini.getsection([string:section])
+//
+// Returns a list of tuples containing variable name and value from the named
+// section or all variables from all sections if no section given.
+//
+static PyObject *Ini_get_variables(pyIniFile *self, PyObject *args)
+{
+    const char *sect = "";
+    if(!PyArg_ParseTuple(args, "|s:getvariables", &sect)) return NULL;
+
+    IniFile ini(self->inifile);
+    if(!ini) {
+        PyErr_Format(error, "Internal: ini-file could not be reopened");
+        return NULL;
+    }
+
+    PyObject *list = PyList_New(0);
+    if(!list)
+        return NULL;
+
+    for(auto const &v : ini.findVariables(sect)) {
+        PyObject *var = PyUnicode_FromString(v.first.c_str());
+        if(!var) {
+            Py_DECREF(list);
+            return NULL;
+        }
+        PyObject *val = PyUnicode_FromString(v.second.c_str());
+        if(!val) {
+            Py_DECREF(var);
+            Py_DECREF(list);
+            return NULL;
+        }
+        PyObject *tup = PyTuple_New(2);
+        if(!tup) {
+            Py_DECREF(val);
+            Py_DECREF(var);
+            Py_DECREF(list);
+            return NULL;
+        }
+        PyTuple_SET_ITEM(tup, 0, var);
+        PyTuple_SET_ITEM(tup, 1, val);
+        PyList_Append(list, tup);
+    }
+    return list;
+}
+
+//
+// PyList linuxcnc.ini.sections()
+//
+// Returns a list of section names from the ini-file.
+//
+static PyObject *Ini_get_sections(pyIniFile *self, PyObject *)
+{
+    IniFile ini(self->inifile);
+    if(!ini) {
+        PyErr_Format(error, "Internal: ini-file could not be reopened");
+        return NULL;
+    }
+
+    PyObject *list = PyList_New(0);
+    if(!list)
+        return NULL;
+
+    for(auto const &v : ini.findSections()) {
+        PyObject *val = PyUnicode_FromString(v.c_str());
+        if(!val) {
+            Py_DECREF(list);
+            return NULL;
+        }
+        PyList_Append(list, val);
+    }
+    return list;
+}
+
+//
+// PyList linuxcnc.ini.findall(string:section [, string:variable])
+//
+// Return a list of [section]variable entries where the variable name is the
+// same for all entries found. If the section string is empty (''), then all
+// variables of that name are returned.
+//
+static PyObject *Ini_findall(pyIniFile *self, PyObject *args) {
+    const char *sect;
+    const char *var = "";
+    int num = 1;
+    if(!PyArg_ParseTuple(args, "s|s:findall", &sect, &var)) return NULL;
+
+    IniFile ini(self->inifile);
+    if(!ini) {
+        PyErr_Format(error, "Internal: ini-file could not be reopened");
+        return NULL;
+    }
 
     PyObject *result = PyList_New(0);
-    while(auto out = self->i->Find(s2, s1, num)) {
-        PyList_Append(result, PyUnicode_FromString(out.value()));
+    if(!result)
+        return NULL;
+
+    while(auto const &out = ini.findString(num, var, sect)) {
+        PyList_Append(result, PyUnicode_FromString(out.value().c_str()));
         num++;
     }
     return result;
 }
 
+//
+// PyTuple(filename, lineno) linuxcnc.ini.lineof(string:section, string:variable [, int:num])
+//
+// Return a (filname,linenr) tuple containing the filename and line number of
+// the [section]variable. Optionally you can request the num'th instance of the
+// variable.
+//
+static PyObject *Ini_lineof(pyIniFile *self, PyObject *args) {
+    const char *sect;
+    const char *var = "";
+    int num = 1;
+    if(!PyArg_ParseTuple(args, "ss|i:lineof", &sect, &var, &num)) return NULL;
+
+    if(num < 1) {
+        PyErr_Format(error, "Argument 'num' must be >= 1");
+        return NULL;
+    }
+
+    IniFile ini(self->inifile);
+    if(!ini) {
+        PyErr_Format(error, "Internal: ini-file could not be reopened");
+        return NULL;
+    }
+
+    PyObject *result = PyTuple_New(2);
+    if(!result)
+        return NULL;
+
+    auto v = ini.lineOf(num, var, sect);
+    if(v.second < 0) {
+        // Set to (None, None)
+        PyTuple_SET_ITEM(result, 0, Py_None);
+        PyTuple_SET_ITEM(result, 1, Py_None);
+    } else {
+        PyObject *fname = PyUnicode_FromString(v.first.c_str());
+        if(!fname) {
+            Py_DECREF(result);
+            return NULL;
+        }
+        PyObject *lineno = PyLong_FromLong(v.second);
+        if(!lineno) {
+            Py_DECREF(fname);
+            Py_DECREF(result);
+            return NULL;
+        }
+        PyTuple_SET_ITEM(result, 0, fname);
+        PyTuple_SET_ITEM(result, 1, lineno);
+    }
+    return result;
+}
+
+//
+// PyFloat|None linuxcnc.ini.maplinearunits(string:enumstr [, fallback=val])
+//
+// Use argument enumstr and convert the enumeration to its numerical value.
+// The optional named argument fallback= defines the value to return when the
+// variable is not found or invalid. The optional named option num= selects the
+// num'th variable of the section (default to 1).
+//
+static PyObject *Ini_map_linearunits(pyIniFile * /*self*/, PyObject *args, PyObject *kwargs)
+{
+    const char *str;
+    PyObject *def = Py_None;
+    if(!PyArg_ParseTupleAndKeywords(args, kwargs, "s|$O:maplinearunits", kw_efn, &str, &def))
+        return NULL;
+
+    if(auto v = IniFile::mapLinearUnits(str))
+        return PyFloat_FromDouble(*v);
+
+    // Not found, a fallback set by argument or as None
+    Py_INCREF(def);
+    return def;
+}
+
+//
+// PyFloat|None linuxcnc.ini.mapangularunits(string:enumstr [, fallback=val])
+//
+// Use argument enumstr and convert the enumeration to its numerical value.
+// The optional named argument fallback= defines the value to return when the
+// variable is not found or invalid. The optional named option num= selects the
+// num'th variable of the section (default to 1).
+//
+static PyObject *Ini_map_angularunits(pyIniFile * /*self*/, PyObject *args, PyObject *kwargs)
+{
+    const char *str;
+    PyObject *def = Py_None;
+    if(!PyArg_ParseTupleAndKeywords(args, kwargs, "s|$O:mapangularunits", kw_efn, &str, &def))
+        return NULL;
+
+    if(auto v = IniFile::mapAngularUnits(str))
+        return PyFloat_FromDouble(*v);
+
+    // Not found, a fallback set by argument or as None
+    Py_INCREF(def);
+    return def;
+}
+
+//
+// PyFloat|None linuxcnc.ini.mapjointtype(string:enumstr [, fallback=val])
+//
+// Use argument enumstr and convert the enumeration to its numerical value.
+// The optional named argument fallback= defines the value to return when the
+// variable is not found or invalid. The optional named option num= selects the
+// num'th variable of the section (default to 1).
+//
+static PyObject *Ini_map_jointtype(pyIniFile * /*self*/, PyObject *args, PyObject *kwargs)
+{
+    const char *str;
+    PyObject *def = Py_None;
+    if(!PyArg_ParseTupleAndKeywords(args, kwargs, "s|$O:mapjointtype", kw_efn, &str, &def))
+        return NULL;
+
+    if(auto v = IniFile::mapJointType(str))
+        return PyLong_FromLong((long)*v);
+
+    // Not found, a fallback set by argument or as None
+    Py_INCREF(def);
+    return def;
+}
+
+//
+// PyFloat|None linuxcnc.ini.getlinearunits(string:section, string:variable [, int:num] [, fallback=val])
+//
+// Find [section]variable and convert the enumeration to its numerical value.
+// The optional named argument fallback= defines the value to return when the
+// variable is not found or invalid. The optional named option num= selects the
+// num'th variable of the section (default to 1).
+//
+static PyObject *Ini_get_linearunits(pyIniFile *self, PyObject *args, PyObject *kwargs)
+{
+    const char *sect, *var;
+    int num = 1;
+    PyObject *def = Py_None;
+    if(!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|i$O:getlinearunits", kw_eeefn, &sect, &var, &num, &def))
+        return NULL;
+
+    if(num < 1) {
+        PyErr_Format(error, "Argument 'num' must be >= 1");
+        return NULL;
+    }
+
+    IniFile ini(self->inifile);
+    if(!ini) {
+        PyErr_Format(error, "Internal: ini-file could not be reopened");
+        return NULL;
+    }
+
+    if(auto v = ini.findLinearUnits(num, var, sect))
+        return PyFloat_FromDouble(*v);
+
+    // Not found or error
+    // We have a fallback set by argument or as None
+    Py_INCREF(def);
+    return def;
+}
+
+//
+// PyFloat|None linuxcnc.ini.getangularunits(string:section, string:variable [, int:num] [, fallback=val])
+//
+// Find [section]variable and convert the enumeration to its numerical value.
+// The optional named argument fallback= defines the value to return when the
+// variable is not found or invalid. The optional named option num= selects the
+// num'th variable of the section (default to 1).
+//
+static PyObject *Ini_get_angularunits(pyIniFile *self, PyObject *args, PyObject *kwargs)
+{
+    const char *sect, *var;
+    int num = 1;
+    PyObject *def = Py_None;
+    if(!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|i$O:getangularunits", kw_eeefn, &sect, &var, &num, &def))
+        return NULL;
+
+    if(num < 1) {
+        PyErr_Format(error, "Argument 'num' must be >= 1");
+        return NULL;
+    }
+
+    IniFile ini(self->inifile);
+    if(!ini) {
+        PyErr_Format(error, "Internal: ini-file could not be reopened");
+        return NULL;
+    }
+
+    if(auto v = ini.findAngularUnits(num, var, sect))
+        return PyFloat_FromDouble(*v);
+
+    // Not found or error
+    // We have a fallback set by argument or as None
+    Py_INCREF(def);
+    return def;
+}
+
+//
+// PyFloat|None linuxcnc.ini.getjointtype(string:section, string:variable [, int:num] [, fallback=val])
+//
+// Find [section]variable and convert the enumeration to its numerical value.
+// The optional named argument fallback= defines the value to return when the
+// variable is not found or invalid. The optional named option num= selects the
+// num'th variable of the section (default to 1).
+//
+static PyObject *Ini_get_jointtype(pyIniFile *self, PyObject *args, PyObject *kwargs)
+{
+    const char *sect, *var;
+    int num = 1;
+    PyObject *def = Py_None;
+    if(!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|i$O:getjointtype", kw_eeefn, &sect, &var, &num, &def))
+        return NULL;
+
+    if(num < 1) {
+        PyErr_Format(error, "Argument 'num' must be >= 1");
+        return NULL;
+    }
+
+    IniFile ini(self->inifile);
+    if(!ini) {
+        PyErr_Format(error, "Internal: ini-file could not be reopened");
+        return NULL;
+    }
+
+    if(auto v = ini.findJointType(num, var, sect))
+        return PyLong_FromLong((long)*v);
+
+    // Not found or error
+    // We have a fallback set by argument or as None
+    Py_INCREF(def);
+    return def;
+}
+
 static void Ini_dealloc(pyIniFile *self) {
-    if (self->i)
-        self->i->Close();
-    delete self->i;
+    if(self->inifile) {
+        delete self->inifile;
+        self->inifile = NULL;
+    }
     PyObject_Del(self);
 }
 
+//
+// This #pragma sucks...
+// In C++ casting PyCFunctionWithKeywords to PyCFunction results in a warning
+// about 'cast between incompatible function types'. However, this is the way
+// it is done interfacing to the C API of Python.
+// We disable the diagnostic warning temporarily here so we are not bothered.
+// The alternative, creating an overlapping PyMethodDef structure with a
+// unionized ml_meth field with all possible function signatures, is possible
+// but not Python version secure.
+//
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-function-type"
 static PyMethodDef Ini_methods[] = {
-    {"find", (PyCFunction)Ini_find, METH_VARARGS,
-        "Find value in inifile as string.  This uses the ConfigParser-style "
-        "(section,option) order, not the linuxcnc order."},
+    {"hassection", (PyCFunction)Ini_has_section, METH_VARARGS,
+        "PyBool hassection(section)\n"
+        "Returns a boolean indicating whether or not the given section was found "
+        "in the ini-file." },
+    {"hasvariable", (PyCFunction)Ini_has_variable, METH_VARARGS,
+        "PyBool hasvariable(section, variable)\n"
+        "Returns a boolean indicating whether or not the given [section]variable "
+        "was found in the ini-file. The first occurrence of the variable name will "
+        "be searched if the section name is empty." },
+    {"getbool", (PyCFunction)Ini_get_bool, METH_VARARGS|METH_KEYWORDS,
+        "PyBool|None getbool(section, variable [, num] [, fallback=])\n"
+        "Returns the value of the variable converted to boolean if it was a valid "
+        "boolean. The return value is None if the variable was not found or an "
+        "invalid boolean value was detected and no fallback= was provided. The "
+        "optional num argument may be used to select the num'th variable of that "
+        "name in the section." },
+    {"getsint", (PyCFunction)Ini_get_sint, METH_VARARGS|METH_KEYWORDS,
+        "PyInt|None getsint(section, variable [, num] [, fallback=])\n"
+        "Returns the value of the variable converted to signed integer if it was a "
+        "valid integer. The return value is None if the variable was not found or "
+        "an invalid value was detected and no fallback= was provided. The optional "
+        "num argument may be used to select the num'th variable of that name in "
+        "the section." },
+    {"getint", (PyCFunction)Ini_get_sint, METH_VARARGS|METH_KEYWORDS,
+        "PyInt|None getint(section, variable [, num] [, fallback=])\n"
+        "Alias of getsint" },
+    {"getuint", (PyCFunction)Ini_get_uint, METH_VARARGS|METH_KEYWORDS,
+        "PyInt|None getuint(section, variable [, num] [, fallback=])\n"
+        "Returns the value of the variable converted to unsigned integer if it was "
+        "a valid unsigned integer. The return value is None if the variable was "
+        "not found or an invalid value was detected and no fallback= was provided. "
+        "The optional num argument may be used to select the num'th variable of "
+        "that name in the section." },
+    {"getreal", (PyCFunction)Ini_get_real, METH_VARARGS|METH_KEYWORDS,
+        "PyFloat|None getreal(section, variable [, num] [, fallback=])\n"
+        "Returns the value of the variable converted to floating point real if it "
+        "was a valid real. The return value is None if the variable was not found "
+        "or an invalid value was detected and no fallback= was provided. The "
+        "optional num argument may be used to select the num'th variable of that "
+        "name in the section." },
+    {"getfloat", (PyCFunction)Ini_get_real, METH_VARARGS|METH_KEYWORDS,
+        "PyFloat|None getfloat(section, variable [, num] [, fallback=])\n"
+        "Alias of getreal()." },
+    {"getstring", (PyCFunction)Ini_get_string, METH_VARARGS|METH_KEYWORDS,
+        "PyString|None getstring(section, variable [, num] [, fallback=])\n"
+        "Returns the value of the variable as a string if it exists. "
+        "The return value is None if the variable was not found and no fallback= "
+        "was provided. The optional num argument may be used to select the num'th "
+        "variable of that name in the section." },
+    {"getsections", (PyCFunction)Ini_get_sections, METH_VARARGS,
+        "PyList getsections()\n"
+        "Returns a list of section names. " },
+    {"getvariables", (PyCFunction)Ini_get_variables, METH_VARARGS,
+        "PyList(PyTuple(name,value)) getvariables([section])\n"
+        "Returns a list of (name,value) tuples of all variables in the named "
+        "section or the variables from all sections if the section name is not "
+        "specified." },
+    {"find", (PyCFunction)Ini_get_string, METH_VARARGS|METH_KEYWORDS,
+        "PyString|None find(section, variable [, num] [, fallback=])\n"
+        "Alias of getstring()" },
     {"findall", (PyCFunction)Ini_findall, METH_VARARGS,
-        "Find value in inifile as a list.  This uses the ConfigParser-style "
-        "(section,option) order, not the linuxcnc order."},
+        "PyList findall(section [,variable])\n"
+        "Find value(s) from named section in inifile as a list matching the "
+        "variable name." },
+    {"lineof", (PyCFunction)Ini_lineof, METH_VARARGS,
+        "PyTuple(filename,lineno) lineof(section, variable [, num])\n"
+        "Returns a tuple with the filename and line number of the num'th "
+        "variable in the section. The first matching section variable is "
+        "returned if num if not provided. The tuple (None, None) is returned "
+        "if the variable is not found." },
+    {"maplinearunits", (PyCFunction)Ini_map_linearunits, METH_VARARGS|METH_KEYWORDS,
+        "PyFloat|None maplinearunits(enumstr [, fallback=])\n"
+        "Take the enumeration string argument and try to convert. "
+        "Returns the value associated with enumerated type defined by "
+        "[mm, metric, in, inch, imperial]." },
+    {"mapangularunits", (PyCFunction)Ini_map_angularunits, METH_VARARGS|METH_KEYWORDS,
+        "PyFloat|None mapangularunits(enumstr [, fallback=])\n"
+        "Take the enumeration string argument and try to convert. "
+        "Returns the value associated with enumerated type defined by "
+        "[deg, degree, grad, gon, rad, radian]." },
+    {"mapjointtype", (PyCFunction)Ini_map_jointtype, METH_VARARGS|METH_KEYWORDS,
+        "PyInt|None mapjointtype(enumstr [, fallback=])\n"
+        "Take the enumeration string argument and try to convert. "
+        "Returns the value associated with enumerated type defined by "
+        "[LINEAR, ANGULAR]." },
+    {"getlinearunits", (PyCFunction)Ini_get_linearunits, METH_VARARGS|METH_KEYWORDS,
+        "PyFloat|None getlinearunits(section, variable [, num] [, fallback=])\n"
+        "Get the ini variable from the section and convert the enumerated type. "
+        "The optional num argument may be used to select the num'th variable of "
+        "that name in the section. Returns the value associated with enumerated "
+        "type defined by [mm, metric, in, inch, imperial]." },
+    {"getangularunits", (PyCFunction)Ini_get_angularunits, METH_VARARGS|METH_KEYWORDS,
+        "PyFloat|None getangularunits(section, variable [, num] [, fallback=])\n"
+        "Get the ini variable from the section and convert the enumerated type. "
+        "The optional num argument may be used to select the num'th variable of "
+        "that name in the section. Returns the value associated with enumerated "
+        "type defined by [deg, degree, grad, gon, rad, radian]." },
+    {"getjointtype", (PyCFunction)Ini_get_jointtype, METH_VARARGS|METH_KEYWORDS,
+        "PyInt|None getjointtype(section, variable [, num] [, fallback=])\n"
+        "Get the ini variable from the section and convert the enumerated type. "
+        "The optional num argument may be used to select the num'th variable of "
+        "that name in the section. Returns the value associated with enumerated "
+        "type defined by [LINEAR, ANGULAR]." },
     {}
 };
+#pragma GCC diagnostic pop
 
+static const char linuxcncinidoc[] =
+    "LinuxCNC INI-file reader, parser and query module.\n"
+    "Instantiate with:\n"
+    "  cfg = linuxcnc.ini('path_to_ini_file.ini')\n"
+    "\n"
+    "Available methods:\n"
+    "  PyBool hassection(section)\n"
+    "  PyBool hasvariable(section, variable)\n"
+    "  PyBool|None getbool(section, variable [, num] [, fallback=])\n"
+    "  PyInt|None getsint(section, variable [, num] [, fallback=])\n"
+    "  PyInt|None getuint(section, variable [, num] [, fallback=])\n"
+    "  PyFloat|None getreal(section, variable [, num] [, fallback=])\n"
+    "  PyString|None getstring(section, variable [, num] [, fallback=])\n"
+    "  PyList getsections()\n"
+    "  PyList(PyTuple(name,value)) getvariables([section])\n"
+    "  PyList findall(section [,variable])\n"
+    "  PyTuple(filename,lineno) lineof(section, variable [, num])\n"
+    "  PyFloat|None getlinearunits(section, variable [, num] [, fallback=])\n"
+    "  PyFloat|None getangularunits(section, variable [, num] [, fallback=])\n"
+    "  PyInt|None getjointtype(section, variable [, num] [, fallback=])\n"
+    "  PyFloat|None maplinearunits(enumstr [, fallback=])\n"
+    "  PyFloat|None mapangularunits(enumstr [, fallback=])\n"
+    "  PyInt|None mapjointtype(enumstr [, fallback=])\n"
+    "\n"
+    "Several convenience methods are provided as aliases to above methods:\n"
+    "  PyInt|None getint(section, variable [, num] [, fallback=])\n"
+    "  PyFloat|None getfloat(section, variable [, num] [, fallback=])\n"
+    "  PyString|None find(section, variable [, num] [, fallback=])\n"
+    "\n"
+    "Method documentation is provided with each method.\n"
+    ;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"
 static PyTypeObject Ini_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     "linuxcnc.ini",              /*tp_name*/
@@ -180,7 +876,7 @@ static PyTypeObject Ini_Type = {
     0,                      /*tp_setattro*/
     0,                      /*tp_as_buffer*/
     Py_TPFLAGS_DEFAULT,     /*tp_flags*/
-    0,                      /*tp_doc*/
+    linuxcncinidoc,         /*tp_doc*/
     0,                      /*tp_traverse*/
     0,                      /*tp_clear*/
     0,                      /*tp_richcompare*/
@@ -218,6 +914,7 @@ static PyTypeObject Ini_Type = {
 #endif
 #endif
 };
+#pragma GCC diagnostic pop
 
 #define EMC_COMMAND_TIMEOUT 5.0  // how long to wait until timeout
 #define EMC_COMMAND_DELAY   0.01 // how long to sleep between checks
@@ -284,7 +981,7 @@ static int Stat_init(pyStatChannel *self, PyObject * /*a*/, PyObject * /*k*/) {
 }
 
 static void Stat_dealloc(PyObject *self) {
-    delete ((pyStatChannel*)self)->c;
+    delete reinterpret_cast<pyStatChannel *>(self)->c;
     PyObject_Del(self);
 }
 
@@ -415,77 +1112,86 @@ static PyMethodDef Stat_methods[] = {
     {}
 };
 
+/* This definition of offsetof avoids the g++ warning
+ * 'invalid offsetof from non-POD type'.
+ */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winvalid-offsetof"
+
 #define O(x) offsetof(pyStatChannel,status.x)
 static PyMemberDef Stat_members[] = {
 // stat
-    {(char*)"echo_serial_number", T_INT, O(echo_serial_number), READONLY, NULL},
-    {(char*)"echo_serial_number", T_INT, O(echo_serial_number), READONLY, NULL},
-    {(char*)"state", T_INT, O(status), READONLY, NULL},
+    { "echo_serial_number", T_INT, O(echo_serial_number), READONLY, NULL},
+    { "state", T_INT, O(status), READONLY, NULL},
 
 // task
-    {(char*)"task_mode", T_INT, O(task.mode), READONLY, NULL},
-    {(char*)"task_state", T_INT, O(task.state), READONLY,
+    { "task_mode", T_INT, O(task.mode), READONLY, NULL},
+    { "task_state", T_INT, O(task.state), READONLY,
         "Current Task state.  Possible values:\n"
         "    STATE_ESTOP: E-Stop is active.\n"
         "    STATE_ESTOP_RESET: E-Stop is reset (cleared) but machine is off.\n"
         "    STATE_OFF: Same as STATE_ESTOP_RESET, this one is not used.\n"
         "    STATE_ON: Machine is out of E-Stop and is powered on.\n"
     },
-    {(char*)"exec_state", T_INT, O(task.execState), READONLY, NULL},
-    {(char*)"interp_state", T_INT, O(task.interpState), READONLY, NULL},
-    {(char*)"call_level", T_INT, O(task.callLevel), READONLY, NULL},
-    {(char*)"read_line", T_INT, O(task.readLine), READONLY, NULL},
-    {(char*)"motion_line", T_INT, O(task.motionLine), READONLY, NULL},
-    {(char*)"current_line", T_INT, O(task.currentLine), READONLY, NULL},
-    {(char*)"file", T_STRING_INPLACE, O(task.file), READONLY, NULL},
-    {(char*)"command", T_STRING_INPLACE, O(task.command), READONLY, NULL},
-    {(char*)"program_units", T_INT, O(task.programUnits), READONLY, NULL},
-    {(char*)"interpreter_errcode", T_INT, O(task.interpreter_errcode), READONLY, NULL},
-    {(char*)"optional_stop", T_BOOL, O(task.optional_stop_state), READONLY, NULL},
-    {(char*)"block_delete", T_BOOL, O(task.block_delete_state), READONLY, NULL},
-    {(char*)"task_paused", T_INT, O(task.task_paused), READONLY, NULL},
-    {(char*)"input_timeout", T_BOOL, O(task.input_timeout), READONLY, NULL},
-    {(char*)"rotation_xy", T_DOUBLE, O(task.rotation_xy), READONLY, NULL},
-    {(char*)"ini_filename", T_STRING_INPLACE, O(task.ini_filename), READONLY, NULL},
-    {(char*)"delay_left", T_DOUBLE, O(task.delayLeft), READONLY, NULL},
-    {(char*)"queued_mdi_commands", T_INT, O(task.queuedMDIcommands), READONLY, (char*)"Number of MDI commands queued waiting to run." },
+    { "exec_state", T_INT, O(task.execState), READONLY, NULL},
+    { "interp_state", T_INT, O(task.interpState), READONLY, NULL},
+    { "call_level", T_INT, O(task.callLevel), READONLY, NULL},
+    { "read_line", T_INT, O(task.readLine), READONLY, NULL},
+    { "motion_line", T_INT, O(task.motionLine), READONLY, NULL},
+    { "current_line", T_INT, O(task.currentLine), READONLY, NULL},
+    { "file", T_STRING_INPLACE, O(task.file), READONLY, NULL},
+    { "command", T_STRING_INPLACE, O(task.command), READONLY, NULL},
+    { "program_units", T_INT, O(task.programUnits), READONLY, NULL},
+    { "interpreter_errcode", T_INT, O(task.interpreter_errcode), READONLY, NULL},
+    { "optional_stop", T_BOOL, O(task.optional_stop_state), READONLY, NULL},
+    { "block_delete", T_BOOL, O(task.block_delete_state), READONLY, NULL},
+    { "task_paused", T_INT, O(task.task_paused), READONLY, NULL},
+    { "input_timeout", T_BOOL, O(task.input_timeout), READONLY, NULL},
+    { "rotation_xy", T_DOUBLE, O(task.rotation_xy), READONLY, NULL},
+    { "ini_filename", T_STRING_INPLACE, O(task.ini_filename), READONLY, NULL},
+    { "delay_left", T_DOUBLE, O(task.delayLeft), READONLY, NULL},
+    { "queued_mdi_commands", T_INT, O(task.queuedMDIcommands), READONLY,
+        "Number of MDI commands queued waiting to run." },
 
 //   EMC_TRAJ_STAT traj
-    {(char*)"linear_units", T_DOUBLE, O(motion.traj.linearUnits), READONLY, NULL},
-    {(char*)"angular_units", T_DOUBLE, O(motion.traj.angularUnits), READONLY, NULL},
-    {(char*)"cycle_time", T_DOUBLE, O(motion.traj.cycleTime), READONLY, NULL},
-    {(char*)"joints", T_INT, O(motion.traj.joints), READONLY, NULL},
-    {(char*)"spindles", T_INT, O(motion.traj.spindles), READONLY, NULL},
-    {(char*)"axis_mask", T_INT, O(motion.traj.axis_mask), READONLY, NULL},
-    {(char*)"motion_mode", T_INT, O(motion.traj.mode), READONLY, (char*)"The current mode of the Motion controller.  One of TRAJ_MODE_FREE,\n"
+    { "linear_units", T_DOUBLE, O(motion.traj.linearUnits), READONLY, NULL},
+    { "angular_units", T_DOUBLE, O(motion.traj.angularUnits), READONLY, NULL},
+    { "cycle_time", T_DOUBLE, O(motion.traj.cycleTime), READONLY, NULL},
+    { "joints", T_INT, O(motion.traj.joints), READONLY, NULL},
+    { "spindles", T_INT, O(motion.traj.spindles), READONLY, NULL},
+    { "axis_mask", T_INT, O(motion.traj.axis_mask), READONLY, NULL},
+    { "motion_mode", T_INT, O(motion.traj.mode), READONLY,
+        "The current mode of the Motion controller. One of TRAJ_MODE_FREE,\n"
         "TRAJ_MODE_COORD, or TRAJ_MODE_TELEOP." },
-    {(char*)"enabled", T_BOOL, O(motion.traj.enabled), READONLY, NULL},
-    {(char*)"inpos", T_BOOL, O(motion.traj.inpos), READONLY, NULL},
-    {(char*)"queue", T_INT, O(motion.traj.queue), READONLY, NULL},
-    {(char*)"active_queue", T_INT, O(motion.traj.activeQueue), READONLY, NULL},
-    {(char*)"queue_full", T_BOOL, O(motion.traj.queueFull), READONLY, NULL},
-    {(char*)"motion_id", T_INT, O(motion.traj.id), READONLY, NULL},
-    {(char*)"paused", T_BOOL, O(motion.traj.paused), READONLY, NULL},
-    {(char*)"feedrate", T_DOUBLE, O(motion.traj.scale), READONLY, NULL},
-    {(char*)"rapidrate", T_DOUBLE, O(motion.traj.rapid_scale), READONLY, NULL},
-    {(char*)"velocity", T_DOUBLE, O(motion.traj.velocity), READONLY, NULL},
-    {(char*)"acceleration", T_DOUBLE, O(motion.traj.acceleration), READONLY, NULL},
-    {(char*)"max_velocity", T_DOUBLE, O(motion.traj.maxVelocity), READONLY, NULL},
-    {(char*)"max_acceleration", T_DOUBLE, O(motion.traj.maxAcceleration), READONLY, NULL},
-    {(char*)"probe_tripped", T_BOOL, O(motion.traj.probe_tripped), READONLY, NULL},
-    {(char*)"probing", T_BOOL, O(motion.traj.probing), READONLY, NULL},
-    {(char*)"probe_val", T_INT, O(motion.traj.probeval), READONLY, NULL},
-    {(char*)"kinematics_type", T_INT, O(motion.traj.kinematics_type), READONLY, NULL},
-    {(char*)"motion_type", T_INT, O(motion.traj.motion_type), READONLY, (char*)"The type of the currently executing motion (one of MOTION_TYPE_TRAVERSE,\n"
+    { "enabled", T_BOOL, O(motion.traj.enabled), READONLY, NULL},
+    { "inpos", T_BOOL, O(motion.traj.inpos), READONLY, NULL},
+    { "queue", T_INT, O(motion.traj.queue), READONLY, NULL},
+    { "active_queue", T_INT, O(motion.traj.activeQueue), READONLY, NULL},
+    { "queue_full", T_BOOL, O(motion.traj.queueFull), READONLY, NULL},
+    { "motion_id", T_INT, O(motion.traj.id), READONLY, NULL},
+    { "paused", T_BOOL, O(motion.traj.paused), READONLY, NULL},
+    { "single_stepping", T_BOOL, O(motion.traj.single_stepping), READONLY, NULL},
+    { "feedrate", T_DOUBLE, O(motion.traj.scale), READONLY, NULL},
+    { "rapidrate", T_DOUBLE, O(motion.traj.rapid_scale), READONLY, NULL},
+    { "velocity", T_DOUBLE, O(motion.traj.velocity), READONLY, NULL},
+    { "acceleration", T_DOUBLE, O(motion.traj.acceleration), READONLY, NULL},
+    { "max_velocity", T_DOUBLE, O(motion.traj.maxVelocity), READONLY, NULL},
+    { "max_acceleration", T_DOUBLE, O(motion.traj.maxAcceleration), READONLY, NULL},
+    { "probe_tripped", T_BOOL, O(motion.traj.probe_tripped), READONLY, NULL},
+    { "probing", T_BOOL, O(motion.traj.probing), READONLY, NULL},
+    { "probe_val", T_INT, O(motion.traj.probeval), READONLY, NULL},
+    { "kinematics_type", T_INT, O(motion.traj.kinematics_type), READONLY, NULL},
+    { "motion_type", T_INT, O(motion.traj.motion_type), READONLY,
+        "The type of the currently executing motion (one of MOTION_TYPE_TRAVERSE,\n"
         "MOTION_TYPE_FEED, MOTION_TYPE_ARC, MOTION_TYPE_TOOLCHANGE,\n"
         "MOTION_TYPE_PROBING, or MOTION_TYPE_INDEXROTARY), or 0 if no motion is\n"
         "currently taking place."},
-    {(char*)"distance_to_go", T_DOUBLE, O(motion.traj.distance_to_go), READONLY, NULL},
-    {(char*)"current_vel", T_DOUBLE, O(motion.traj.current_vel), READONLY, NULL},
-    {(char*)"feed_override_enabled", T_BOOL, O(motion.traj.feed_override_enabled), READONLY, NULL},
-    {(char*)"adaptive_feed_enabled", T_BOOL, O(motion.traj.adaptive_feed_enabled), READONLY, NULL},
-    {(char*)"feed_hold_enabled", T_BOOL, O(motion.traj.feed_hold_enabled), READONLY, NULL},
-    {(char*)"num_extrajoints", T_INT, O(motion.numExtraJoints), READONLY, NULL},
+    { "distance_to_go", T_DOUBLE, O(motion.traj.distance_to_go), READONLY, NULL},
+    { "current_vel", T_DOUBLE, O(motion.traj.current_vel), READONLY, NULL},
+    { "feed_override_enabled", T_BOOL, O(motion.traj.feed_override_enabled), READONLY, NULL},
+    { "adaptive_feed_enabled", T_BOOL, O(motion.traj.adaptive_feed_enabled), READONLY, NULL},
+    { "feed_hold_enabled", T_BOOL, O(motion.traj.feed_hold_enabled), READONLY, NULL},
+    { "num_extrajoints", T_INT, O(motion.numExtraJoints), READONLY, NULL},
 
 
 // EMC_SPINDLE_STAT motion.spindle
@@ -493,30 +1199,32 @@ static PyMemberDef Stat_members[] = {
 
 // io
 // EMC_TOOL_STAT io.tool
-    {(char*)"pocket_prepped", T_INT, O(io.tool.pocketPrepped), READONLY,
-        (char*)"The index into the stat.tool_table list of the tool currently prepped for\n"
+    { "pocket_prepped", T_INT, O(io.tool.pocketPrepped), READONLY,
+        "The index into the stat.tool_table list of the tool currently prepped for\n"
         "tool change, or -1 no tool is prepped.  On a Random toolchanger this is the\n"
         "same as the tool's pocket number.  On a Non-random toolchanger it's a random\n"
         "small integer."
     },
-    {(char*)"tool_in_spindle", T_INT, O(io.tool.toolInSpindle), READONLY,
-        (char*)"The tool number of the currently loaded tool, or 0 if no tool is loaded."
+    { "tool_in_spindle", T_INT, O(io.tool.toolInSpindle), READONLY,
+        "The tool number of the currently loaded tool, or 0 if no tool is loaded."
     },
-    {(char*)"tool_from_pocket", T_INT, O(io.tool.toolFromPocket), READONLY,
-        (char*)"The pocket number that the currently loaded tool was retrieved from,\n"
+    { "tool_from_pocket", T_INT, O(io.tool.toolFromPocket), READONLY,
+        "The pocket number that the currently loaded tool was retrieved from,\n"
         "or 0 if no tool is loaded."
     },
 
 // EMC_COOLANT_STAT io.cooland
-    {(char*)"mist", T_INT, O(io.coolant.mist), READONLY, NULL},
-    {(char*)"flood", T_INT, O(io.coolant.flood), READONLY, NULL},
+    { "mist", T_INT, O(io.coolant.mist), READONLY, NULL},
+    { "flood", T_INT, O(io.coolant.flood), READONLY, NULL},
 
 // EMC_AUX_STAT     io.aux
-    {(char*)"estop", T_INT, O(io.aux.estop), READONLY, NULL},
+    { "estop", T_INT, O(io.aux.estop), READONLY, NULL},
 
-    {(char*)"debug", T_INT, O(debug), READONLY, NULL},
+    { "debug", T_INT, O(debug), READONLY, NULL},
     {}
 };
+#undef O
+#pragma GCC diagnostic pop
 
 static PyObject *int_array(int *arr, int sz) {
     PyObject *res = PyTuple_New(sz);
@@ -804,6 +1512,22 @@ static PyObject *Stat_tool_table(pyStatChannel * /*s*/, void *) {
     return res;
 }
 
+static PyObject *Stat_heartbeat(pyStatChannel *s, void *) {
+#if PY_VERSION_HEX >= 0x030e00f0  // 3.14
+    return PyLong_FromUInt64(s->status.motion.heartbeat);
+#else
+    return PyLong_FromUnsignedLongLong(s->status.motion.heartbeat);
+#endif
+}
+
+static PyObject *Stat_taskbeat(pyStatChannel *s, void *) {
+#if PY_VERSION_HEX >= 0x030e00f0  // 3.14
+    return PyLong_FromUInt64(s->status.task.taskbeat);
+#else
+    return PyLong_FromUnsignedLongLong(s->status.task.taskbeat);
+#endif
+}
+
 static PyGetSetDef Stat_getsetlist[] = {
     {(char*)"actual_position", (getter)Stat_actual, NULL, NULL, NULL},
     {(char*)"ain", (getter)Stat_ain, NULL, NULL, NULL},
@@ -837,9 +1561,17 @@ static PyGetSetDef Stat_getsetlist[] = {
         (char*)"The tooltable, expressed as a list of tools.  Each tool is a dict with the\n"
         "tool id (tool number), diameter, offsets, etc.", NULL
     },
+    {(char*)"heartbeat", (getter)Stat_heartbeat, NULL,
+        (char*)"Motion controller heartbeat counter. Increments every servo cycle.", NULL
+    },
+    {(char*)"taskbeat", (getter)Stat_taskbeat, NULL,
+        (char*)"Task main loop heartbeat counter. Increments every task cycle.", NULL
+    },
     {}
 };
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"
 static PyTypeObject Stat_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     "linuxcnc.stat",             /*tp_name*/
@@ -900,6 +1632,7 @@ static PyTypeObject Stat_Type = {
 #endif
 #endif
 };
+#pragma GCC diagnostic pop
 
 static int Command_init(pyCommandChannel *self, PyObject * /*a*/, PyObject * /*k*/) {
     const char *file = get_nmlfile();
@@ -913,7 +1646,7 @@ static int Command_init(pyCommandChannel *self, PyObject * /*a*/, PyObject * /*k
     }
     RCS_STAT_CHANNEL *s =
         new RCS_STAT_CHANNEL(emcFormat, "emcStatus", "xemc", file);
-    if(!c) {
+    if(!s) {
 	delete s;
         PyErr_Format( error, "new RCS_STAT_CHANNEL failed");
         return -1;
@@ -925,7 +1658,7 @@ static int Command_init(pyCommandChannel *self, PyObject * /*a*/, PyObject * /*k
 }
 
 static void Command_dealloc(PyObject *self) {
-    delete ((pyCommandChannel*)self)->c;
+    delete reinterpret_cast<pyCommandChannel *>(self)->c;
     PyObject_Del(self);
 }
 
@@ -1343,7 +2076,7 @@ static PyObject *program_open(pyCommandChannel *s, PyObject *o) {
             m.remote_buffersize = bytes_read;
             /* send chunk */
             if(emcSendCommand(s, m) < 0) {
-                 PyErr_Format(PyExc_OSError, "emcSendCommand() error: %s");
+                 PyErr_Format(PyExc_OSError, "emcSendCommand() error: %s", strerror(errno));
                  return PyErr_SetFromErrno(PyExc_OSError);
             }
         }
@@ -1637,6 +2370,8 @@ static PyMethodDef Command_methods[] = {
     {}
 };
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"
 static PyTypeObject Command_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     "linuxcnc.command",          /*tp_name*/
@@ -1697,6 +2432,7 @@ static PyTypeObject Command_Type = {
 #endif
 #endif
 };
+#pragma GCC diagnostic pop
 
 static int Error_init(pyErrorChannel *self, PyObject * /*a*/, PyObject * /*k*/) {
     const char *file = get_nmlfile();
@@ -1753,7 +2489,7 @@ static PyObject* Error_poll(pyErrorChannel *s, PyObject *) {
 }
 
 static void Error_dealloc(PyObject *self) {
-    delete ((pyErrorChannel*)self)->c;
+    delete reinterpret_cast<pyErrorChannel *>(self)->c;
     PyObject_Del(self);
 }
 
@@ -1762,6 +2498,8 @@ static PyMethodDef Error_methods[] = {
     {}
 };
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"
 static PyTypeObject Error_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     "linuxcnc.error_channel",    /*tp_name*/
@@ -1822,6 +2560,7 @@ static PyTypeObject Error_Type = {
 #endif
 #endif
 };
+#pragma GCC diagnostic pop
 
 #define AXIS_MASK_A 0x08
 #define AXIS_MASK_B 0x10
@@ -1998,8 +2737,8 @@ static PyObject *pyvertex9(PyObject * /*s*/, PyObject *o) {
             &pt1[6], &pt1[7], &pt1[8]))
         return NULL;
 
-    vertex9(pt, pt1, geometry);
-    return Py_BuildValue("(ddd)", &pt[0], &pt[1], &pt[2]);
+    vertex9(pt1, pt, geometry);
+    return Py_BuildValue("(ddd)", pt[0], pt[1], pt[2]);
 }
 
 static PyObject *pygui_respect_offsets (PyObject * /*s*/, PyObject *o) {
@@ -2054,6 +2793,10 @@ static PyObject *pydraw_lines(PyObject * /*s*/, PyObject *o) {
             if(!first) glEnd();
             return NULL;
         }
+
+        // Suppress cppcheck false positive:
+        // 'first' == 1 when 'pl' is undefined and therefore not a problem.
+        // cppcheck-suppress uninitvar
         if(first || memcmp(p1, pl, sizeof(p1))
                 || (for_selection && n != nl)) {
             if(!first) glEnd();
@@ -2204,7 +2947,7 @@ static int Logger_init(pyPositionLogger *self, PyObject *a, PyObject * /*k*/) {
     self->npts = self->mpts = 0;
     self->exit = self->clear = 0;
     self->changed = 1;
-    self->st = 0;
+    self->st = NULL;
     self->is_xyuv = 0;
     self->foam_z = 0;
     self->foam_w = 1.5;  // temporarily hard-code
@@ -2496,6 +3239,8 @@ static PyMethodDef Logger_methods[] = {
     {},
 };
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"
 static PyTypeObject PositionLoggerType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     "linuxcnc.positionlogger",   /*tp_name*/
@@ -2556,6 +3301,7 @@ static PyTypeObject PositionLoggerType = {
 #endif
 #endif
 };
+#pragma GCC diagnostic pop
 
 static PyMethodDef emc_methods[] = {
 #define METH(name, doc) { #name, (PyCFunction) py##name, METH_VARARGS, doc }
@@ -2592,7 +3338,7 @@ static struct PyModuleDef linuxcnc_moduledef = {
 PyMODINIT_FUNC PyInit_linuxcnc(void);
 PyMODINIT_FUNC PyInit_linuxcnc(void)
 {
-        
+
     verbose_nml_error_messages = 0;
     clear_rcs_print_flag(~0);
 

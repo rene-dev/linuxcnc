@@ -27,7 +27,7 @@
 */
 
 /* joint data */
-#include "hal.h"
+#include <hal.h>
 #include "../motion/motion.h"
 
 typedef struct {
@@ -76,6 +76,7 @@ typedef struct {
     hal_float_t *coarse_pos_cmd;/* RPI: commanded position, w/o comp */
     hal_float_t *joint_vel_cmd;	/* RPI: commanded velocity, w/o comp */
     hal_float_t *joint_acc_cmd;	/* RPI: commanded acceleration, w/o comp */
+    hal_float_t *joint_jerk_cmd;/* RPI: commanded jerk, w/o comp */
     hal_float_t *backlash_corr;	/* RPI: correction for backlash */
     hal_float_t *backlash_filt;	/* RPI: filtered backlash correction */
     hal_float_t *backlash_vel;	/* RPI: backlash speed variable */
@@ -171,8 +172,7 @@ typedef struct {
     hal_float_t tc_acc[4];	/* RPA: traj internals, for debugging */
 
     // realtime overrun detection
-    hal_u32_t   *last_period;	/* pin: last period in clocks */
-    hal_float_t *last_period_ns;	/* pin: last period in nanoseconds */
+    hal_u32_t   *last_period;	/* pin: last period in nanoseconds */
 
     hal_float_t *tooloffset_x;
     hal_float_t *tooloffset_y;
@@ -198,6 +198,19 @@ typedef struct {
     hal_float_t *feed_mm_per_second; /* feed mm per second*/
 
     hal_float_t *switchkins_type;
+    /* Interp State Pins */
+    hal_s32_t   *interp_line_number;
+    hal_s32_t   *interp_motion_type;
+    hal_float_t *interp_feedrate;
+
+    /* New Geometric Metadata Pins */
+    hal_float_t *interp_arc_radius;
+    hal_float_t *interp_arc_center_x;
+    hal_float_t *interp_arc_center_y;
+    hal_float_t *interp_arc_center_z;
+    hal_float_t *interp_straight_heading;
+    hal_float_t *interp_normal_heading;
+    hal_bit_t   *iscircle;
 } emcmot_hal_data_t;
 
 /***********************************************************************
@@ -299,6 +312,10 @@ int joint_is_lockable(int joint_num);
 
 #define SET_MOTION_ENABLE_FLAG(fl) if (fl) emcmotStatus->motionFlag |= EMCMOT_MOTION_ENABLE_BIT; else emcmotStatus->motionFlag &= ~EMCMOT_MOTION_ENABLE_BIT;
 
+#define GET_TRAJ_PLANNER_TYPE() (emcmotStatus->planner_type)
+
+#define SET_TRAK_PLANNER_TYPE(tp) (emcmotStatus->planner_type = tp)
+
 /* joint flags */
 
 #define GET_JOINT_ENABLE_FLAG(joint) ((joint)->flag & EMCMOT_JOINT_ENABLE_BIT ? 1 : 0)
@@ -329,9 +346,5 @@ int joint_is_lockable(int joint_num);
 #define GET_JOINT_FAULT_FLAG(joint) ((joint)->flag & EMCMOT_JOINT_FAULT_BIT ? 1 : 0)
 
 #define SET_JOINT_FAULT_FLAG(joint,fl) if (fl) (joint)->flag |= EMCMOT_JOINT_FAULT_BIT; else (joint)->flag &= ~EMCMOT_JOINT_FAULT_BIT;
-
-#if defined(__KERNEL__)
-#define HAVE_CPU_KHZ
-#endif
 
 #endif /* MOT_PRIV_H */

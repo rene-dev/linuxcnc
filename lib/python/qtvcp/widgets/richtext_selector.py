@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-from PyQt5.QtPrintSupport import *
+from qtpy.QtGui import *
+from qtpy.QtWidgets import *
+from qtpy.QtCore import *
+from qtpy.QtPrintSupport import *
 
 from qtvcp.core import Info, Path
 
@@ -377,7 +377,7 @@ class RichTextEditorDialog(QDialog):
     def showDialog(self, pretext = None):
         if pretext:
             self.window.editor.setText(pretext)
-        retval = self.exec_()
+        retval = self.exec()
         self.hide()
         if retval:
             return self.window.editor.toHtml()
@@ -407,4 +407,4 @@ if __name__ == '__main__':
 
     d.setLayout(l)
     d.show()
-    app.exec_()
+    app.exec()

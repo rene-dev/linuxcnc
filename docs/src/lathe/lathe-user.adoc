@@ -2,14 +2,9 @@
 :toc:
 
 [[cha:lathe-user-information]]
-= Lathe User Information(((Lathe User Information)))
+= Lathe User Information
 
-// Custom lang highlight
-// must come after the doc title, to work around a bug in asciidoc 8.6.6
-:ini: {basebackend@docbook:'':ini}
-:hal: {basebackend@docbook:'':hal}
-:ngc: {basebackend@docbook:'':ngc}
-
+(((Lathe User Information)))
 This chapter will provide information specific to lathes.
 
 == Lathe Mode
@@ -21,7 +16,7 @@ See the <<cha:ini-configuration,INI Configuration>> section for more details.
 
 To set up AXIS for Lathe Mode.
 
-[source,{ini}]
+[source,ini]
 ----
 [DISPLAY]
 
@@ -32,7 +27,7 @@ LATHE = TRUE
 Lathe Mode in AXIS does not set your default plane to G18 (XZ).
 You must program that in the preamble of each G-code file or (better) add it to your INI file, like this:
 
-[source,{ini}]
+[source,ini]
 ----
 [RS274NGC]
 
@@ -44,8 +39,9 @@ RS274NGC_STARTUP_CODE = G18 G20 G90
 If your using GMOCCAPY then see the <<gmoccapy:lathe-section,the GMOCCAPY Lathe>> section.
 
 [[sec:lathe-tool-table]]
-== Lathe Tool Table(((Lathe Tool Table)))
+== Lathe Tool Table
 
+(((Lathe Tool Table)))
 The "Tool Table" is a text file that contains information about each tool.
 The file is located in the same directory as your configuration and is called "tool.tbl" by default.
 The tools might be in a tool changer or just changed manually.
@@ -59,8 +55,9 @@ Just ignore the parts of the tool table that don't pertain to your machine, or w
 For more information on the specifics of the tool table format, see the <<sec:tool-table,Tool Table>> Section.
 
 [[sec:lathe-tool-orientation]]
-== Lathe Tool Orientation(((Lathe Tool Orientation)))
+== Lathe Tool Orientation
 
+(((Lathe Tool Orientation)))
 The following figure shows the lathe tool orientations with the center line angle of each orientation and info on FRONTANGLE and BACKANGLE.
 
 The FRONTANGLE and BACKANGLE are clockwise starting at a line parallel to Z+.
@@ -70,19 +67,21 @@ image::images/tool-positions_en.svg["Lathe Tool Orientations",align="center"]
 
 In AXIS the following figures show what the Tool Positions look like, as entered in the tool table.
 
+(((Tool Positions 1, 2, 3 & 4)))
 [[fig:Outil-Positions-1-2-3-4]]
-.Tool Positions 1, 2, 3 & 4(((Tool Positions 1, 2, 3 & 4)))
-image:images/tool-pos-1_en.svg["Tool Position 1"]
-image:images/tool-pos-2_en.svg["Tool Position 2"]
-image:images/tool-pos-3_en.svg["Tool Position 3"]
-image:images/tool-pos-4_en.svg["Tool Position 4"]
+.Tool Positions 1, 2, 3 & 4
+image:images/tool-pos-1_en.svg["Tool Position 1", align=left, pdfwidth=24%]
+image:images/tool-pos-2_en.svg["Tool Position 2", align=left, pdfwidth=24%]
+image:images/tool-pos-3_en.svg["Tool Position 3", align=left, pdfwidth=24%]
+image:images/tool-pos-4_en.svg["Tool Position 4", align=left, pdfwidth=24%]
 
+(((Tool Positions 5, 6, 7 & 8)))
 [[fig:Outil-Positions-5-6-7-8]]
-.Tool Positions 5, 6, 7 & 8(((Tool Positions 5, 6, 7 & 8)))
-image:images/tool-pos-5_en.svg["Tool Position 5"]
-image:images/tool-pos-6_en.svg["Tool Position 6"]
-image:images/tool-pos-7_en.svg["Tool Position 7"]
-image:images/tool-pos-8_en.svg["Tool Position 8"]
+.Tool Positions 5, 6, 7 & 8
+image:images/tool-pos-5_en.svg["Tool Position 5", align=left, pdfwidth=24%]
+image:images/tool-pos-6_en.svg["Tool Position 6", align=left, pdfwidth=24%]
+image:images/tool-pos-7_en.svg["Tool Position 7", align=left, pdfwidth=24%]
+image:images/tool-pos-8_en.svg["Tool Position 8", align=left, pdfwidth=24%]
 
 == Tool Touch Off
 

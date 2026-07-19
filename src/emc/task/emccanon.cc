@@ -54,15 +54,15 @@
 #include <math.h>
 #include <string.h>		// strncpy()
 #include <ctype.h>		// isspace()
-#include "emc.hh"		// EMC NML
-#include "emc_nml.hh"
-#include "canon.hh"
-#include "canon_position.hh"		// data type for a machine position
-#include "interpl.hh"		// interp_list
-#include "emcglb.h"		// TRAJ_MAX_VELOCITY
+#include "nml_intf/emc.hh"		// EMC NML
+#include "nml_intf/emc_nml.hh"
+#include "nml_intf/canon.hh"
+#include "nml_intf/canon_position.hh"		// data type for a machine position
+#include "nml_intf/interpl.hh"		// interp_list
+#include "nml_intf/emcglb.h"		// TRAJ_MAX_VELOCITY
 #include <rtapi_string.h>
-#include "modal_state.hh"
-#include "tooldata.hh"
+#include "rs274ngc/modal_state.hh"
+#include "tooldata/tooldata.hh"
 #include <algorithm>
 
 //#define EMCCANON_DEBUG
@@ -137,6 +137,12 @@ struct VelData {
 struct AccelData{
     double tmax;
     double acc;
+    double dtot;
+};
+
+struct JerkData{
+    double tmax;
+    double jerk;
     double dtot;
 };
 
@@ -599,7 +605,176 @@ static void applyMinDisplacement(double &dx,
     if(!axis_valid(8) || dw < tiny_linear) dw = 0.0;
 }
 
+#ifndef MIN
+#define MIN(a,b) ((a)<(b)?(a):(b))
+#endif
 
+#ifndef MIN3
+#define MIN3(a,b,c) (MIN(MIN((a),(b)),(c)))
+#endif
+ 
+#ifndef MIN9
+#define MIN9(a,b,c,d,e,f,g,h,i) (MIN3((MIN3(a,b,c)),(MIN3(d,e,f)),(MIN3(g,h,i))))
+#endif
+
+#ifndef MAX
+#define MAX(a,b) ((a)>(b)?(a):(b))
+#endif
+
+#ifndef MAX3
+#define MAX3(a,b,c) (MAX(MAX((a),(b)),(c)))
+#endif
+
+#ifndef MAX4
+#define MAX4(a,b,c,d) (MAX(MAX3((a),(b),(c)),(d)))
+#endif
+
+#ifndef MAX9
+#define MAX9(a,b,c,d,e,f,g,h,i) (MAX3((MAX3(a,b,c)),(MAX3(d,e,f)),(MAX3(g,h,i))))
+#endif
+
+static int __attribute__((unused)) findMinMoveJoint(double &dx,
+                                 double &dy,
+                                 double &dz,
+                                 double &da,
+                                 double &db,
+                                 double &dc,
+                                 double &du,
+                                 double &dv,
+                                 double &dw
+                                 )
+{
+    int saxis = 0;
+    double smoveL = dx==0?1e9:dx;
+    if(dy != 0 && dy < smoveL){smoveL = dy, saxis = 1;}
+    if(dz != 0 && dz < smoveL){smoveL = dz, saxis = 2;}
+    if(da != 0 && da < smoveL){smoveL = da, saxis = 3;}
+    if(db != 0 && db < smoveL){smoveL = db, saxis = 4;}
+    if(dc != 0 && dc < smoveL){smoveL = dc, saxis = 5;}
+    if(du != 0 && du < smoveL){smoveL = du, saxis = 6;}
+    if(dv != 0 && dv < smoveL){smoveL = dv, saxis = 7;}
+    if(dw != 0 && dw < smoveL){smoveL = dw, saxis = 8;}
+    return saxis;
+}
+/**
+ * Get the limiting acceleration for a displacement from the current position to the given position.
+ * returns a single acceleration that is the minimum of all axis accelerations.
+ */
+static double getStraightJerk(double x, double y, double z,
+                               double a, double b, double c,
+                               double u, double v, double w){
+
+    double dx, dy, dz, du, dv, dw, da, db, dc;
+    double tx, ty, tz, tu, tv, tw, ta, tb, tc;
+    JerkData out;
+
+    out.jerk = 0.0; // if a move to nowhere
+    out.tmax = 0.0;
+    out.dtot = 0.0;
+
+    // Compute absolute travel distance for each axis:
+    dx = fabs(x - canon.endPoint.x);
+    dy = fabs(y - canon.endPoint.y);
+    dz = fabs(z - canon.endPoint.z);
+    da = fabs(a - canon.endPoint.a);
+    db = fabs(b - canon.endPoint.b);
+    dc = fabs(c - canon.endPoint.c);
+    du = fabs(u - canon.endPoint.u);
+    dv = fabs(v - canon.endPoint.v);
+    dw = fabs(w - canon.endPoint.w);
+
+    applyMinDisplacement(dx, dy, dz, da, db, dc, du, dv, dw);
+
+    if(debug_velacc)
+        printf("getStraightJerk dx %g dy %g dz %g da %g db %g dc %g du %g dv %g dw %g ",
+               dx, dy, dz, da, db, dc, du, dv, dw);
+
+    // Figure out what kind of move we're making.  This is used to determine
+    // the units of vel/acc.
+    if (dx <= 0.0 && dy <= 0.0 && dz <= 0.0 &&
+        du <= 0.0 && dv <= 0.0 && dw <= 0.0) {
+	canon.cartesian_move = 0;
+    } else {
+	canon.cartesian_move = 1;
+    }
+    if (da <= 0.0 && db <= 0.0 && dc <= 0.0) {
+	canon.angular_move = 0;
+    } else {
+	canon.angular_move = 1;
+    }
+
+    // Pure linear move:
+    // For jerk-limited motion: d = (1/6)*j*t³, so t = cbrt(6*d/j)
+    // We use t = cbrt(d/j) as a characteristic time (omitting the constant factor,
+    // which cancels out when we compute path jerk = dtot / tmax³)
+    if (canon.cartesian_move && !canon.angular_move) {
+        tx = dx? cbrt(dx / FROM_EXT_LEN(emcAxisGetMaxJerk(0))): 0.0;
+        ty = dy? cbrt(dy / FROM_EXT_LEN(emcAxisGetMaxJerk(1))): 0.0;
+        tz = dz? cbrt(dz / FROM_EXT_LEN(emcAxisGetMaxJerk(2))): 0.0;
+        tu = du? cbrt(du / FROM_EXT_LEN(emcAxisGetMaxJerk(6))): 0.0;
+        tv = dv? cbrt(dv / FROM_EXT_LEN(emcAxisGetMaxJerk(7))): 0.0;
+        tw = dw? cbrt(dw / FROM_EXT_LEN(emcAxisGetMaxJerk(8))): 0.0;
+            out.tmax = MAX3(tx, ty ,tz);
+            out.tmax = MAX4(tu, tv, tw, out.tmax);
+
+            if(dx || dy || dz)
+                out.dtot = sqrt(dx * dx + dy * dy + dz * dz);
+            else
+                out.dtot = sqrt(du * du + dv * dv + dw * dw);
+
+        if (out.tmax > 0.0) {
+            out.jerk = out.dtot / (out.tmax * out.tmax * out.tmax);
+        }
+    }
+    // Pure angular move:
+    else if (!canon.cartesian_move && canon.angular_move) {
+        ta = da? cbrt(da / FROM_EXT_ANG(emcAxisGetMaxJerk(3))): 0.0;
+        tb = db? cbrt(db / FROM_EXT_ANG(emcAxisGetMaxJerk(4))): 0.0;
+        tc = dc? cbrt(dc / FROM_EXT_ANG(emcAxisGetMaxJerk(5))): 0.0;
+            out.tmax = MAX3(ta, tb, tc);
+
+        out.dtot = sqrt(da * da + db * db + dc * dc);
+        if (out.tmax > 0.0) {
+            out.jerk = out.dtot / (out.tmax * out.tmax * out.tmax);
+        }
+    }
+    // Combination angular and linear move:
+    else if (canon.cartesian_move && canon.angular_move) {
+        tx = dx? cbrt(dx / FROM_EXT_LEN(emcAxisGetMaxJerk(0))): 0.0;
+        ty = dy? cbrt(dy / FROM_EXT_LEN(emcAxisGetMaxJerk(1))): 0.0;
+        tz = dz? cbrt(dz / FROM_EXT_LEN(emcAxisGetMaxJerk(2))): 0.0;
+        ta = da? cbrt(da / FROM_EXT_ANG(emcAxisGetMaxJerk(3))): 0.0;
+        tb = db? cbrt(db / FROM_EXT_ANG(emcAxisGetMaxJerk(4))): 0.0;
+        tc = dc? cbrt(dc / FROM_EXT_ANG(emcAxisGetMaxJerk(5))): 0.0;
+        tu = du? cbrt(du / FROM_EXT_LEN(emcAxisGetMaxJerk(6))): 0.0;
+        tv = dv? cbrt(dv / FROM_EXT_LEN(emcAxisGetMaxJerk(7))): 0.0;
+        tw = dw? cbrt(dw / FROM_EXT_LEN(emcAxisGetMaxJerk(8))): 0.0;
+            out.tmax = MAX9(tx, ty, tz,
+                        ta, tb, tc,
+                        tu, tv, tw);
+
+        if(debug_velacc)
+            printf("getStraightJerk t tx %g ty %g tz %g ta %g tb %g tc %g tu %g tv %g tw %g\n",
+                tx, ty, tz, ta, tb, tc, tu, tv, tw);
+
+        if(dx || dy || dz)
+            out.dtot = sqrt(dx * dx + dy * dy + dz * dz);
+        else
+            out.dtot = sqrt(du * du + dv * dv + dw * dw);
+
+        if (out.tmax > 0.0) {
+            out.jerk = out.dtot / (out.tmax * out.tmax * out.tmax);
+        }
+    }
+    //if(debug_velacc)
+    //printf("#### CALC THE JERK #### cartesian %d ang %d jerk %g\n", canon.cartesian_move, canon.angular_move, out.jerk);
+    return out.jerk;
+}
+
+static double __attribute__((unused)) getStraightJerk(CANON_POSITION pos)
+{
+    return getStraightJerk(pos.x, pos.y, pos.z, pos.a, pos.b, pos.c, pos.u, pos.v, pos.w);
+}
 /**
  * Get the limiting acceleration for a displacement from the current position to the given position.
  * returns a single acceleration that is the minimum of all axis accelerations.
@@ -897,6 +1072,7 @@ static void flush_segments(void) {
 #endif
 
     VelData linedata = getStraightVelocity(x, y, z, a, b, c, u, v, w);
+    double jerk = getStraightJerk(x, y, z, a, b, c, u, v, w);
     double vel = linedata.vel;
 
     if (canon.cartesian_move && !canon.angular_move) {
@@ -935,6 +1111,7 @@ static void flush_segments(void) {
     linearMoveMsg->ini_maxvel = toExtVel(linedata.vel);
     AccelData lineaccdata = getStraightAcceleration(x, y, z, a, b, c, u, v, w);
     double acc = lineaccdata.acc;
+    linearMoveMsg->ini_maxjerk = toExtVel(jerk);
     linearMoveMsg->acc = toExtAcc(acc);
 
     linearMoveMsg->type = EMC_MOTION_TYPE_FEED;
@@ -1030,6 +1207,81 @@ void ON_RESET() {
 }
 
 
+CanonConfig_t& get_canon(){
+    return canon;
+}
+
+void generate_fast_move(double x, double y, double z,
+                              double a, double b, double c,
+                              double u, double v, double w)
+{
+	auto linearMoveMsg = std::make_unique<EMC_TRAJ_LINEAR_MOVE>();
+	linearMoveMsg->feed_mode = canon.feed_mode;;
+
+    flush_segments();
+    VelData veldata = getStraightVelocity(x, y, z, a, b, c, u, v, w);
+    AccelData accdata = getStraightAcceleration(x, y, z, a, b, c, u, v, w);
+    double jerk = getStraightJerk(x, y, z, a, b, c, u, v, w);
+    double vel = veldata.vel;
+    double acc = accdata.acc;
+
+    linearMoveMsg->end = to_ext_pose(x, y, z, a, b, c, u, v, w);
+
+    linearMoveMsg->vel = linearMoveMsg->ini_maxvel = toExtVel(vel);
+    linearMoveMsg->acc = toExtAcc(acc);
+    linearMoveMsg->ini_maxjerk = toExtVel(jerk);
+
+    linearMoveMsg->type = EMC_MOTION_TYPE_FEED;
+    linearMoveMsg->feed_mode = 0;
+    linearMoveMsg->indexer_jnum = -1;
+    int old_feed_mode = canon.feed_mode;
+	if(canon.feed_mode)
+	    STOP_SPEED_FEED_SYNCH();
+
+	if(vel && acc)
+		interp_list.append(std::move(linearMoveMsg));
+
+	if(old_feed_mode)
+	    START_SPEED_FEED_SYNCH(0, canon.linearFeedRate, 1);
+
+    canonUpdateEndPoint(x, y, z, a, b, c, u, v, w);
+}
+
+void generate_move(double vel,double x, double y, double z,
+                              double a, double b, double c,
+                              double u, double v, double w)
+{
+	auto linearMoveMsg = std::make_unique<EMC_TRAJ_LINEAR_MOVE>();
+	 linearMoveMsg->feed_mode = canon.feed_mode;
+	flush_segments();
+
+    AccelData accdata = getStraightAcceleration(x, y, z, a, b, c, u, v, w);
+    double jerk = getStraightJerk(x, y, z, a, b, c, u, v, w);
+    double acc = accdata.acc;
+
+    linearMoveMsg->end = to_ext_pose(x, y, z, a, b, c, u, v, w);
+
+    linearMoveMsg->vel = linearMoveMsg->ini_maxvel = toExtVel(vel);
+    linearMoveMsg->acc = toExtAcc(acc);
+    linearMoveMsg->ini_maxjerk = toExtVel(jerk);
+    linearMoveMsg->type = EMC_MOTION_TYPE_FEED;
+    linearMoveMsg->feed_mode = 0;
+    linearMoveMsg->indexer_jnum = -1;
+    //if(vel && acc)
+    //    interp_list.append(linearMoveMsg);
+    int old_feed_mode = canon.feed_mode;
+	if(canon.feed_mode)
+	    STOP_SPEED_FEED_SYNCH();
+
+	if(vel && acc)
+		interp_list.append(std::move(linearMoveMsg));
+
+	if(old_feed_mode)
+	    START_SPEED_FEED_SYNCH(0, canon.linearFeedRate, 1);
+    canonUpdateEndPoint(x, y, z, a, b, c, u, v, w);
+}
+
+
 void STRAIGHT_TRAVERSE(int line_number,
                        double x, double y, double z,
 		               double a, double b, double c,
@@ -1052,6 +1304,7 @@ void STRAIGHT_TRAVERSE(int line_number,
 
     VelData veldata = getStraightVelocity(x, y, z, a, b, c, u, v, w);
     AccelData accdata = getStraightAcceleration(x, y, z, a, b, c, u, v, w);
+    double jerk = getStraightJerk(x, y, z, a, b, c, u, v, w);
 
     vel = veldata.vel;
     acc = accdata.acc;
@@ -1059,6 +1312,7 @@ void STRAIGHT_TRAVERSE(int line_number,
     linearMoveMsg->end = to_ext_pose(x,y,z,a,b,c,u,v,w);
     linearMoveMsg->vel = linearMoveMsg->ini_maxvel = toExtVel(vel);
     linearMoveMsg->acc = toExtAcc(acc);
+    linearMoveMsg->ini_maxjerk = toExtVel(jerk);
     linearMoveMsg->indexer_jnum = canon.rotary_unlock_for_traverse;
 
     int old_feed_mode = canon.feed_mode;
@@ -1110,8 +1364,13 @@ void RIGID_TAP(int line_number, double x, double y, double z, double scale)
                                  canon.endPoint.a, canon.endPoint.b, canon.endPoint.c,
                                  canon.endPoint.u, canon.endPoint.v, canon.endPoint.w);
 
+    double jerk = getStraightJerk(x, y, z,
+                                canon.endPoint.a, canon.endPoint.b, canon.endPoint.c,
+                                canon.endPoint.u, canon.endPoint.v, canon.endPoint.w);
+
     rigidTapMsg->vel = toExtVel(ini_maxvel);
     rigidTapMsg->ini_maxvel = toExtVel(ini_maxvel);
+    rigidTapMsg->ini_maxjerk = toExtVel(jerk);
     rigidTapMsg->acc = toExtAcc(acc);
     rigidTapMsg->scale = scale;
     flush_segments();
@@ -1146,6 +1405,7 @@ void STRAIGHT_PROBE(int line_number,
 
     VelData veldata = getStraightVelocity(x, y, z, a, b, c, u, v, w);
     ini_maxvel = vel = veldata.vel;
+    double jerk = getStraightJerk(x, y, z, a, b, c, u, v, w);
 
     if (canon.cartesian_move && !canon.angular_move) {
 	if (vel > canon.linearFeedRate) {
@@ -1167,6 +1427,7 @@ void STRAIGHT_PROBE(int line_number,
     probeMsg->vel = toExtVel(vel);
     probeMsg->ini_maxvel = toExtVel(ini_maxvel);
     probeMsg->acc = toExtAcc(acc);
+    probeMsg->ini_maxjerk = toExtVel(jerk);
 
     probeMsg->type = EMC_MOTION_TYPE_PROBING;
     probeMsg->probe_type = probe_type;
@@ -2555,6 +2816,10 @@ void ARC_FEED(int line_number,
     double a2 = FROM_EXT_LEN(emcAxisGetMaxAcceleration(axis2));
     double a_max_axes = std::min(a1, a2);
 
+    double j1 = FROM_EXT_LEN(emcAxisGetMaxJerk(axis1));
+    double j2 = FROM_EXT_LEN(emcAxisGetMaxJerk(axis2));
+    double j_min = MIN(j1, j2);
+
     if(canon.xy_rotation && canon.activePlane != CANON_PLANE::XY) {
         // also consider the third plane's constraint, which may get
         // involved since we're rotated.
@@ -2563,8 +2828,10 @@ void ARC_FEED(int line_number,
         if (axis_valid(axis3)) {
             double v3 = FROM_EXT_LEN(emcAxisGetMaxVelocity(axis3));
             double a3 = FROM_EXT_LEN(emcAxisGetMaxAcceleration(axis3));
+            double j3 = FROM_EXT_LEN(emcAxisGetMaxJerk(axis3));
             v_max_axes = std::min(v3, v_max_axes);
             a_max_axes = std::min(a3, a_max_axes);
+            j_min = MIN(j3, j_min);
         }
     }
 
@@ -2641,6 +2908,7 @@ void ARC_FEED(int line_number,
         linearMoveMsg->type = EMC_MOTION_TYPE_ARC;
         linearMoveMsg->vel = toExtVel(vel);
         linearMoveMsg->ini_maxvel = toExtVel(v_max);
+        linearMoveMsg->ini_maxjerk = toExtVel(j_min);
         linearMoveMsg->acc = toExtAcc(a_max);
         linearMoveMsg->indexer_jnum = -1;
         if(vel && a_max){
@@ -2664,6 +2932,7 @@ void ARC_FEED(int line_number,
 
         circularMoveMsg->vel = toExtVel(vel);
         circularMoveMsg->ini_maxvel = toExtVel(v_max);
+        circularMoveMsg->ini_maxjerk = toExtVel(j_min);
         circularMoveMsg->acc = toExtAcc(a_max);
 
         //FIXME what happens if accel or vel is zero?
@@ -2748,12 +3017,13 @@ void SET_SPINDLE_SPEED(int s, double speed_rpm)
     interp_list.append(SPINDLE_SPEED_<EMC_SPINDLE_SPEED>(s, 0, speed_rpm));
 }
 
-void STOP_SPINDLE_TURNING(int s)
+void STOP_SPINDLE_TURNING(int s, int wait_for_atspeed)
 {
     auto emc_spindle_off_msg = std::make_unique<EMC_SPINDLE_OFF>();
 
     flush_segments();
     emc_spindle_off_msg->spindle = s;
+    emc_spindle_off_msg->wait_for_spindle_at_speed = wait_for_atspeed;
     interp_list.append(std::move(emc_spindle_off_msg));
     // Added by atp 6/1/18 not sure this is right. There is a problem that the _second_ S word starts the spindle without M3/M4
     canon.spindle[s].dir = 0;
@@ -2900,6 +3170,7 @@ void CHANGE_TOOL()
 
         VelData veldata = getStraightVelocity(x, y, z, a, b, c, u, v, w);
         AccelData accdata = getStraightAcceleration(x, y, z, a, b, c, u, v, w);
+        double jerk = getStraightJerk(x, y, z, a, b, c, u, v, w);
         vel = veldata.vel;
         acc = accdata.acc;
 
@@ -2910,6 +3181,7 @@ void CHANGE_TOOL()
 
         linearMoveMsg->vel = linearMoveMsg->ini_maxvel = toExtVel(vel);
         linearMoveMsg->acc = toExtAcc(acc);
+        linearMoveMsg->ini_maxjerk = toExtVel(jerk);
         linearMoveMsg->type = EMC_MOTION_TYPE_TOOLCHANGE;
 	    linearMoveMsg->feed_mode = 0;
         linearMoveMsg->indexer_jnum = -1;
@@ -3162,7 +3434,7 @@ void MESSAGE(char *s)
     auto operator_display_msg = std::make_unique<EMC_OPERATOR_DISPLAY>();
 
     flush_segments();
-    strncpy(operator_display_msg->display, s, LINELEN);
+    strncpy(operator_display_msg->display, s, LINELEN-1);
     operator_display_msg->display[LINELEN - 1] = 0;
     interp_list.append(std::move(operator_display_msg));
 }
@@ -3619,7 +3891,7 @@ void GET_EXTERNAL_PARAMETER_FILE_NAME(char *file_name,	/* string: to copy
 				      int max_size)
 {				/* maximum number of characters to copy */
     // Paranoid checks
-    if (0 == file_name)
+    if (NULL == file_name)
 	return;
 
     if (max_size < 0)
@@ -3884,7 +4156,7 @@ double GET_EXTERNAL_ANALOG_INPUT(int index, double /*def*/)
 
 
 USER_DEFINED_FUNCTION_TYPE USER_DEFINED_FUNCTION[USER_DEFINED_FUNCTION_NUM]
-    = { 0 };
+    = { NULL };
 
 int USER_DEFINED_FUNCTION_ADD(USER_DEFINED_FUNCTION_TYPE func, int num)
 {

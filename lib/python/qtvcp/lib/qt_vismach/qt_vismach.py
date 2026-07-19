@@ -2,9 +2,9 @@
 
 import sys
 
-from PyQt5.QtCore import pyqtSignal, QPoint, QSize, Qt, QTimer
-from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import (QApplication, QHBoxLayout, QOpenGLWidget, QSlider,
+from qtpy.QtCore import Signal, QPoint, QSize, Qt, QTimer
+from qtpy.QtGui import QColor
+from qtpy.QtWidgets import (QApplication, QHBoxLayout, QOpenGLWidget, QSlider,
                              QWidget)
 
 import OpenGL.GL as GL
@@ -65,10 +65,10 @@ class Window(QWidget):
         self.zoomSlider.setRange(small, big)
 
 class GLWidget(QOpenGLWidget):
-    xRotationChanged = pyqtSignal(int)
-    yRotationChanged = pyqtSignal(int)
-    zRotationChanged = pyqtSignal(int)
-    zoomChanged = pyqtSignal(int)
+    xRotationChanged = Signal(int)
+    yRotationChanged = Signal(int)
+    zRotationChanged = Signal(int)
+    zoomChanged = Signal(int)
 
     def __init__(self, parent=None):
         super(GLWidget, self).__init__(parent)
@@ -98,7 +98,7 @@ class GLWidget(QOpenGLWidget):
 
         self.plotdata = []
         self.plotColor = [1.0, 0.5, 0.5]
-        self.plotlen = 16000
+        self.plotlen = 64000
 
         # Where we are centering.
         self.xcenter = 0.0
@@ -127,7 +127,7 @@ class GLWidget(QOpenGLWidget):
         # add a 100ms timer to poll linuxcnc stats
         self.timer = QTimer()
         self.timer.timeout.connect(self.update)
-        self.timer.start(100)
+        self.timer.start(50)
 
     def choosePlotColor(self, data):
         # by name
@@ -212,13 +212,13 @@ class GLWidget(QOpenGLWidget):
         self.update()
 
     def zoomin(self):
-        self.distance = self.distance / 1.1
+        self.distance = self.distance / 1.2 - 20
         if self.distance < self.near:
             self.distance = self.near
         self.update()
 
     def zoomout(self):
-        self.distance = self.distance * 1.1
+        self.distance = self.distance * 1.2 + 20
         if self.distance > self.far:
             self.distance = self.far
         self.update()
@@ -408,22 +408,15 @@ class GLWidget(QOpenGLWidget):
         dy = event.y() - self.lastPos.y()
 
         if event.buttons() & Qt.LeftButton:
-            self.setXRotation(self.xRot + 8 * dy)
-            self.setYRotation(self.yRot - 8 * dx)
+            scale = max(0.2, (self.distance ** 0.7) * 0.01)
+            self.viewX -= dx * scale
+            self.viewY += dy * scale
         elif event.buttons() & Qt.RightButton:
             self.setXRotation(self.xRot + 8 * dy)
             self.setZRotation(self.zRot + 8 * dx)
         else:
-            # basic panning
-            if dx > 0:
-                self.viewX -=2
-            elif dx < 0:
-                self.viewX +=2
-            if dy > 0:
-                self.viewY +=2
-            elif dy < 0:
-                self.viewY -=2
-
+            self.setXRotation(self.xRot + 8 * dy)
+            self.setYRotation(self.yRot - 8 * dx)
         self.lastPos = event.pos()
 
     def mouseDoubleClickEvent(self, event):
@@ -471,8 +464,9 @@ def main(model, tool, work, size=10, hud=None, rotation_vectors=None, lat=0, lon
 
     window.setZoomRange(int(t.near),int(t.far))
     window.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 
 
 if __name__ == '__main__':
     print('This is a library file - it needs to be imported')
+

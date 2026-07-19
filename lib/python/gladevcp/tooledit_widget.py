@@ -65,6 +65,11 @@ class ToolEdit(Gtk.Box):
         self.wTree = Gtk.Builder()
         self.wTree.set_translation_domain("linuxcnc") # for locale translations
         self.wTree.add_from_file(os.path.join(datadir, "tooledit_gtk.glade") )
+        # Track active edit session
+        self.editable = None
+        self.edit_path = None
+        self.edit_column = None
+
         # connect the signals from Glade
         dic = {
             "on_delete_clicked" : self.delete,
@@ -90,6 +95,7 @@ class ToolEdit(Gtk.Box):
             #print name,col
             renderer = self.wTree.get_object(name+'1')
             renderer.connect( 'edited', self.col_editted, col+1, None)
+            renderer.connect( 'editing-started', self.col_editing_started, col+1)
             renderer.props.editable = True
         self.all_label = self.wTree.get_object("all_label")
 
@@ -101,6 +107,7 @@ class ToolEdit(Gtk.Box):
         for name,col in temp:
             renderer = self.wTree.get_object(name)
             renderer.connect( 'edited', self.col_editted, col, 'wear' )
+            renderer.connect( 'editing-started', self.col_editing_started, col+1)
             renderer.props.editable = True
         # Hide columns we don't want to see
         self.set_col_visible(list='spyabcuvwdijq', bool= False, tab= '2')
@@ -114,6 +121,7 @@ class ToolEdit(Gtk.Box):
         for name,col in temp:
             renderer = self.wTree.get_object(name)
             renderer.connect( 'edited', self.col_editted, col, 'tool' )
+            renderer.connect( 'editing-started', self.col_editing_started, col+1)
             renderer.props.editable = True
         # Hide columns we don't want to see
         self.set_col_visible(list='spyabcuvwdij', bool= False, tab= '3')
@@ -159,16 +167,10 @@ class ToolEdit(Gtk.Box):
         # check the INI file if display-type: LATHE is set
         try:
             self.inifile = linuxcnc.ini(INIPATH)
-            test = self.inifile.find("DISPLAY", "LATHE")
-            if test == '1' or test == 'True':
-                self.lathe_display_type = True
-                self.set_lathe_display(True)
-            else:
-                self.lathe_display_type = False
-                self.set_lathe_display(False)
+            self.lathe_display_type = self.inifile.getbool("DISPLAY", "LATHE", fallback=False)
+            self.set_lathe_display(self.lathe_display_type)
         except:
-            pass
-
+            print("No INI file found")
         # check linuxcnc status every second
         GLib.timeout_add(1000, self.periodic_check)
 
@@ -181,7 +183,7 @@ class ToolEdit(Gtk.Box):
             return not data
         return data
 
-        # delete the selected tools
+        # delete tools selected by checkbox
     def delete(self,widget):
         liststore  = self.model
         def match_value_cb(model, path, iter, pathlist):
@@ -196,7 +198,12 @@ class ToolEdit(Gtk.Box):
         for path in pathlist:
             liststore.remove(liststore.get_iter(path))
 
-        # return the selected tool number
+        # delete tool of selected row
+    def delete_selected_row(self,widget):
+        model, iter = self.view1.get_selection().get_selected()
+        model.remove(iter)
+
+        # return tool numbers of all rows with checked checkboxes
     def get_selected_tool(self):
         liststore  = self.model
         def match_value_cb(model, path, iter, pathlist):
@@ -206,14 +213,29 @@ class ToolEdit(Gtk.Box):
         pathlist = []
         liststore.foreach(match_value_cb, pathlist)
         # foreach works in a depth first fashion
-        if len(pathlist) != 1:
+        if len(pathlist) == 0:
             return None
-        else:
+        elif len(pathlist) == 1:
             return(liststore.get_value(liststore.get_iter(pathlist[0]),1))
+        else:
+            selected_tools = []
+            for path in pathlist:
+                tool = (liststore.get_value(liststore.get_iter(path[0]),1))
+                selected_tools.append(tool)
+            return selected_tools
+
+        # return tool number of the highlighted (ie selected) row
+    def get_selected_row(self):
+        model, iter = self.view1.get_selection().get_selected()
+        if iter:
+            tool = model.get_value(iter, 1)
+            return tool
+        else:
+            return None
 
     def set_selected_tool(self,toolnumber):
         try:
-            treeselection = self.view2.get_selection()
+            treeselection = self.view1.get_selection()
             liststore  = self.model
             def match_tool(model, path, iter, pathlist):
                 if model.get_value(iter, 1) == toolnumber:
@@ -225,12 +247,15 @@ class ToolEdit(Gtk.Box):
             if len(pathlist) == 1:
                 liststore.set_value(liststore.get_iter(pathlist[0]),0,1)
                 treeselection.select_path(pathlist[0])
+                self.view1.scroll_to_cell(pathlist[0], None, True, 0.5, 0.0)
         except:
             print(_("tooledit_widget error: cannot select tool number"),toolnumber)
 
     def add(self,widget,data=[1,0,0,'0','0','0','0','0','0','0','0','0','0','0','0',0,"comment"]):
         self.model.append(data)
         self.num_of_col +=1
+        liststore = self.model
+        self.wTree.get_object("treeview1").scroll_to_cell(len(liststore)-1)
 
         # this is for adding a filename path after the tooleditor is already loaded.
     def set_filename(self,filename):
@@ -318,7 +343,9 @@ class ToolEdit(Gtk.Box):
             self.add(None,array)
 
     def save(self,widget):
-        if self.toolfile == None:return
+        if self.toolfile == None: return
+        # commit the text when click on save while in edit mode
+        self.commit_active_edit()
         liststore = self.model
         # pre check before saving the file
         # if not done before, the file will be saved only until the erroneous line and the rest will be lost
@@ -458,9 +485,24 @@ class ToolEdit(Gtk.Box):
             except:
                 pass
 
+    def commit_active_edit(self):
+        if self.editable:
+            self.validate_input(self.edit_path, self.editable.get_text(), self.edit_column)
+            self.editable = None
+            self.edit_path = None
+            self.edit_column = None
+            
+    def col_editing_started(self, renderer, editable, path, col):
+        self.editable = editable      # Gtk.Entry
+        self.edit_path = path         # row path
+        self.edit_column = col        # column index
+
+    def col_editted(self, widget, path, new_text, col, filter):
+        self.validate_input(path, new_text, col)
+
         # depending what is edited add the right type of info integer,float or text
         # If it's a filtered display then we must convert the path 
-    def col_editted(self, widget, path, new_text, col, filter):
+    def validate_input(self, path, new_text, col):
         if filter == 'wear':
             (store_path,) = self.wear_filter.convert_path_to_child_path(path)
             path = store_path
@@ -727,7 +769,7 @@ def main(filename=None):
     window.connect("destroy", Gtk.main_quit)
     tooledit.set_col_visible("abcUVW", False, tab='1')
     # uncommented the below line for testing.
-    tooledit.set_filename("../../../configs/sim/sim.tbl")
+    # tooledit.set_filename("../../../configs/sim/sim.tbl")
     tooledit.set_font("sans 16",tab='23')
     window.show_all()
     #tooledit.set_lathe_display(True)
@@ -738,7 +780,10 @@ def main(filename=None):
        print("False")
 
 if __name__ == "__main__":
-    # if there are two arguments then specify the path
+    if "INI_FILE_NAME" not in os.environ:
+        print("LinuxCNC probably not running. Run 'export INI_FILE_NAME=<your_ini_file>' to use tooledit stand alone.")
+    
+    # if there is one argument given, specify the path of the tooltable file
     if len(sys.argv) > 1: main(sys.argv[1])
     else: main()
 

@@ -126,17 +126,6 @@ RTPREFIX=""
 KERNELDIR=""
 RTFLAGS=""
 
-NONDISTRIBUTABLE=false
-AC_ARG_ENABLE(non-distributable,
-    AS_HELP_STRING(
-        [--enable-non-distributable],
-        [To build LinuxCNC even if a license problem would render the resulting binaries non-distributable under the terms of the LinuxCNC license]),
-    [
-        case "$enableval" in
-        (yes) NONDISTRIBUTABLE=true ;;
-        esac
-    ])
-
 ##############################################################################
 # Subsection 2.1                                                             #
 # Check for arguments to ./configure                                         #
@@ -200,14 +189,14 @@ AC_ARG_ENABLE(toolnml,
 
 #at this point if RTS is empty, we need to find RT ourselves
 AC_MSG_CHECKING([for rtai-config])
-if test -z "$RTS"; then
+if test -z "$RTS" || test "$RTS" = uspace; then
   DIRS="/usr/realtime-`uname -r` /usr/realtime /usr/realtime* /usr /usr/src/rtai*"
 else
   DIRS="$RTS"
 fi
-  RTAI_CONFIG=none
-  for location in $DIRS; do
-    for subdir in . scripts bin; do
+RTAI_CONFIG=none
+for location in $DIRS; do
+  for subdir in . scripts bin; do
     for signature in rtai; do
       candidate=$location/$subdir/$signature-config
       if test "$RTAI_CONFIG" = "none" -a -x $candidate; then
@@ -222,6 +211,12 @@ AC_SUBST([RTAI_CONFIG])
 
 AC_PATH_PROG([XENOMAI_CONFIG], [xeno-config], [none])
 AC_SUBST([XENOMAI_CONFIG])
+
+#Xenomai evl
+HAS_EVL=n
+AC_CHECK_HEADER([evl/evl.h],[
+  HAS_EVL=y
+])
 
 AC_MSG_CHECKING([for realtime API(s) to use])
 if test "$RTS" = uspace || test -z "$RTS" -a "$RTAI_CONFIG" = "none" ; then
@@ -254,11 +249,29 @@ if test "$RTS" = uspace || test -z "$RTS" -a "$RTAI_CONFIG" = "none" ; then
     XENOMAI_LDFLAGS=`$XENOMAI_CONFIG --skin posix --ldflags`
     AC_DEFINE([USPACE_XENOMAI], [], [Define if uspace realtime should optionally support Xenomai])
   fi
+
   AC_SUBST([CONFIG_USPACE_XENOMAI])
   AC_SUBST([XENOMAI_CFLAGS])
   AC_SUBST([XENOMAI_LDFLAGS])
 
-  AC_MSG_RESULT([$RTS$USPACE_RTAI$USPACE_XENOMAI])
+  if test "$HAS_EVL" = "n" ; then
+    USPACE_XENOMAI_EVL=
+    CONFIG_USPACE_XENOMAI_EVL=n
+    XENOMAI_EVL_CFLAGS=
+    XENOMAI_EVL_LDFLAGS=
+  else
+    USPACE_XENOMAI_EVL=+xenomai4
+    CONFIG_USPACE_XENOMAI_EVL=y
+    XENOMAI_EVL_CFLAGS=
+    XENOMAI_EVL_LDFLAGS=-levl
+    AC_DEFINE([USPACE_XENOMAI_EVL], [], [Define if uspace realtime should optionally support Xenomai-evl])
+  fi
+
+  AC_SUBST([CONFIG_USPACE_XENOMAI_EVL])
+  AC_SUBST([XENOMAI_EVL_CFLAGS])
+  AC_SUBST([XENOMAI_EVL_LDFLAGS])
+
+  AC_MSG_RESULT([$RTS$USPACE_RTAI$USPACE_XENOMAI$USPACE_XENOMAI_EVL])
 
   AC_MSG_CHECKING([whether to enable userspace PCI access])
   AC_ARG_ENABLE(userspace-pci,
@@ -523,7 +536,7 @@ install with "sudo apt-get install libusb-1.0-0-dev" or disable with
 #
 # check for libgpiod
 #
-PKG_CHECK_MODULES([LIBGPIOD], [libgpiod < 2.0.0],
+PKG_CHECK_MODULES([LIBGPIOD], [libgpiod < 3.0.0],
             [AC_DEFINE_UNQUOTED([LIBGPIOD_VER], `pkg-config libgpiod --modversion | awk -F. '{print ($1 * 100)+($2) }'`,
             [libgpiod version, undefined if not present])
             LDFLAGS="$LDFLAGS $LIBGPIOD_LIBS"
@@ -677,6 +690,15 @@ AC_DEFINE_UNQUOTED([EMC2_DEFAULT_TOOLTABLE], "$DEFAULT_TOOLTABLE", [Default nml 
 # we decide based on RIP or install where stuff goes                         #
 ##############################################################################
 
+AC_ARG_WITH([tcl-dir],
+    [AS_HELP_STRING([--with-tcl-dir=DIR],
+        [directory for LinuxCNC Tcl scripts (default: auto-detected from tcl_pkgPath)])],
+    [EMC2_TCL_DIR="$withval"],
+    [TCL_GET_DIR=$(echo [['set d [lindex [lsearch -all -inline -glob $tcl_pkgPath /usr/share/*] 0]; if {$d eq ""} {set d [lindex [lsearch -all -inline -glob $tcl_pkgPath /usr/lib*] 0]}; puts $d']] | tclsh 2>/dev/null)
+     AS_IF([test -z "$TCL_GET_DIR"],
+           [AC_MSG_ERROR([could not determine Tcl package dir from tcl_pkgPath])])
+     EMC2_TCL_DIR="$TCL_GET_DIR/linuxcnc"])
+
 fe () {
     # Fully expand argument.  Example:
     # ${datadir} -> ${datarootdir} -> ${prefix}/share -> /usr/local
@@ -699,7 +721,8 @@ if test "xyes" = "x$RUN_IN_PLACE"; then
     EMC2_PO_DIR=$EMC2_HOME/share/locale
     EMC2_HELP_DIR=$EMC2_HOME/docs/help
     EMC2_RTLIB_DIR=$EMC2_HOME/rtlib
-    LINUXCNC_CONFIG_PATH="~/linuxcnc/configs:$EMC2_HOME/configs"
+    LINUXCNC_CONFIG_PATH="\$HOME/linuxcnc/configs:$EMC2_HOME/configs"
+    LINUXCNC_CONFIG_PATH_TCL="$::env(HOME)/linuxcnc/configs:$EMC2_HOME/configs"
     EMC2_NCFILES_DIR=$EMC2_HOME/nc_files
     REALTIME=$EMC2_HOME/scripts/realtime
     EMC2_IMAGE_DIR=$EMC2_HOME
@@ -712,16 +735,16 @@ else
     EMC2_SCRIPT=$EMC2_BIN_DIR/linuxcnc
     EMC2_SUFFIX=""
     EMC2_ICON=linuxcncicon
-    EMC2_TCL_DIR=${prefix}/lib/tcltk/linuxcnc
-    EMC2_TCL_LIB_DIR=${prefix}/lib/tcltk/linuxcnc
-    EMC2_LANG_DIR=${prefix}/lib/tcltk/linuxcnc/msgs
+    EMC2_TCL_LIB_DIR="${EMC2_TCL_DIR}"
+    EMC2_LANG_DIR="${EMC2_TCL_DIR}/msgs"
     EMC2_PO_DIR=${prefix}/share/locale
     EMC2_HELP_DIR=${prefix}/share/doc/linuxcnc
     case $MODULE_DIR in
         */linuxcnc*) EMC2_RTLIB_DIR=$MODULE_DIR ;;
 	*) EMC2_RTLIB_DIR=$MODULE_DIR/linuxcnc
     esac
-    LINUXCNC_CONFIG_PATH="~/linuxcnc/configs:/usr/local/etc/linuxcnc/configs:"$(eval echo $EMC2_HELP_DIR)"/examples/sample-configs"
+    LINUXCNC_CONFIG_PATH="\$HOME/linuxcnc/configs:/usr/local/etc/linuxcnc/configs:"$(eval echo $EMC2_HELP_DIR)"/examples/sample-configs"
+    LINUXCNC_CONFIG_PATH_TCL="$::env(HOME)/linuxcnc/configs:/usr/local/etc/linuxcnc/configs:"$(eval echo $EMC2_HELP_DIR)"/examples/sample-configs"
     EMC2_NCFILES_DIR=${prefix}/share/linuxcnc/ncfiles
     REALTIME=${prefix}/lib/linuxcnc/realtime
     EMC2_IMAGE_DIR=$(fe "$datadir")/linuxcnc
@@ -746,6 +769,7 @@ AC_SUBST([EMC2_HELP_DIR])
 AC_SUBST([EMC2_RTLIB_DIR])
 AC_SUBST([EMC2_LANG_DIR])
 AC_SUBST([LINUXCNC_CONFIG_PATH])
+AC_SUBST([LINUXCNC_CONFIG_PATH_TCL])
 AC_SUBST([EMC2_NCFILES_DIR])
 AC_SUBST([REALTIME])
 AC_SUBST([EMC2_IMAGE_DIR])
@@ -984,6 +1008,30 @@ if test "x" = "x$BOOST_PYTHON_LIB"; then
     DEPFOUND=false
 fi
 
+# Test for a "maybe uninitialized" in the python::boost library in
+# extract<std::string> when compiled with g++ 15.2.[01] and maybe others.
+# The test needs to have -O2 and -Wall enabled to expose the probem.
+AC_LANG_PUSH([C++])
+CPPFLAGS_SAVED="$CPPFLAGS"
+CPPFLAGS="$PYTHON_CPPFLAGS $BOOST_CPPFLAGS $CPPFLAGS -O2 -Wall -Werror"
+AC_CACHE_CHECK(whether $CXX has a "maybe uninitialized" false positive, ax_cv_cxx_boost_maybe_uninit,
+    [AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
+#include <boost/python/extract.hpp>
+std::string func(boost::python::object& o) {
+	return boost::python::extract<std::string>(o);
+}
+int main() { return 0; }
+]])],
+        [ax_cv_cxx_boost_maybe_uninit=no],
+        [ax_cv_cxx_boost_maybe_uninit=yes])
+    ]
+)
+CPPFLAGS="$CPPFLAGS_SAVED"
+if test x$ax_cv_cxx_boost_maybe_uninit = xyes; then
+    CPPFLAGS="$CPPFLAGS -Wno-maybe-uninitialized"
+fi
+AC_LANG_POP([C++])
+
 AC_MSG_CHECKING([whether to build documentation])
 AC_ARG_ENABLE(build-documentation,
     AS_HELP_STRING(
@@ -1021,130 +1069,156 @@ AC_ARG_ENABLE(build-documentation,
         AC_MSG_RESULT([no])
     ])
 
-# Programs required for building all documentation
+# Programs required for building documentation.  Missing PDF-only
+# tools or an invalid CJK font are a hard error whenever PDF was
+# requested (BUILD_DOCS_PDF=yes -- i.e. anything except
+# --enable-build-documentation=html).  =html itself warn-and-disables
+# only the missing PDF tools; users who want PDF best-effort can pass
+# =html and rebuild after installing the missing tools.
+# halcompile manpages need asciidoctor regardless of BUILD_DOCS.
+AC_PATH_PROG(ASCIIDOCTOR,asciidoctor,"none")
+if ( test "none" = "$ASCIIDOCTOR" ) ; then
+    AC_MSG_ERROR([no asciidoctor, manpages cannot be built
+install with "sudo apt-get install asciidoctor" on Debian / Ubuntu,
+"sudo dnf install rubygem-asciidoctor" on Fedora, or "gem install asciidoctor"])
+fi
+
 if ( test "$BUILD_DOCS" = "yes" ) ; then
-    AC_PATH_PROG(ASCIIDOC,asciidoc,"none")
-    if ( test "none" = "$ASCIIDOC" ) ; then
-	AC_MSG_WARN([no AsciiDoc, documentation cannot be built])
-        BUILD_DOCS=no
-    fi
-
-    AC_PATH_PROG(A2X,a2x,"none")
-    if ( test "none" = "$A2X" ) ; then
-	AC_MSG_WARN([no a2x, documentation cannot be built])
-        BUILD_DOCS=no
-    fi
-
-    AC_MSG_CHECKING([whether to specify latex.encoding])
-    temp_asciidoc=`mktemp --suffix=.txt`
-    cat > $temp_asciidoc <<EOF
-:lang: fr
-:ascii-ids:
-
-....
-Matúš hat Geläut am Fuß
-....
-EOF
-    if $A2X --dblatex-opts "-P latex.encoding=utf8" $temp_asciidoc > /dev/null 2>&1;
-    then
-        A2X_LATEX_ENCODING="-P latex.encoding=utf8"
-        AC_MSG_RESULT(yes)
-    else
-        A2X_LATEX_ENCODING=""
-        AC_MSG_RESULT(no)
-    fi
-    AC_SUBST(A2X_LATEX_ENCODING)
-    rm -f $temp_asciidoc ${temp_asciidoc%.txt}.pdf
-
-    AC_PATH_PROG(DBLATEX,dblatex,"none")
-    if ( test "none" = "$DBLATEX" ) ; then
-	AC_MSG_WARN([no dblatex, documentation cannot be built])
-        BUILD_DOCS=no
-    fi
-
-    if ( test "$BUILD_DOCS" = "yes" ) ; then
-        AC_MSG_CHECKING([dblatex version])
-        set -- `dblatex --version`; DBLATEX_VER=$3
-        set -- `echo $DBLATEX_VER | sed 's/[[.-]]/ /g'`
-        micro=`echo $3 | sed 's/\([[0-9]]*\).*/\1/g'`
-
-        if test $1 -eq 0 -a \( $2 -lt 2 -o \( $2 -eq 2 -a ${micro:-0} -lt 12 \) \); then
-            AC_MSG_WARN([dblatex version $DBLATEX_VER less than 0.2.12.
-Documentation cannot be built.])
-            BUILD_DOCS=no
-        else
-            AC_MSG_RESULT([$DBLATEX_VER])
-        fi
-    fi
-
-    if ( test "$BUILD_DOCS" = "yes" ) ; then
-        AC_PATH_PROG(SOURCE_HIGHLIGHT,source-highlight,"none")
-        if ( test "none" = "$SOURCE_HIGHLIGHT" ) ; then
-            AC_MSG_WARN([no source-highlight, documentation cannot be built])
-            BUILD_DOCS=no
-        fi
-    fi
-
-    if ( test "$BUILD_DOCS" = "yes" ) ; then
-        AC_PATH_PROG(CONVERT,convert,"none")
-        if ( test "none" = "$CONVERT" ) ; then
-            AC_MSG_WARN([no convert, documentation cannot be built])
-            BUILD_DOCS=no
-        fi
-    fi
-
     if ( test "$BUILD_DOCS" = "yes" ) ; then
         AC_PATH_PROG(GS,gs,"none")
         if ( test "none" = "$GS" ) ; then
-            AC_MSG_WARN([no gs, documentation cannot be built])
+            AC_MSG_WARN([no gs, documentation cannot be built
+install with "sudo apt-get install ghostscript"])
             BUILD_DOCS=no
+            BUILD_DOCS_PDF=no
+            BUILD_DOCS_HTML=no
+        fi
+    fi
+
+    if ( test "$BUILD_DOCS" = "yes" ) ; then
+        AC_PATH_PROG(RSVG_CONVERT,rsvg-convert,"none")
+        if ( test "none" = "$RSVG_CONVERT" ) ; then
+            AC_MSG_WARN([no rsvg-convert, documentation cannot be built
+install with "sudo apt-get install librsvg2-bin"])
+            BUILD_DOCS=no
+            BUILD_DOCS_PDF=no
+            BUILD_DOCS_HTML=no
+        fi
+    fi
+
+    # Rouge is required by the custom rouge_hal / rouge_ngc / rouge_ini
+    # extensions loaded by every asciidoctor invocation; without it the
+    # build dies with "cannot load such file -- rouge" deep in the make
+    # log (reported by bertho on Fedora 43 where ruby-rouge wasn't a
+    # transitive dep of asciidoctor).
+    if ( test "$BUILD_DOCS" = "yes" ) ; then
+        AC_MSG_CHECKING([for ruby rouge gem])
+        if ruby -e 'require "rouge"' 2>/dev/null ; then
+            AC_MSG_RESULT([yes])
+        else
+            AC_MSG_RESULT([no])
+            AC_MSG_WARN([no ruby rouge, documentation cannot be built
+install with "sudo apt-get install ruby-rouge" on Debian / Ubuntu,
+"sudo dnf install rubygem-rouge" on Fedora, or "gem install rouge"])
+            BUILD_DOCS=no
+            BUILD_DOCS_PDF=no
+            BUILD_DOCS_HTML=no
         fi
     fi
 fi
 
 # Programs required only for building the PDF documentation
 if ( test "$BUILD_DOCS_PDF" = "yes" ) ; then
-    AC_PATH_PROG(PDFLATEX,pdflatex,"none")
-    if ( test "none" = "$PDFLATEX" ) ; then
-	AC_MSG_WARN([no pdflatex, PDF documentation cannot be built])
-        BUILD_DOCS=no
-    fi
-fi
-
-# Programs required only for building the HTML documentation
-if ( test "$BUILD_DOCS_HTML" = "yes" ) ; then
-    AC_PATH_PROG(XSLTPROC,xsltproc,"none")
-    if ( test "none" = "$XSLTPROC" ) ; then
-	AC_MSG_WARN([no xsltproc, HTML documentation cannot be built])
-        BUILD_DOCS=no
+    AC_PATH_PROG(ASCIIDOCTOR_PDF,asciidoctor-pdf,"none")
+    if ( test "none" = "$ASCIIDOCTOR_PDF" ) ; then
+        AC_MSG_ERROR([no asciidoctor-pdf, PDF documentation cannot be built
+install with "sudo apt-get install asciidoctor-pdf" (Debian sid/trixie)
+or "sudo apt-get install ruby-asciidoctor-pdf" (Debian bookworm)])
     fi
 
-    AC_PATH_PROG(DVIPNG,dvipng,"none")
-    if ( test "none" = "$DVIPNG" ) ; then
-	AC_MSG_WARN([no dvipng, HTML documentation cannot be built])
-        BUILD_DOCS=no
+    # fontTools (python3-fonttools) is used by otf2ttf.py to convert the
+    # CFF/OTF NotoSerifCJK .ttc into a TrueType the prawn PDF engine can
+    # embed.
+    if ( test "$BUILD_DOCS_PDF" = "yes" ) ; then
+        AC_MSG_CHECKING([for python3 fontTools module])
+        if python3 -c 'import fontTools' 2>/dev/null ; then
+            AC_MSG_RESULT([yes])
+        else
+            AC_MSG_RESULT([no])
+            AC_MSG_WARN([no python3 fontTools, PDF documentation cannot be built
+install with "sudo apt-get install python3-fonttools"])
+            BUILD_DOCS_PDF=no
+        fi
     fi
 
-    AC_MSG_CHECKING([for HTML support in groff])
-    if ! groff -Thtml < /dev/null > /dev/null 2>&1 ; then
-        AC_MSG_WARN([no groff -Thtml, HTML documentation cannot be built])
-        BUILD_DOCS=no
+    if ( test "$BUILD_DOCS_PDF" = "yes" ) ; then
+    # NotoSerifCJK is the fallback font that asciidoctor-pdf reaches
+    # for when a glyph (zh_CN, Japanese, Korean) is missing from the
+    # base text font.  We need the .ttc TrueType Collection, because
+    # otf2ttf.py picks index 2 (SC) out of it.  Probe via fontconfig
+    # first, then load through python+fontTools to validate, because
+    # some distros ship a file named .ttc that is not actually a
+    # TrueType Collection (otf2ttf would die mid-build on it).  Probe
+    # failure warn-and-disables PDF on the default =Y path so other
+    # docs still build; explicit =pdf is treated as a hard error.
+    cjk_disable_pdf_reason=""
+    AC_MSG_CHECKING([for NotoSerifCJK Regular .ttc])
+    NOTOCJK_REGULAR_TTC="`fc-match --format='%{file}' 'Noto Serif CJK SC:style=Regular' 2>/dev/null`"
+    case "$NOTOCJK_REGULAR_TTC" in
+        *.ttc) test -r "$NOTOCJK_REGULAR_TTC" || NOTOCJK_REGULAR_TTC="" ;;
+        *)     NOTOCJK_REGULAR_TTC="" ;;
+    esac
+    if test -z "$NOTOCJK_REGULAR_TTC" ; then
+        AC_MSG_RESULT([no])
+        cjk_disable_pdf_reason="no NotoSerifCJK Regular TrueType Collection found via fc-match"
     else
-        AC_MSG_RESULT(yes)
+        AC_MSG_RESULT([$NOTOCJK_REGULAR_TTC])
     fi
 
-    AC_PATH_PROG(CHECKLINK,checklink,"none")
-    if ( test "none" = "$CHECKLINK" ) ; then
-	AC_MSG_WARN([no checklink, HTML documentation cannot be built
-install with "sudo apt-get install w3c-linkchecker"])
-        BUILD_DOCS=no
+    if test -z "$cjk_disable_pdf_reason" ; then
+        AC_MSG_CHECKING([for NotoSerifCJK Bold .ttc])
+        NOTOCJK_BOLD_TTC="`fc-match --format='%{file}' 'Noto Serif CJK SC:style=Bold' 2>/dev/null`"
+        case "$NOTOCJK_BOLD_TTC" in
+            *.ttc) test -r "$NOTOCJK_BOLD_TTC" || NOTOCJK_BOLD_TTC="" ;;
+            *)     NOTOCJK_BOLD_TTC="" ;;
+        esac
+        if test -z "$NOTOCJK_BOLD_TTC" ; then
+            AC_MSG_RESULT([no])
+            cjk_disable_pdf_reason="no NotoSerifCJK Bold TrueType Collection found via fc-match"
+        else
+            AC_MSG_RESULT([$NOTOCJK_BOLD_TTC])
+        fi
+    fi
+
+    if test -z "$cjk_disable_pdf_reason" ; then
+        AC_MSG_CHECKING([that NotoSerifCJK .ttc loads as a TrueType Collection])
+        if python3 -c 'import sys; from fontTools.ttLib import TTCollection; TTCollection(sys.argv[[1]]).fonts[[2]]; TTCollection(sys.argv[[2]]).fonts[[2]]' "$NOTOCJK_REGULAR_TTC" "$NOTOCJK_BOLD_TTC" 2>/dev/null ; then
+            AC_MSG_RESULT([yes])
+        else
+            AC_MSG_RESULT([no])
+            cjk_disable_pdf_reason="NotoSerifCJK file at $NOTOCJK_REGULAR_TTC is not a valid TrueType Collection (index 2 unavailable)"
+        fi
+    fi
+
+    if test -n "$cjk_disable_pdf_reason" ; then
+        AC_MSG_ERROR([$cjk_disable_pdf_reason, PDF documentation cannot be built
+install with "sudo apt-get install fonts-noto-cjk" on Debian / Ubuntu,
+"sudo pacman -S noto-fonts-cjk" on Arch, or
+"sudo dnf install google-noto-sans-cjk-fonts google-noto-serif-cjk-fonts" on Fedora.
+fontconfig also picks up user installs under ~/.fonts; run "fc-cache -f" after copying the .ttc there.
+For a fully custom path, set the var directly:
+   ./configure NOTOCJK_REGULAR_TTC=/path/to/NotoSerifCJK-Regular.ttc \
+              NOTOCJK_BOLD_TTC=/path/to/NotoSerifCJK-Bold.ttc])
+    fi
+    AC_SUBST(NOTOCJK_REGULAR_TTC)
+    AC_SUBST(NOTOCJK_BOLD_TTC)
     fi
 fi
 
 AC_ARG_ENABLE(build-documentation-translation,
     AS_HELP_STRING(
-        [--disable-build-documentation-translation],
-        [Disable building documentation in languages other than English.]
+        [--enable-build-documentation-translation],
+        [Also build translated documentation (po4a, ~5 min extra wall time).  Default off.]
     ),
     [
     case "$enableval" in
@@ -1160,36 +1234,25 @@ AC_ARG_ENABLE(build-documentation-translation,
         BUILD_DOCS_TRANSLATED_EXPLICIT=not_set
     ])
 
-if ( test "$BUILD_DOCS" = "yes" && test "$BUILD_DOCS_TRANSLATED_EXPLICIT" != "no") ; then
+BUILD_DOCS_TRANSLATED=no
+if ( test "$BUILD_DOCS" = "yes" && test "$BUILD_DOCS_TRANSLATED_EXPLICIT" = "yes") ; then
     AC_PATH_PROG(PO4A, po4a, "none")
-    BUILD_DOCS_TRANSLATED=yes
     if test $PO4A = "none"
     then
-        if test "$BUILD_DOCS_TRANSLATED_EXPLICIT" = "not_set"
-        then
-            AC_MSG_WARN([po4a not found, not building translated docs])
-        else
-            AC_MSG_ERROR([po4a not found, not building translated docs])
-        fi
-        BUILD_DOCS_TRANSLATED=no
+        AC_MSG_ERROR([po4a not found, cannot build translated docs])
     else
-        # Version 0.35 support asciidoc without tables
-        # Version 0.56 support the tablecells asciidoc option
-        # Version 0.62 correctly write UTF-8 into translated adocs
-        # Version 0.65 support grouping several doc files into different POTs
-        # Version 0.66 handle empty table cells in asciidoc
-        # Version 0.67 handle enforced linbreaks
+        # Version 0.67 handles enforced linebreaks correctly
         V=$(po4a --version| awk '/po4a version/ {print $3}')
         if dpkg --compare-versions 0.67 gt "$V"; then
-            if test "$BUILD_DOCS_TRANSLATED_EXPLICIT" = "not_set"
-            then
-                AC_MSG_WARN([po4a version too old, need version 0.67 or newer, not building translated docs])
-            else
-                AC_MSG_ERROR([po4a version too old, need version 0.67 or newer, not building translated docs])
-            fi
-	    BUILD_DOCS_TRANSLATED=no
+            AC_MSG_ERROR([po4a version too old, need version 0.67 or newer to build translated docs])
         fi
+        BUILD_DOCS_TRANSLATED=yes
     fi
+fi
+if test "$BUILD_DOCS" = "yes" && test "$BUILD_DOCS_TRANSLATED" = "no" ; then
+    DOC_LANGS=$(sed -e's/#.*//' "$srcdir/../docs/po4a.cfg" 2>/dev/null | grep '^\[po4a_langs\]' | cut -d" " -f2-)
+    DOC_LANGS=$(echo $DOC_LANGS | tr ' ' '/')
+    AC_MSG_NOTICE([documentation will be built for English only; pass --enable-build-documentation-translation to also build ${DOC_LANGS:-translations}])
 fi
 AC_SUBST(BUILD_DOCS)
 AC_SUBST(BUILD_DOCS_PDF)
@@ -1354,9 +1417,9 @@ if test -z "$TKCONFIG"; then
 fi
 if (test "x$TKCONFIG" = "x"); then
     # search for tkConfig.sh
-    TKCONFIG=$(find /usr/lib -maxdepth 2 -name tkConfig.sh | sort -r | head -n1)
+    TKCONFIG=$(find /usr/lib* -maxdepth 2 -name tkConfig.sh | sort -r | head -n1)
     if (test "x$TKCONFIG" = "x"); then
-	TKCONFIG=$(find /usr/local/lib -maxdepth 2 -name tkConfig.sh | head -n1)
+	TKCONFIG=$(find /usr/local/lib* -maxdepth 2 -name tkConfig.sh | head -n1)
     fi
 fi
 
@@ -1378,6 +1441,14 @@ if ! test -z "$TCL_VERSION" && ! test -z "$TK_VERSION" && ! test "$TCL_VERSION" 
     AC_MSG_ERROR([Tcl and Tk versions must be the same, but configure found
 Tcl $TCL_VERSION and Tk $TK_VERSION.  You can use --with-tkConfig= and --with-tclConfig=
 to override the autodetected versions.])
+fi
+
+if test -z "$TCL_MAJOR_VERSION" || test -z "$TCL_MINOR_VERSION" ; then
+    AC_MSG_ERROR([tclConfig was not found or did not export TCL_MAJOR_VERSION/TCL_MINOR_VERSION. Cannot determine exact Tcl version.])
+fi
+
+if test "(" "$TCL_MAJOR_VERSION" -lt 8 ")" -o "(" "(" "$TCL_MAJOR_VERSION" -eq 8 ")" -a "(" "$TCL_MINOR_VERSION" -lt 4 ")" ")" ; then
+    AC_MSG_ERROR([Tcl version must be 8.4 or better. Your Tcl version ${TCL_MAJOR_VERSION}.${TCL_MINOR_VERSION} is too old.])
 fi
 
 if test -f $TCL_EXEC_PREFIX/bin/wish$TCL_VERSION; then
@@ -1424,13 +1495,16 @@ if test "$RUNTIME_CHECK" = "yes"; then
         AC_MSG_RESULT([not found])
     fi
 
-    AC_MSG_CHECKING([for tclX using $TCLSH])
-    if (unset DISPLAY; echo ["catch { package require Tclx }; exit [expr [lsearch [package names] Tclx] == -1]"] | $TCLSH); then
-        AC_MSG_RESULT([found])
-    else
-        AC_MSG_RESULT(no)
-        AC_MSG_ERROR([Tclx not found!
-    install with "sudo apt-get install tclx"])
+    # Don't need tclX anymore in Tcl9
+    if test "$TCL_MAJOR_VERSION" -lt 9; then
+        AC_MSG_CHECKING([for tclX using $TCLSH])
+        if (unset DISPLAY; echo ["catch { package require Tclx }; exit [expr [lsearch [package names] Tclx] == -1]"] | $TCLSH); then
+            AC_MSG_RESULT([found])
+        else
+            AC_MSG_RESULT(no)
+            AC_MSG_ERROR([Tclx not found!
+        install with "sudo apt-get install tclx"])
+        fi
     fi
 
     AC_MSG_CHECKING([for python pango module])
@@ -1486,59 +1560,24 @@ fi
 temp_LIBS=$LIBS
 LIBS=
 
-# check for readline.h and friends, optional for halcmd
-AC_CHECK_HEADERS(readline/readline.h, [HAVE_READLINE=yes], [HAVE_READLINE=no])
-AC_CHECK_HEADERS(readline/history.h, [], [HAVE_READLINE=no])
-
-echo "Trying readline without -ltermcap"
-AC_CHECK_LIB(readline, readline, [HAVE_READLINE_NOTERMCAP=yes], [])
-unset ac_cv_lib_readline_readline
-echo "Trying readline with -ltermcap"
-AC_CHECK_LIB(readline, readline, [HAVE_READLINE_TERMCAP=yes], [], -ltermcap)
-unset ac_cv_lib_readline_readline
-
-if test "x$HAVE_READLINE_NOTERMCAP" = "xyes"; then
-    echo "Readline does not require -ltermcap"
-    READLINE_LIBS="-lreadline"
-elif test "x$HAVE_READLINE_TERMCAP" = "xyes"; then
-    echo "Readline requires -ltermcap"
-    READLINE_LIBS="-lreadline -ltermcap"
-else
-    HAVE_READLINE=no
+AC_LANG_PUSH([C++])
+AC_CHECK_HEADERS([fmt/format.h],[HAVE_LIBFMT=yes],[HAVE_LIBFMT=no])
+AC_LANG_POP([C++])
+if test "x$HAVE_LIBFMT" = "xno"; then
+    AC_MSG_ERROR([libfmt header not found. Install with 'sudo apt-get install libfmt-dev'])
 fi
 
-AC_MSG_CHECKING([whether readline license is compatible with GPL-2])
-AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
-        #include <stdio.h>
-        #include <readline/readline.h>
-    ]], [[
-        #if RL_VERSION_MAJOR > 5
-        #error Readline version 6 and up are not compatible with GPL-2
-        #endif
-    ]])],[AC_MSG_RESULT(yes)],[
-        AC_MSG_RESULT(no)
-        AC_MSG_WARN(
-[The LinuxCNC binary you are building may not be
-distributable due to a license incompatibility with LinuxCNC (some portions
-GPL-2 only) and Readline version 6 and greater (GPL-3 or later).])
-        if $NONDISTRIBUTABLE; then
-            AC_MSG_WARN(
-[User requested to enable non-distributable builds.  Continuing.])
-        else
-            AC_MSG_ERROR(
-[To configure LinuxCNC in this way, you must
-invoke configure with "--enable-non-distributable=yes".  Note that on
-Debian-based systems, you may be able to use libeditreadline-dev or
-libreadline-gplv2-dev instead of libreadline-dev.])
-        fi
+AC_CHECK_HEADERS([sys/capability.h], [], [
+    AC_MSG_ERROR([libcap header not found. Please install libcap-dev])
 ])
-
-if test "x$HAVE_READLINE" = "xyes"; then
-    AC_DEFINE([HAVE_READLINE], [], [Define to 1 if you have the 'readline' library (-lreadline) and required headers])
-else
-    AC_MSG_ERROR([Required library 'readline' missing.])
-fi
-AC_SUBST([HAVE_READLINE])
+AC_CHECK_HEADERS([editline/readline.h histedit.h], [], [
+    AC_MSG_ERROR([libedit headers not found. Please install libedit-dev or libedit-devel.])
+])
+AC_CHECK_LIB([edit], [readline], [
+    READLINE_LIBS="-ledit"
+], [
+    AC_MSG_ERROR([libedit library (-ledit) not found.])
+])
 AC_SUBST([READLINE_LIBS])
 
 ##############################################################################
@@ -1644,7 +1683,7 @@ fi
 AC_MSG_RESULT([$PYTHON_TK_VERSION])
 
 AC_MSG_CHECKING(for site-package location)
-SITEPY="$($PYTHON -c 'import sysconfig; s = sysconfig.get_scheme_names(); m=list(set(("deb_system", "rpm_prefix")) & set(s)); print(sysconfig.get_path("platlib", m.__getitem__(0))) if m else print("/usr/lib/python3/dist-packages");')"
+SITEPY=`$PYTHON -c "import sysconfig; s=sysconfig.get_scheme_names(); print(sysconfig.get_path('platlib', 'deb_system' if 'deb_system' in s else 'rpm_prefix' if 'rpm_prefix' in s else sysconfig.get_default_scheme()))"`
 AC_MSG_RESULT($SITEPY)
 
 AC_MSG_CHECKING(for working GLU quadrics)
@@ -1679,6 +1718,19 @@ add_to_cflags() {
 # Always add -Wextra
 add_to_cflags "-Wextra"
 
+# Add option to enable warnings when integer 0 is used to act
+# as NULL or nullptr in assignment or comparison.
+AC_ARG_ENABLE(wzero-as-null-pointer-constant,
+    AS_HELP_STRING(
+      [--enable-wzero-as-null-pointer-constant],
+      [Warn on zero being used as NULL pointer constant (-Wzero-as-null-pointer-constant).],
+    ),
+    [
+      case "$enableval" in
+        (yes) add_to_cflags "-Wzero-as-null-pointer-constant" ;;
+      esac
+    ])
+
 # The last thing before subst-exporting CFLAGS and CXXFLAGS is to add -Werror
 # if requested. Doing it earlier causes conf-tests to fail that are supposed to
 # succeed when they generate warnings.
@@ -1712,7 +1764,6 @@ AC_CONFIG_FILES([../scripts/halcmd_twopass], [chmod +x ../scripts/halcmd_twopass
 AC_CONFIG_FILES([../scripts/realtime], [chmod +x ../scripts/realtime])
 AC_CONFIG_FILES([../scripts/runtests], [chmod +x ../scripts/runtests])
 AC_CONFIG_FILES([../scripts/linuxcnc_var], [chmod +x ../scripts/linuxcnc_var])
-AC_CONFIG_FILES([../scripts/linuxcnc-checklink], [chmod +x ../scripts/linuxcnc-checklink])
 AC_CONFIG_FILES(Makefile.inc)
 AC_CONFIG_FILES(Makefile.modinc)
 AC_CONFIG_FILES(../tcl/linuxcnc.tcl)

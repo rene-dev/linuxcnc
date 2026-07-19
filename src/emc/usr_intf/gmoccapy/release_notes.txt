@@ -1,3 +1,43 @@
+ver 3.5.2 -- LinuxCNC 2.10.0-pre0 (2026-04-10)
+ - Add font chooser for the G-code view, default font is now 'monospace 10' (#3548)
+ - Add toggle button to sort by date in the file view + further sorting settings
+ - Add info messages when exit from tool table about changed G43/G49 (#3792)
+ - Change selection logic of tools in tool table: The checkboxes are gone and 
+   a tool is simply selected by row selection. (#3706)
+ - Save current text of tool table when in edit mode (#3787)
+ - Make value conversion of calculator independent of locale setting (#3691)
+ - Move offsetpage buttons to table frame, add toggle button for calculator use (#3509)
+ - Add button to call calculator in mdi and gcode edit modes (#3496)
+
+ver 3.5.1 -- LinuxCNC 2.10.0-pre0 (2025-06-26)
+ - Style velocity/spindle info box (remove S-prefix, add units)
+ - Add button "refresh dir" in open file page
+ - Add setting for jog button size + right pane width
+ - Add icon for continuous jog, change alignment of jog increment button box
+ - MDI-entry: bigger enter button (with CSS)
+ - G-code editor:
+    - Add button to show preview beside editor (split view)
+    - Add comment/uncomment button for G-code + keybinding
+    - Re-arrange search and replace bar
+ - Force display of unlocalized float values in Offset page (Thanks @Sigma1912)
+ 
+ - Fix homing abort on focus out event (#3667, thanks @Sigma1912)
+ - Use common logger/istat and common/hal_glib. This removes the qt name from the logging and imports. (Thanks @CMorley)
+ - Move tool table buttons to table frame, add toggle button for calculator use (#3509, thanks @Sigma1912)
+ - Add button to call calculator in mdi and gcode edit modes (#3496, thanks @Sigma1912)
+ - Fix several warnings. Thanks @Sigma1912
+ - Improvements to the calculator widget (#3473, thanks @Sigma1912)
+ - Use calculator widget to edit numeric values in tooltable (optional with button) (#3472, thanks @Sigma1912)
+ - Use calculator widget to edit offset values in offsetpage (with setting to disable) (#3457, thanks @Sigma1912)
+ - Improvements to the offsetpage widget. Especially add column for rotation in offsets G54..G59.3 (#3457, thanks @Sigma1912)
+ - Fix issues #3447 and #982 (#3454, thanks @Sigma1912)
+    - Fix the display of very large numbers for spindle speed and 'Vc' in the gui when using G96
+    - Fix 'spindle.0.speed-out' pins being reset to wrong values when using G96
+    - Fix wrong spindle speed set when using M1 with optional stop enabled
+    - The 'Spindle [rpm]' value will now track hal pin 'spindle.0.speed-out'
+    - The 'S' value in the 'G-Code' frame now tracks 'self.stat.settings[2]'
+ - Fix external_load function -wrong function name - makes external loading of files possible again (Thanks @CMorley)
+
 ver 3.5.0 -- LinuxCNC 2.10.0-pre0
  - Add startup message to show new features/important hints
  - Add LinuxCNC version to window title

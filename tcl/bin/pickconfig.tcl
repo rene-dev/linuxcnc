@@ -100,7 +100,7 @@ proc initialize_config {} {
         exit
         destroy .
     } else {
-        if {[catch {open ~/.linuxcncrc} programin]} {
+        if {[catch {open $::env(HOME)/.linuxcncrc} programin]} {
             return 
         } else {
             set rcstring [read $programin]
@@ -181,7 +181,13 @@ proc ok_to_copy_config {filename} {
     #    then it is presumed to be a system dir running from an install (by
     #    a deb install typically) so copy the configuration to user directory.
     #
-    # 2) if the directory is included in ::user_aux_dirs (as
+    # 2) For non-RIP builds, if the file is not under the user's
+    #    myconfigs_node, force copy regardless of filesystem writability.
+    #    This catches distros where installed sample-configs happen to be
+    #    writable by the running user (e.g. Gentoo system-wide installs to
+    #    a group-writable path).
+    #
+    # 3) if the directory is included in ::user_aux_dirs (as
     #    specified by the environmental variable LINUXCNC_AUX_EXAMPLES),
     #    then the config is copied to user directory to avoid overwriting
     #    a developmental source directory.
@@ -198,6 +204,12 @@ proc ok_to_copy_config {filename} {
     if {    [info exists ::env(debug_pickconfig)] \
          && [string first $::myconfigs_node $filename]} {
       set forcecopy 1
+    }
+
+    set is_rip [expr {[info exists ::linuxcnc::RUN_IN_PLACE]
+                      && $::linuxcnc::RUN_IN_PLACE eq "yes"}]
+    if {!$is_rip && [string first $::myconfigs_node $filename] != 0} {
+        set forcecopy 1
     }
 
     if { [info exists ::user_aux_dirs] } {
@@ -393,9 +405,12 @@ set f2 [ frame $f1.f2 -borderwidth 0 -relief flat -padx 15 ]
 # Let the tree scroll
 set s1 [ SW $f2.f3 -auto both]
 $s1 configure -relief sunken -borderwidth 2
+# get the font height to scale the height of the tree rows
+set font_linespace [font metrics [linuxcnc::standard_font] -linespace]
 # the tree
 set ::tree [Tree $s1.tree -highlightthickness 0 \
-                          -width 25 -relief flat -padx 4 \
+                          -width [expr {int($font_linespace * 1.33)}] -relief flat -padx 4 \
+                          -deltay $font_linespace\
                           ]
 $s1 setwidget $::tree
 pack $s1 -fill y -expand n -side left
@@ -660,7 +675,7 @@ proc prompt_copy configname {
     set ncfiles [file normalize [file join $::myconfigs_node ../nc_files]]
     file mkdir [file join $::myconfigs_node]
 
-    set obsoletedir [file normalize [file join ~ emc2]]
+    set obsoletedir [file normalize [file join $::env(HOME) emc2]]
     if [file isdir $obsoletedir] {
       tk_messageBox -title "Copy Configuration Notice" \
         -message "A directory named:\n \
@@ -891,11 +906,11 @@ while {1} {
         # test for ~/.linuxcncrc file and modify if needed.
         # or make this file and add the var.
 
-        if {[file exists ~/.linuxcncrc]} {
+        if {[file exists $::env(HOME)/.linuxcncrc]} {
             if {$::inifile == $::last_ini} {
                 exit
             } else {
-                if {[catch {open ~/.linuxcncrc} programin]} {
+                if {[catch {open $::env(HOME)/.linuxcncrc} programin]} {
                     return 
                 } else {
                     set rcstring [read $programin]
@@ -903,8 +918,8 @@ while {1} {
                 }
                 set ret [setVal $rcstring PICKCONFIG LAST_CONFIG $::inifile ]
                 catch {file copy -force $name $name.bak}
-                if {[catch {open ~/.linuxcncrc w} fileout]} {
-                    puts stdout [msgcat::mc "can't save %s" ~/.linuxcncrc ]
+                if {[catch {open $::env(HOME)/.linuxcncrc w} fileout]} {
+                    puts stdout [msgcat::mc "can't save %s" $::env(HOME)/.linuxcncrc ]
                     exit
                 }
                 puts $fileout $ret
@@ -914,8 +929,8 @@ while {1} {
         }
         set newfilestring "# .linuxcncrc is a startup configuration file for LinuxCNC. \n# format is INI like. \n# \[SECTION_NAME\] \n# VARNAME = varvalue \n# where section name is the name of the system writing to this file \n\n# written by pickconfig.tcl \n\[PICKCONFIG\]\nLAST_CONFIG = $::inifile\n"
                 
-        if {[catch {open ~/.linuxcncrc w+} fileout]} {
-            puts stderr [msgcat::mc "can't save %s" ~/.linuxcncrc ]
+        if {[catch {open $::env(HOME)/.linuxcncrc w+} fileout]} {
+            puts stderr [msgcat::mc "can't save %s" $::env(HOME)/.linuxcncrc ]
             exit
         }
 

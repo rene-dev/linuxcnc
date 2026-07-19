@@ -20,19 +20,21 @@
 #include <stdio.h>  // rtpreempt only, consolidate to stderr
 #endif
 
-#include "posemath.h"
-#include "rtapi.h"
-#include "hal.h"
+#include <rtapi.h>
+#include <rtapi_math.h>
+#include <hal.h>
+#include <posemath.h>
+#include <kinematics.h>  //for kinematicsSwitchable()
+#include <motion_types.h>
+
+#include "../tp/tp.h"
+#include "simple_tp.h"
 #include "motion.h"
 #include "mot_priv.h"
-#include "rtapi_math.h"
-#include "tp.h"
-#include "simple_tp.h"
 #include "config.h"
-#include "motion_types.h"
 #include "homing.h"
 #include "axis.h"
-#include "kinematics.h"  //for kinematicsSwitchable()
+#include "state_tag.h"
 
 // Mark strings for translation, but defer translation to userspace
 #define _(s) (s)
@@ -223,12 +225,9 @@ void emcmotController(void *arg, long period)
 
     static long long int last = 0;
 
-    long long int now = rtapi_get_clocks();
+    long long int now = rtapi_get_time();
     long int this_run = (long int)(now - last);
     *(emcmot_hal_data->last_period) = this_run;
-#ifdef HAVE_CPU_KHZ
-    *(emcmot_hal_data->last_period_ns) = this_run * 1e6 / cpu_khz;
-#endif
 
     // we need this for next time
     last = now;
@@ -718,59 +717,63 @@ static void process_probe_inputs(void)
     } else if (!old_probeVal && emcmotStatus->probeVal) {
         // not probing, but we have a rising edge on the probe.
         // this could be expensive if we don't stop.
-        int i;
-        int aborted = 0;
 
         if(!GET_MOTION_INPOS_FLAG() && tpQueueDepth(&emcmotInternal->coord_tp)) {
             // running an command
-            tpAbort(&emcmotInternal->coord_tp);
-            reportError(_("Probe tripped during non-probe move."));
-	    SET_MOTION_ERROR_FLAG(1);
-        }
-
-        for(i=0; i<NO_OF_KINS_JOINTS; i++) {
-            emcmot_joint_t *joint = &joints[i];
-
-            if (!GET_JOINT_ACTIVE_FLAG(joint)) {
-                /* if joint is not active, skip it */
-                continue;
+            if (emcmotStatus->motionType != EMC_MOTION_TYPE_PROBING) {
+                tpAbort(&emcmotInternal->coord_tp);
+                reportError(_("Probe tripped during non-probe move."));
+                SET_MOTION_ERROR_FLAG(1);
             }
+        } else {
+            // not running a command
+            int i;
+            int aborted = 0;
 
-            // inhibit_probe_home_error is set by [TRAJ]->NO_PROBE_HOME_ERROR in the ini file
-            if (!emcmotConfig->inhibit_probe_home_error) {
-                // abort any homing
-                if(get_homing(i)) {
-                    do_cancel_homing(i);
-                    aborted=1;
+            for(i=0; i<NO_OF_KINS_JOINTS; i++) {
+                emcmot_joint_t *joint = &joints[i];
+
+                if (!GET_JOINT_ACTIVE_FLAG(joint)) {
+                    /* if joint is not active, skip it */
+                    continue;
+                }
+
+                // inhibit_probe_home_error is set by [TRAJ]->NO_PROBE_HOME_ERROR in the ini file
+                if (!emcmotConfig->inhibit_probe_home_error) {
+                    // abort any homing
+                    if(get_homing(i)) {
+                        do_cancel_homing(i);
+                        aborted=1;
+                    }
+                }
+
+                // inhibit_probe_jog_error is set by [TRAJ]->NO_PROBE_JOG_ERROR in the ini file
+                if (!emcmotConfig->inhibit_probe_jog_error) {
+                    // abort any joint jogs
+                    if(joint->free_tp.enable == 1) {
+                        joint->free_tp.enable = 0;
+                        // since homing uses free_tp, this protection of aborted
+                        // is needed so the user gets the correct error.
+                        if(!aborted) aborted=2;
+                    }
                 }
             }
-
-            // inhibit_probe_jog_error is set by [TRAJ]->NO_PROBE_JOG_ERROR in the ini file
             if (!emcmotConfig->inhibit_probe_jog_error) {
-                // abort any joint jogs
-                if(joint->free_tp.enable == 1) {
-                    joint->free_tp.enable = 0;
-                    // since homing uses free_tp, this protection of aborted
-                    // is needed so the user gets the correct error.
-                    if(!aborted) aborted=2;
+                if (axis_jog_abort_all(1)) {
+                    aborted = 3;
                 }
             }
-        }
-        if (!emcmotConfig->inhibit_probe_jog_error) {
-            if (axis_jog_abort_all(1)) {
-                aborted = 3;
+
+            if(aborted == 1) {
+                reportError(_("Probe tripped during homing motion."));
             }
-        }
 
-        if(aborted == 1) {
-            reportError(_("Probe tripped during homing motion."));
-        }
-
-        if(aborted == 2) {
-            reportError(_("Probe tripped during a joint jog."));
-        }
-        if(aborted == 3) {
-            reportError(_("Probe tripped during a coordinate jog."));
+            if(aborted == 2) {
+                reportError(_("Probe tripped during a joint jog."));
+            }
+            if(aborted == 3) {
+                reportError(_("Probe tripped during a coordinate jog."));
+            }
         }
     }
     old_probeVal = emcmotStatus->probeVal;
@@ -872,6 +875,7 @@ static void set_operating_mode(void)
 	    /* disable free mode planner */
 	    joint->free_tp.enable = 0;
 	    joint->free_tp.curr_vel = 0.0;
+        joint->free_tp.curr_acc = 0.0;
 	    /* drain coord mode interpolators */
 	    cubicDrain(&(joint->cubic));
 	    if (GET_JOINT_ACTIVE_FLAG(joint)) {
@@ -1157,6 +1161,7 @@ static void handle_jjogwheels(void)
         joint->free_tp.pos_cmd = pos;
         joint->free_tp.max_vel = joint->vel_limit;
         joint->free_tp.max_acc = jaccel_limit;
+        joint->free_tp.max_jerk = joint->jerk_limit;
 	/* lock out other jog sources */
 	joint->wheel_jjog_active = 1;
         /* and let it go */
@@ -1216,6 +1221,8 @@ static void get_pos_cmds(long period)
 
 	    if(joint->acc_limit > emcmotStatus->acc)
 		joint->acc_limit = emcmotStatus->acc;
+        if(joint->jerk_limit > emcmotStatus->jerk)
+        joint->jerk_limit = emcmotStatus->jerk;
 	    /* compute joint velocity limit */
             if (   (emcmotStatus->motion_state != EMCMOT_MOTION_FREE)
                 && get_home_is_idle(joint_num) ) {
@@ -1248,8 +1255,10 @@ static void get_pos_cmds(long period)
             } else {
                 joint->free_tp.max_acc = joint->acc_limit;
             }
+            joint->free_tp.max_jerk = joint->jerk_limit;
             simple_tp_update(&(joint->free_tp), servo_period );
             /* copy free TP output to pos_cmd and coarse_pos */
+            joint->jerk_cmd = joint->free_tp.curr_jerk;
             joint->pos_cmd = joint->free_tp.curr_pos;
             joint->vel_cmd = joint->free_tp.curr_vel;
             //no acceleration output form simple_tp, but the pin will
@@ -1384,8 +1393,22 @@ static void get_pos_cmds(long period)
 	    /* point to joint struct */
 	    joint = &joints[joint_num];
 	    /* interpolate to get new position and velocity */
-	    joint->pos_cmd = cubicInterpolate(&(joint->cubic), 0, &(joint->vel_cmd), &(joint->acc_cmd), 0);
+		joint->pos_cmd = cubicInterpolate(&(joint->cubic), 0, &(joint->vel_cmd), &(joint->acc_cmd),  &(joint->jerk_cmd));
 	}
+
+	/* Use accurate jerk values from TP output for identity kinematics only.
+	 * For KINEMATICS_BOTH (non-trivial joint mapping), joint indices don't
+	 * necessarily correspond to XYZ axes, so keep cubic interpolator values.
+	 */
+	if (emcmotStatus->planner_type == 1
+	    && emcmotConfig->kinType == KINEMATICS_IDENTITY) {
+	    double path_jerk = emcmotStatus->current_jerk;
+	    PmCartesian dir = emcmotStatus->current_dir;
+	    if (NO_OF_KINS_JOINTS >= 1) joints[0].jerk_cmd = path_jerk * dir.x;
+	    if (NO_OF_KINS_JOINTS >= 2) joints[1].jerk_cmd = path_jerk * dir.y;
+	    if (NO_OF_KINS_JOINTS >= 3) joints[2].jerk_cmd = path_jerk * dir.z;
+	}
+
 	/* report motion status */
 	SET_MOTION_INPOS_FLAG(0);
 	if (tpIsDone(&emcmotInternal->coord_tp)) {
@@ -1434,7 +1457,7 @@ static void get_pos_cmds(long period)
 		       this cycle so it doesn't really matter */
 		cubicAddPoint(&(joint->cubic), joint->coarse_pos);
 		/* interpolate to get new position and velocity */
-		joint->pos_cmd = cubicInterpolate(&(joint->cubic), 0, &(joint->vel_cmd), &(joint->acc_cmd), 0);
+		joint->pos_cmd = cubicInterpolate(&(joint->cubic), 0, &(joint->vel_cmd), &(joint->acc_cmd),  &(joint->jerk_cmd));
 	    }
 	}
 	else
@@ -1863,6 +1886,13 @@ static void output_to_hal(void)
     *(emcmot_hal_data->coord_error) = GET_MOTION_ERROR_FLAG();
     *(emcmot_hal_data->on_soft_limit) = emcmotStatus->on_soft_limit;
 
+    /* Performance Metadata */
+    *(emcmot_hal_data->interp_feedrate)         = emcmotStatus->tag.fields_float[GM_FIELD_FLOAT_FEED];
+
+    /* Line and Motion Type (Casting to int for s32 HAL pins) */
+    *(emcmot_hal_data->interp_line_number)      = (int)emcmotStatus->tag.fields[GM_FIELD_LINE_NUMBER];
+    *(emcmot_hal_data->interp_motion_type)      = (int)emcmotStatus->tag.fields[GM_FIELD_MOTION_MODE];
+    *(emcmot_hal_data->iscircle)                = (hal_bit_t)((emcmotStatus->tag.packed_flags & (1UL << GM_FLAG_IS_CIRCLE)) != 0);
     switch (emcmotStatus->motionType) {
         case EMC_MOTION_TYPE_FEED: //fall thru
         case EMC_MOTION_TYPE_ARC:
@@ -2023,6 +2053,7 @@ static void output_to_hal(void)
 	*(joint_data->coarse_pos_cmd) = joint->coarse_pos;
 	*(joint_data->joint_vel_cmd) = joint->vel_cmd;
 	*(joint_data->joint_acc_cmd) = joint->acc_cmd;
+    *(joint_data->joint_jerk_cmd) = joint->jerk_cmd;
 	*(joint_data->backlash_corr) = joint->backlash_corr;
 	*(joint_data->backlash_filt) = joint->backlash_filt;
 	*(joint_data->backlash_vel) = joint->backlash_vel;
@@ -2093,7 +2124,19 @@ static void update_status(void)
 	}
 #endif
 	joint_status->flag = joint->flag;
-	joint_status->homing = get_homing(joint_num);
+	if(!(joint_status->homing && !get_homing(joint_num) && get_homing_is_active())) {
+		// Prevent race condition.
+		// (See also emc/motion/homing.c: base_write_homing_out_pins())
+		// The homing status variable turns false before get_homing_is_active()
+		// turns false. This means that a new homing command on a joint might
+		// fail due to the homing state machine being active while all joints
+		// already are in the 'not homing' state.
+		// Solution:
+		// Do not update the homing status when going from homing --> not homing
+		// and the state machine is still active. The homing status deassertion
+		// must be delayed until the state machine is done.
+		joint_status->homing = get_homing(joint_num);
+	}
 	joint_status->homed  = get_homed(joint_num);
 	joint_status->pos_cmd = joint->pos_cmd;
 	joint_status->pos_fb = joint->pos_fb;
@@ -2172,6 +2215,74 @@ static void update_status(void)
       tpPause(&emcmotInternal->coord_tp);
       emcmotStatus->stepping = 0;
       emcmotStatus->paused = 1;
+    }
+    // State Tags handling
+    // Get the current executing trajectory component (the "Source of Truth")
+    /* Update the HAL Output Pins from the active tag */
+    // Line and Motion Type
+    *(emcmot_hal_data->interp_line_number) = (int)emcmotStatus->tag.fields[GM_FIELD_LINE_NUMBER];
+
+    // Performance Metadata
+    *(emcmot_hal_data->interp_feedrate) = emcmotStatus->tag.fields_float[GM_FIELD_FLOAT_FEED];
+
+    // Geometric Metadata
+    *(emcmot_hal_data->interp_arc_radius) = emcmotStatus->tag.fields_float[GM_FIELD_FLOAT_ARC_RADIUS];
+    *(emcmot_hal_data->interp_arc_center_x) = emcmotStatus->tag.fields_float[GM_FIELD_FLOAT_ARC_CENTER_X];
+    *(emcmot_hal_data->interp_arc_center_y) = emcmotStatus->tag.fields_float[GM_FIELD_FLOAT_ARC_CENTER_Y];
+    *(emcmot_hal_data->interp_arc_center_z) = emcmotStatus->tag.fields_float[GM_FIELD_FLOAT_ARC_CENTER_Z];
+
+    // Get the current motion type from the tag (1=G1, 2=G2, 3=G3)
+    int motion_type = (int)emcmotStatus->tag.fields[GM_FIELD_MOTION_MODE];
+    if (motion_type == 10 || motion_type == 0) {
+        /* --- G1/G0 STATIC HEADING --- */
+        // For linear moves, the heading doesn't change during the segment.
+        *(emcmot_hal_data->interp_straight_heading) = emcmotStatus->tag.fields_float[GM_FIELD_FLOAT_STRAIGHT_HEADING];
+    }
+    else if (motion_type == 20 || motion_type == 30) {
+        /* --- G2/G3: DYNAMIC ARC HEADING --- */
+
+        // 1. Get Static Center from Tag
+        double cx = emcmotStatus->tag.fields_float[GM_FIELD_FLOAT_ARC_CENTER_X];
+        double cy = emcmotStatus->tag.fields_float[GM_FIELD_FLOAT_ARC_CENTER_Y];
+        double cz = emcmotStatus->tag.fields_float[GM_FIELD_FLOAT_ARC_CENTER_Z];
+
+        // 2. Get Real-Time Feedback Deltas
+        double dx = emcmotStatus->carte_pos_fb.tran.x - cx;
+        double dy = emcmotStatus->carte_pos_fb.tran.y - cy;
+        double dz = emcmotStatus->carte_pos_fb.tran.z - cz;
+
+        // 3. Determine Plane and Radial Angle
+        int plane = emcmotStatus->tag.fields[GM_FIELD_PLANE];
+        double angle_rad = 0.0; // Initialize to prevent "uninitialized" error
+
+        if (plane == 170) {      // XY: X is Horizontal, Y is Verradiustical
+            angle_rad = atan2(dy, dx);
+        }
+        else if (plane == 180) { // XZ: Z is Horizontal, X is Vertical
+            angle_rad = atan2(dx, dz);
+        }
+        else if (plane == 190) { // YZ: Y is Horizontal, Z is Vertical
+            angle_rad = atan2(dz, dy);
+        }
+        // Optional: add an else here for a default plane if 170/180/190 aren't found
+
+        // 4. Calculate Normal Heading (Tool-to-Center)
+        double normal_deg = (angle_rad * (180.0 / M_PI)) + 180.0;
+        while (normal_deg < 0) normal_deg += 360.0;
+        while (normal_deg >= 360.0) normal_deg -= 360.0;
+        *(emcmot_hal_data->interp_normal_heading) = normal_deg;
+
+        // 5. Calculate Tangent Heading (Direction of Travel)
+        double tangent_rad = (motion_type == 30) ? (angle_rad + (M_PI / 2.0)) : (angle_rad - (M_PI / 2.0));
+        double heading_deg = tangent_rad * (180.0 / M_PI);
+
+        // 6. Final Normalization and Assignment
+        while (heading_deg < 0) heading_deg += 360.0;
+        while (heading_deg >= 360.0) heading_deg -= 360.0;
+
+        if (emcmot_hal_data->interp_straight_heading) {
+        *(emcmot_hal_data->interp_straight_heading) = heading_deg;
+        }
     }
 #ifdef WATCH_FLAGS
     /*! \todo FIXME - this is for debugging */

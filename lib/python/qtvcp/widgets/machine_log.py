@@ -18,12 +18,12 @@ import os
 import hashlib
 import time
 
-from PyQt5.QtWidgets import QWidget, QTextEdit, QTableWidget, QTableWidgetItem, QVBoxLayout
-from PyQt5.QtCore import QFile, pyqtProperty
-import PyQt5.QtWidgets as QtWidgets
-from PyQt5.QtGui import QColor
+from qtpy.QtWidgets import QWidget, QTextEdit, QTableWidget, QTableWidgetItem, QVBoxLayout
+from qtpy.QtCore import QFile, Property
+import qtpy.QtWidgets as QtWidgets
+from qtpy.QtGui import QColor
 from qtvcp.widgets.widget_baseclass import _HalWidgetBase
-from qtvcp.core import Status, Info
+from qtvcp.core import Status, Info, Action
 from qtvcp import logger
 
 # Instiniate the libraries with global reference
@@ -34,6 +34,7 @@ from qtvcp import logger
 # LOG is for running code logging
 STATUS = Status()
 INFO = Info()
+ACTION = Action()
 LOG = logger.getLogger(__name__)
 
 
@@ -42,6 +43,7 @@ class MachineLog(QWidget, _HalWidgetBase):
         super(MachineLog, self).__init__(parent)
         self._delay = 0
         self._hash_code = None
+        self._log_on = True
         self._machine_log = True
         self._machine_log_severity = False
         self._integrator_log = False
@@ -76,7 +78,7 @@ class MachineLog(QWidget, _HalWidgetBase):
 
         horizontalHeader = self.logTable.horizontalHeader()
         horizontalHeader.resizeSection(0, 100)
-        horizontalHeader.resizeSection(1, 75)
+        horizontalHeader.resizeSection(1, 100)
         horizontalHeader.setSectionResizeMode(2, QtWidgets.QHeaderView.Stretch)
         horizontalHeader.setVisible(False)
 
@@ -131,6 +133,15 @@ class MachineLog(QWidget, _HalWidgetBase):
                 self.clear()
                 return
 
+        if option == 'ON':
+            self._log_on = True
+            return
+        if option == 'OFF':
+            self._log_on = False
+            return
+        if self._log_on != True:
+            return
+
         if message:
             if option is None: option = ''
 
@@ -163,6 +174,8 @@ class MachineLog(QWidget, _HalWidgetBase):
                 msgItem.setBackground(self._warning_bg_color)
                 dateItem.setBackground(self._warning_bg_color)
                 severityItem.setBackground(self._warning_bg_color)
+                if self.QTVCP_INSTANCE_.OPTIONS_.play_sounds:
+                    ACTION.PLAY_WARNING()
             elif 'ERROR' in option:
                 msgItem.setForeground(self._error_fg_color)
                 dateItem.setForeground(self._error_fg_color)
@@ -170,6 +183,8 @@ class MachineLog(QWidget, _HalWidgetBase):
                 msgItem.setBackground(self._error_bg_color)
                 dateItem.setBackground(self._error_bg_color)
                 severityItem.setBackground(self._error_bg_color)
+                if self.QTVCP_INSTANCE_.OPTIONS_.play_sounds:
+                    ACTION.PLAY_ATTENTION()
             elif 'CRITICAL' in option:
                 msgItem.setForeground(self._critical_fg_color)
                 dateItem.setForeground(self._critical_fg_color)
@@ -177,6 +192,8 @@ class MachineLog(QWidget, _HalWidgetBase):
                 msgItem.setBackground(self._critical_bg_color)
                 dateItem.setBackground(self._critical_bg_color)
                 severityItem.setBackground(self._critical_bg_color)
+                if self.QTVCP_INSTANCE_.OPTIONS_.play_sounds:
+                    ACTION.PLAY_ERROR()
             else:
                 msgItem.setForeground(self._info_fg_color)
                 dateItem.setForeground(self._info_fg_color)
@@ -209,7 +226,7 @@ class MachineLog(QWidget, _HalWidgetBase):
         if str(logText, encoding='utf8') == "":
             self.logText.setPlainText('No Logging found. Is QtVcp in info, debugging or verbose mode (-i, -d or -v)?')
             return
-        self.logText.setPlainText(str(logText, encoding='utf8'))
+        self.logText.setHtml(str(logText, encoding='utf8'))
         # scroll down to show last entry
         self.logText.verticalScrollBar().setSliderPosition(self.logText.verticalScrollBar().maximum())
 
@@ -267,7 +284,7 @@ class MachineLog(QWidget, _HalWidgetBase):
         return self._machine_log
     def reset_machine_log(self):
         self._machine_log = True
-    machine_log_option = pyqtProperty(bool, get_machine_log, set_machine_log, reset_machine_log)
+    machine_log_option = Property(bool, get_machine_log, set_machine_log, reset_machine_log)
 
     def set_machine_log_severity(self, value):
             self._machine_log_severity = value
@@ -277,7 +294,7 @@ class MachineLog(QWidget, _HalWidgetBase):
             return self._machine_log_severity
     def reset_machine_log_severity(self):
             self._machine_log_severity = False
-    machine_log_severity_option = pyqtProperty(bool, get_machine_log_severity, set_machine_log_severity, reset_machine_log_severity)
+    machine_log_severity_option = Property(bool, get_machine_log_severity, set_machine_log_severity, reset_machine_log_severity)
 
 
     def set_integrator_log(self, value):
@@ -288,7 +305,7 @@ class MachineLog(QWidget, _HalWidgetBase):
         return self._integrator_log
     def reset_integrator_log(self):
         self._integrator_log = False
-    integrator_log_option = pyqtProperty(bool, get_integrator_log, set_integrator_log, reset_integrator_log)
+    integrator_log_option = Property(bool, get_integrator_log, set_integrator_log, reset_integrator_log)
 
     def set_critical_fg_color(self, value):
         self._critical_fg_color = value
@@ -297,7 +314,7 @@ class MachineLog(QWidget, _HalWidgetBase):
     def reset_critical_fg_color(self):
         self._critical_fg_color = QColor(255, 255, 255)
 
-    critical_fg_color_option = pyqtProperty(QColor, get_critical_fg_color, set_critical_fg_color, reset_critical_fg_color)
+    critical_fg_color_option = Property(QColor, get_critical_fg_color, set_critical_fg_color, reset_critical_fg_color)
 
     def set_critical_bg_color(self, value):
         self._critical_bg_color = value
@@ -306,7 +323,7 @@ class MachineLog(QWidget, _HalWidgetBase):
     def reset_critical_bg_color(self):
         self._critical_bg_color = QColor(255, 0, 0)
 
-    critical_bg_color_option = pyqtProperty(QColor, get_critical_bg_color, set_critical_bg_color, reset_critical_bg_color)
+    critical_bg_color_option = Property(QColor, get_critical_bg_color, set_critical_bg_color, reset_critical_bg_color)
 
     def set_error_fg_color(self, value):
         self._error_fg_color = value
@@ -315,7 +332,7 @@ class MachineLog(QWidget, _HalWidgetBase):
     def reset_error_fg_color(self):
         self._error_fg_color = QColor(255, 0, 0)
 
-    error_fg_color_option = pyqtProperty(QColor, get_error_fg_color, set_error_fg_color, reset_error_fg_color)
+    error_fg_color_option = Property(QColor, get_error_fg_color, set_error_fg_color, reset_error_fg_color)
 
     def set_error_bg_color(self, value):
         self._error_bg_color = value
@@ -324,7 +341,7 @@ class MachineLog(QWidget, _HalWidgetBase):
     def reset_error_bg_color(self):
         self._error_bg_color = QColor(255, 255, 255)
 
-    error_bg_color_option = pyqtProperty(QColor, get_error_bg_color, set_error_bg_color, reset_error_bg_color)
+    error_bg_color_option = Property(QColor, get_error_bg_color, set_error_bg_color, reset_error_bg_color)
 
     def set_warning_fg_color(self, value):
         self._warning_fg_color = value
@@ -333,7 +350,7 @@ class MachineLog(QWidget, _HalWidgetBase):
     def reset_warning_fg_color(self):
         self._warning_fg_color = QColor(255, 255, 0)
 
-    warning_fg_color_option = pyqtProperty(QColor, get_warning_fg_color, set_warning_fg_color, reset_warning_fg_color)
+    warning_fg_color_option = Property(QColor, get_warning_fg_color, set_warning_fg_color, reset_warning_fg_color)
 
     def set_warning_bg_color(self, value):
         self._warning_bg_color = value
@@ -342,7 +359,7 @@ class MachineLog(QWidget, _HalWidgetBase):
     def reset_warning_bg_color(self):
         self._warning_bg_color = QColor(255, 255, 255)
 
-    warning_bg_color_option = pyqtProperty(QColor, get_warning_bg_color, set_warning_bg_color, reset_warning_bg_color)
+    warning_bg_color_option = Property(QColor, get_warning_bg_color, set_warning_bg_color, reset_warning_bg_color)
 
     def set_debug_fg_color(self, value):
         self._debug_fg_color = value
@@ -351,7 +368,7 @@ class MachineLog(QWidget, _HalWidgetBase):
     def reset_debug_fg_color(self):
         self._debug_fg_color = QColor(128, 128, 128)
 
-    debug_fg_color_option = pyqtProperty(QColor, get_debug_fg_color, set_debug_fg_color, reset_debug_fg_color)
+    debug_fg_color_option = Property(QColor, get_debug_fg_color, set_debug_fg_color, reset_debug_fg_color)
 
     def set_debug_bg_color(self, value):
         self._debug_bg_color = value
@@ -360,7 +377,7 @@ class MachineLog(QWidget, _HalWidgetBase):
     def reset_debug_bg_color(self):
         self._debug_bg_color = QColor(255, 255, 255)
 
-    debug_bg_color_option = pyqtProperty(QColor, get_debug_bg_color, set_debug_bg_color, reset_debug_bg_color)
+    debug_bg_color_option = Property(QColor, get_debug_bg_color, set_debug_bg_color, reset_debug_bg_color)
 
     def set_info_fg_color(self, value):
         self._info_fg_color = value
@@ -369,7 +386,7 @@ class MachineLog(QWidget, _HalWidgetBase):
     def reset_info_fg_color(self):
         self._info_fg_color = QColor(0, 0, 0)
 
-    info_fg_color_option = pyqtProperty(QColor, get_info_fg_color, set_info_fg_color, reset_info_fg_color)
+    info_fg_color_option = Property(QColor, get_info_fg_color, set_info_fg_color, reset_info_fg_color)
 
     def set_info_bg_color(self, value):
         self._info_bg_color = value
@@ -378,7 +395,7 @@ class MachineLog(QWidget, _HalWidgetBase):
     def reset_info_bg_color(self):
         self._info_bg_color = QColor(255, 255, 255)
 
-    info_bg_color_option = pyqtProperty(QColor, get_info_bg_color, set_info_bg_color, reset_info_bg_color)
+    info_bg_color_option = Property(QColor, get_info_bg_color, set_info_bg_color, reset_info_bg_color)
 
     ##############################
     # required class boiler code #
@@ -392,10 +409,10 @@ class MachineLog(QWidget, _HalWidgetBase):
 # for testing without editor:
 def main():
     import sys
-    from PyQt5.QtWidgets import QApplication
+    from qtpy.QtWidgets import QApplication
     app = QApplication(sys.argv)
     widget = MachineLog()
     widget.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 if __name__ == "__main__":
     main()

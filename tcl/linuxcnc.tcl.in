@@ -25,14 +25,16 @@ namespace eval linuxcnc {
     variable TCL_SCRIPT_DIR @EMC2_TCL_DIR@/scripts
     variable HELP_DIR @EMC2_HELP_DIR@
     variable RTLIB_DIR @EMC2_RTLIB_DIR@
-    variable CONFIG_PATH {@LINUXCNC_CONFIG_PATH@}
+    variable CONFIG_PATH [subst -nocommands -nobackslashes {@LINUXCNC_CONFIG_PATH_TCL@}]
     variable NCFILES_DIR @EMC2_NCFILES_DIR@
     variable LANG_DIR @EMC2_LANG_DIR@
     variable IMAGEDIR @EMC2_IMAGE_DIR@
     variable REALTIME @REALTIME@
     variable RTS @RTS@
+    variable RUN_IN_PLACE @RUN_IN_PLACE@
     variable CONFIG_DIR {}
-    foreach _dir  [split {@LINUXCNC_CONFIG_PATH@} :] {
+    variable _dir
+    foreach _dir  [split $CONFIG_PATH :] {
 	lappend CONFIG_DIR [file normalize $_dir]
     }
     unset _dir
@@ -47,7 +49,7 @@ if {[string first $::linuxcnc::BIN_DIR: $env(PATH)] != 0} {
 }
 
 proc linuxcnc::image_search i {
-    set paths "$linuxcnc::IMAGEDIR $linuxcnc::HOME $linuxcnc::HOME/etc/linuxcnc /etc/linuxcnc ."
+    set paths "$::linuxcnc::IMAGEDIR $::linuxcnc::HOME $::linuxcnc::HOME/etc/linuxcnc /etc/linuxcnc ."
     foreach f $paths {
         if [file exists $f/$i] {
             return [image create photo -file $f/$i]
@@ -133,20 +135,51 @@ proc linuxcnc::standard_fixed_font {} {
     list [standard_fixed_font_family] [standard_font_size]
 }
 
+#
+# FIXME:
+# This parse_ini() code should be removed. It is inadequate for the new
+# INI-file parser and has no sense of types. It is only here for compatibility
+# with old code that expects global INI-file arrays in the Tcl namespace. This
+# routine maps all section/variables to the sections, variables and values of
+# the real INI-file using the new C++ parser.
+# All Tcl code depending on global array INI-file entries needs to be ported to
+# use the typed interface (using the emc_ini_* routines) or, better, the code
+# should be rewritten in python.
+#
+# Create associative arrays for all ini file sections like: ::EMC(VERSION),
+# ::KINS(JOINTS), ... etc
+# The data is extracted from the INI-file parser and iterates all sections
+# and variables to export the sections as global namespace array variables.
 proc parse_ini {filename} {
-    # create associative arrays for all ini file sections
-    # like: ::EMC(VERSION), ::KINS(JOINTS), ... etc
-    set f [open $filename]
-
-    while {[gets $f line] >= 0} {
-        set line [string trim $line]
-        if {[regexp {^\[(.*)\]\s*$} $line _ section]} {
-            # nothing
-        } elseif {[regexp {^([^#]+?)\s*=\s*(.*?)\s*$} $line _  k v]} {
-            upvar $section s
-            lappend s([string trim $k]) $v
+    # You can have a mismatch between the INI-file names when this gets called
+    # without other parts of LinuxCNC being initialized. Notably the twopass*
+    # tests have this problem.
+    # The LinuxCNC internals default to a statically set name "emc.ini" and,
+    # f.ex., the haltcl program does not set the underlying filename before
+    # calling here. This creates a problem because the emc_ini_* calls are all
+    # dependent on the static filename. Thus a mismatch here will read the
+    # wrong INI-file.
+    if {$filename != [emc_ini_filename]} {
+        # This guards against INI-file mismatches
+        if {[info exists ::env(INI_FILE_NAME)]} {
+            # If there is an environment var, then we need to use that
+            if {$filename != $::env(INI_FILE_NAME)} {
+                error "parse_ini: fatal: requested filename (${filename}) and env(INI_FILE_NAME) (${::env(INI_FILE_NAME)}) are not the same."
+            }
+            # The requested name matches the env variable, load it
+            if {![emc_ini_load $::env(INI_FILE_NAME)]} {
+                error "parse_ini: fatal: cannot parse (${::env(INI_FILE_NAME)})."
+            }
+        } else {
+            error "parse_ini: fatal: requested filename (${filename}) and underlying filename ([emc_ini_filename]) are not the same."
         }
     }
-
-    close $f
+    # Take all sections
+    foreach section [emc_ini_sections] {
+        upvar $section s
+        # and add each variable in that section to the section array
+        foreach varval [emc_ini_variables $section] {
+            lappend s([lindex $varval 0]) [lindex $varval 1]
+        }
+    }
 }

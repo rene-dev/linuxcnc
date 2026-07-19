@@ -13,64 +13,38 @@
 * Last change:
 ********************************************************************/
 
-#include <stdio.h>		// sscanf()
-#include <math.h>		// fabs()
-#include <stdlib.h>		// exit()
-#include <string.h>		// strncpy()
-#include <unistd.h>             // _exit()
 #include <signal.h>
 
-#include "rcs.hh"		// EMC NML
-#include "emc.hh"		// EMC NML
-#include "emc_nml.hh"		// EMC NML
-#include "emcglb.h"		// emcGetArgs(), EMC_NMLFILE
-#include "inifile.hh"
-#include "rcs_print.hh"
-#include "nml_oi.hh"
-#include "timer.hh"
-#include "nml_srv.hh"           // run_nml_servers()
+#include "libnml/rcs/rcs.hh"		// EMC NML
+#include "nml_intf/emc.hh"		// EMC NML
+#include "nml_intf/emc_nml.hh"		// EMC NML
+#include "nml_intf/emcglb.h"		// emcGetArgs(), EMC_NMLFILE
+#include <inifile.hh>
+#include "libnml/rcs/rcs_print.hh"
+#include "libnml/nml/nml_oi.hh"
+#include "libnml/os_intf/timer.hh"
+#include "libnml/nml/nml_srv.hh"           // run_nml_servers()
 #include <rtapi_string.h>
+#include "usr_intf/mapini.hh"
+
+using namespace linuxcnc;
 
 static int iniLoad(const char *filename)
 {
-    IniFile inifile;
-    std::optional<const char*> inistring;
-    char version[LINELEN], machine[LINELEN];
+    IniFile inifile(filename);
 
-    // open it
-    if (inifile.Open(filename) == false) {
+    if (!inifile) {
 	return -1;
     }
 
     // EMC debugging flags
-    emc_debug = 0;  // disabled by default
-    if ((inistring = inifile.Find("DEBUG", "EMC"))) {
-        // parse to global
-        if (sscanf(*inistring, "%x", &emc_debug) < 1) {
-            perror("failed to parse [EMC] DEBUG");
-        }
-    }
+    emc_debug = inifile.findUIntV("DEBUG", "EMC", 0);
 
     // set output for RCS messages
-    set_rcs_print_destination(RCS_PRINT_TO_STDOUT);   // use stdout by default
-    if ((inistring = inifile.Find("RCS_DEBUG_DEST", "EMC"))) {
-        static RCS_PRINT_DESTINATION_TYPE type;
-        if (!strcmp(*inistring, "STDOUT")) {
-            type = RCS_PRINT_TO_STDOUT;
-        } else if (!strcmp(*inistring, "STDERR")) {
-            type = RCS_PRINT_TO_STDERR;
-        } else if (!strcmp(*inistring, "FILE")) {
-            type = RCS_PRINT_TO_FILE;
-        } else if (!strcmp(*inistring, "LOGGER")) {
-            type = RCS_PRINT_TO_LOGGER;
-        } else if (!strcmp(*inistring, "MSGBOX")) {
-            type = RCS_PRINT_TO_MESSAGE_BOX;
-        } else if (!strcmp(*inistring, "NULL")) {
-            type = RCS_PRINT_TO_NULL;
-        } else {
-             type = RCS_PRINT_TO_STDOUT;
-        }
-        set_rcs_print_destination(type);
+    if (auto inival = mapRcsDestination(inifile, "RCS_DEBUG_DEST", "EMC")) {
+        set_rcs_print_destination(*inival);
+    } else {
+        set_rcs_print_destination(RCS_PRINT_TO_STDOUT);
     }
 
     // NML/RCS debugging flags
@@ -82,46 +56,29 @@ static int iniLoad(const char *filename)
     }
 
     // set flags if RCS_DEBUG in ini file
-    if ((inistring = inifile.Find("RCS_DEBUG", "EMC"))) {
-        long unsigned int flags;
-        if (sscanf(*inistring, "%lx", &flags) < 1) {
-            perror("failed to parse [EMC] RCS_DEBUG");
-        }
+    if (auto inival = inifile.findUInt("RCS_DEBUG", "EMC")) {
         // clear all flags
         clear_rcs_print_flag(PRINT_EVERYTHING);
         // set parsed flags
-        set_rcs_print_flag((long)flags);
+        set_rcs_print_flag((long)*inival);
     }
     // output infinite RCS errors by default
-    max_rcs_errors_to_print = -1;
-    if ((inistring = inifile.Find("RCS_MAX_ERR", "EMC"))) {
-        if (sscanf(*inistring, "%d", &max_rcs_errors_to_print) < 1) {
-            perror("failed to parse [EMC] RCS_MAX_ERR");
-        }
-    }
+    max_rcs_errors_to_print = inifile.findIntV("RCS_MAX_ERR", "EMC", -1);
 
     if (emc_debug & EMC_DEBUG_CONFIG) {
-        inistring = inifile.Find("VERSION", "EMC");
-        strncpy(version, inistring.value_or("unknown"), LINELEN-1);
-
-        inistring = inifile.Find("MACHINE", "EMC");
-        strncpy(machine, inistring.value_or("unknown"), LINELEN-1);
-
+        std::string version = inifile.findStringV("VERSION", "EMC", "<unknown>");
+        std::string machine = inifile.findStringV("MACHINE", "EMC", "<unknown>");
         extern char *program_invocation_short_name;
         rcs_print(
             "%s (%d) emcsvr: machine '%s'  version '%s'\n",
-            program_invocation_short_name, getpid(), machine, version
+            program_invocation_short_name, getpid(), machine.c_str(), version.c_str()
         );
     }
 
-    if ((inistring = inifile.Find("NML_FILE", "EMC"))) {
+    if (auto inistring = inifile.findString("NML_FILE", "EMC")) {
 	// copy to global
-	rtapi_strxcpy(emc_nmlfile, *inistring);
-    } else {
-	// not found, use default
-    }
-    // close it
-    inifile.Close();
+	rtapi_strxcpy(emc_nmlfile, inistring->c_str());
+    } // else not found, use default
 
     if(emc_debug & EMC_DEBUG_CONFIG)
         rcs_print("config file \"%s\" loaded successfully.\n", filename);

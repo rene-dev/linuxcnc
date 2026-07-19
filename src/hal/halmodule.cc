@@ -2,7 +2,7 @@
 #include <pybind11/operators.h>
 #include <pybind11/stl.h>
 #include <pybind11/complex.h>
-#include <hal.hh>
+#include <hal/hal.hh>
 
 namespace py = pybind11;
 

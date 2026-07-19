@@ -2,10 +2,10 @@ import os
 import linuxcnc
 import hal
 import sys
-from PyQt5.QtWidgets import QMessageBox
-from PyQt5 import QtCore, QtWidgets, QtGui, uic
+from qtpy.QtWidgets import QMessageBox
+from qtpy import QtCore, QtWidgets, QtGui, uic
 try:
-    from PyQt5.QtWebKitWidgets import QWebView
+    from qtpy.QtWebKitWidgets import QWebView
 except ImportError:
     raise Exception("Qtvcp error with woodpecker - is package python-pyqt5.qtwebkit installed?")
 from qtvcp.widgets.gcode_editor import GcodeEditor as GCODE
@@ -63,7 +63,7 @@ class HandlerClass:
         self.PATHS = paths
         self.gcodes = GCodes(widgets)
         self._last_count = 0
-        self.valid = QtGui.QRegExpValidator(QtCore.QRegExp('-?[0-9]{0,6}[.][0-9]{0,3}'))
+        self.valid = QtGui.QRegularExpressionValidator(QtCore.QRegularExpression('-?[0-9]{0,6}[.][0-9]{0,3}'))
         self.styleeditor = SSE(widgets, paths)
         KEYBIND.add_call('Key_F10','on_keycall_F10')
         KEYBIND.add_call('Key_F11','on_keycall_F11')

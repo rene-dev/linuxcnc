@@ -28,6 +28,7 @@
 #include <ifaddrs.h>
 #include <unistd.h>
 #include <spawn.h>
+#include <stdarg.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
@@ -36,16 +37,15 @@
 #include <rtapi_list.h>
 #include <rtapi_math64.h>
 
-#include "rtapi.h"
-#include "rtapi_app.h"
-#include "rtapi_string.h"
+#include <rtapi.h>
+#include <rtapi_app.h>
+#include <rtapi_string.h>
 
-#include "hal.h"
+#include <hal.h>
 
 #include "hostmot2-lowlevel.h"
 #include "hostmot2.h"
 #include "hm2_eth.h"
-#include "eshellf.h"
 
 struct kvlist {
     struct rtapi_list_head list;
@@ -84,9 +84,7 @@ static void kvlist_free(struct rtapi_list_head *head) {
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Michael Geszkiewicz");
 MODULE_DESCRIPTION("Driver for HostMot2 on the 7i80 Anything I/O board from Mesa Electronics");
-#ifdef MODULE_SUPPORTED_DEVICE
 MODULE_SUPPORTED_DEVICE("Mesa-AnythingIO-7i80");
-#endif
 
 static char *board_ip[MAX_ETH_BOARDS];
 RTAPI_MP_ARRAY_STRING(board_ip, MAX_ETH_BOARDS, "ip address of ethernet board(s)");
@@ -96,6 +94,9 @@ RTAPI_MP_ARRAY_STRING(config, MAX_ETH_BOARDS, "config string for the AnyIO board
 
 int debug = 0;
 RTAPI_MP_INT(debug, "Developer/debug use only!  Enable debug logging.");
+
+static char *firewall = 0;
+RTAPI_MP_STRING(firewall, "Firewall backend for traffic isolation: auto (default), iptables, nft, or none.");
 
 static int boards_count = 0;
 
@@ -463,38 +464,206 @@ static hm2_eth_t boards[MAX_ETH_BOARDS];
 static int eth_socket_send(int sockfd, const void *buffer, int len, int flags);
 static int eth_socket_recv(int sockfd, void *buffer, int len, int flags);
 
-#define IPTABLES "env \"PATH=/usr/sbin:/sbin:${PATH}\" iptables"
+// hm2_eth installs firewall rules to isolate the dedicated Mesa
+// interface from non-realtime traffic.  rtapi_app raises CAP_NET_ADMIN
+// into its ambient set at startup (see uspace_rtapi_main.cc), so the
+// caps survive execve() into the firewall binaries even when we run
+// under file caps instead of setuid root.
+//
+// Two backends are supported and selected with the `firewall` module
+// parameter (default auto): legacy iptables/ip6tables, and nftables.
+// Auto-detection prefers iptables when it is usable (preserving the
+// historical behaviour) and falls back to nft, which is the only
+// backend present on iptables-less systems.
+#define IPTABLES_BIN  "/sbin/iptables"
+#define IP6TABLES_BIN "/sbin/ip6tables"
+#define NFT_BIN       "/sbin/nft"
 #define CHAIN "hm2-eth-rules-output"
+// nft keeps its own table so a flush/delete never touches user rules.
+// inet covers IPv4 and IPv6 in a single chain.
+#define NFT_TABLE "hm2_eth"
+#define NFT_CHAIN "output"
 
-static bool chain_exists() {
-    int result =
-        shell(IPTABLES" -n -L "CHAIN" > /dev/null 2>&1");
-    return result == EXIT_SUCCESS;
-}
+typedef enum { FW_NONE = 0, FW_IPTABLES, FW_NFTABLES } fw_backend_t;
 
-static int iptables_state = -1;
-static bool use_iptables() {
-    if(iptables_state == -1) {
-        if(!chain_exists()) {
-            int res = shell(IPTABLES " -N " CHAIN);
-            if(res != EXIT_SUCCESS) {
-                LL_PRINT("ERROR: Failed to create iptables chain "CHAIN);
-                return (iptables_state = 0);
-            }
+// run_cmd(): fork+exec bin with a caller-built, NULL-terminated argv
+// (argv[0] is the program name).  Returns the child exit status, or -1 on
+// spawn/wait failure.  When quiet, the child's stdout+stderr are
+// suppressed so probe-style "is this present?" calls do not spam the log
+// on the (expected) failure path.
+static int run_cmd(const char *bin, int quiet, char *const argv[]) {
+    posix_spawn_file_actions_t fa, *pfa = NULL;
+    if(quiet && posix_spawn_file_actions_init(&fa) == 0) {
+        if(posix_spawn_file_actions_addopen(&fa, STDOUT_FILENO,
+                "/dev/null", O_WRONLY, 0) == 0
+                && posix_spawn_file_actions_adddup2(&fa, STDOUT_FILENO,
+                        STDERR_FILENO) == 0) {
+            pfa = &fa;
         }
-        // now add a jump to our chain at the start of the OUTPUT chain if it isn't in the chain already
-        int res = shell(IPTABLES "-C OUTPUT -j " CHAIN " 2>/dev/null || /sbin/iptables -I OUTPUT 1 -j " CHAIN);
-        if(res != EXIT_SUCCESS) {
-            LL_PRINT("ERROR: Failed to insert rule in OUTPUT chain");
-            return (iptables_state = 0);
-        }
-        return (iptables_state = 1);
     }
-    return iptables_state;
+
+    pid_t pid;
+    int r = posix_spawn(&pid, bin, pfa, NULL, argv, environ);
+    if(pfa) posix_spawn_file_actions_destroy(&fa);
+
+    if(r != 0) return -1;
+    int status;
+    if(waitpid(pid, &status, 0) < 0) return -1;
+    if(WIFEXITED(status)) return WEXITSTATUS(status);
+    return -1;
 }
 
-static void clear_iptables() {
-    shell(IPTABLES" -F "CHAIN" > /dev/null 2>&1");
+// Each macro builds the argv as a compound literal: argv[0] is the program
+// name, then the caller's tokens, then a NULL terminator.
+#define IPT(quiet, ...)  run_cmd(IPTABLES_BIN,  (quiet), \
+        (char *[]){ "iptables",  __VA_ARGS__, NULL })
+#define IP6T(quiet, ...) run_cmd(IP6TABLES_BIN, (quiet), \
+        (char *[]){ "ip6tables", __VA_ARGS__, NULL })
+#define NFT(quiet, ...)  run_cmd(NFT_BIN,       (quiet), \
+        (char *[]){ "nft",       __VA_ARGS__, NULL })
+
+// Bring up the iptables chain plus its OUTPUT jump (idempotently) and
+// mirror it for ip6tables.  Returns true on success.
+static bool setup_iptables() {
+    // Read-only probe: list the INPUT chain.  Fails when the
+    // process lacks CAP_NET_ADMIN (rootless without setcap, or
+    // setcap applied but ambient raise failed in rtapi_app), or when
+    // the iptables binary is absent (pure-nftables systems).
+    if(IPT(1, "-n", "-L", "INPUT") != 0)
+        return false;
+    // Create chain only if absent; insert OUTPUT jump only if absent.
+    if(IPT(1, "-n", "-L", CHAIN) != 0) {
+        if(IPT(0, "-N", CHAIN) != 0) {
+            LL_PRINT("ERROR: failed to create iptables chain " CHAIN "\n");
+            return false;
+        }
+    }
+    if(IPT(1, "-C", "OUTPUT", "-j", CHAIN) != 0) {
+        if(IPT(0, "-I", "OUTPUT", "1", "-j", CHAIN) != 0) {
+            LL_PRINT("ERROR: failed to insert OUTPUT jump\n");
+            return false;
+        }
+    }
+    // Mirror the chain for ip6tables so IPv6 isolation can hang off
+    // it.  Best-effort: kernels without IPv6 support cause this to
+    // fail silently and the IPv6 rules are simply absent.
+    if(IP6T(1, "-n", "-L", CHAIN) != 0)
+        IP6T(1, "-N", CHAIN);
+    if(IP6T(1, "-C", "OUTPUT", "-j", CHAIN) != 0)
+        IP6T(1, "-I", "OUTPUT", "1", "-j", CHAIN);
+    return true;
+}
+
+// Bring up the nft table and output-hook chain (idempotently).  `nft
+// add table/chain` is a no-op when the object already exists with the
+// same spec, so re-init does not error.  Returns true on success.
+static bool setup_nftables() {
+    // Read-only probe: listing tables fails when nft is absent or the
+    // process lacks CAP_NET_ADMIN.
+    if(NFT(1, "list", "tables") != 0)
+        return false;
+    if(NFT(0, "add", "table", "inet", NFT_TABLE) != 0) {
+        LL_PRINT("ERROR: failed to create nft table inet " NFT_TABLE "\n");
+        return false;
+    }
+    if(NFT(0, "add", "chain", "inet", NFT_TABLE, NFT_CHAIN,
+           "{ type filter hook output priority 0; policy accept; }") != 0) {
+        LL_PRINT("ERROR: failed to create nft chain " NFT_CHAIN "\n");
+        return false;
+    }
+    return true;
+}
+
+static fw_backend_t fw_backend = FW_NONE;
+
+// Tri-state cache for use_firewall(): not yet resolved, resolved to
+// unavailable/disabled, or resolved to a ready backend.
+typedef enum { FW_UNRESOLVED, FW_UNAVAILABLE, FW_READY } fw_state_t;
+static fw_state_t fw_state = FW_UNRESOLVED;
+
+// Resolve and bring up the firewall backend on first call, caching the
+// result.  Returns true when a backend is ready, false when isolation
+// is unavailable or disabled.
+static bool use_firewall() {
+    if(fw_state != FW_UNRESOLVED)
+        return fw_state == FW_READY;
+
+    const char *want = firewall ? firewall : "auto";
+    if(!strcmp(want, "none")) {
+        LL_PRINT("Skipping firewall setup (firewall=none); "
+                 "configure firewall externally.\n");
+        fw_backend = FW_NONE;
+        fw_state = FW_UNAVAILABLE;
+        return false;
+    }
+
+    bool try_ipt = !strcmp(want, "auto") || !strcmp(want, "iptables");
+    bool try_nft = !strcmp(want, "auto") || !strcmp(want, "nft")
+                || !strcmp(want, "nftables");
+    if(!try_ipt && !try_nft) {
+        LL_PRINT("ERROR: unknown firewall backend '%s'; "
+                 "expected auto, iptables, nft, or none.\n", want);
+        fw_backend = FW_NONE;
+        fw_state = FW_UNAVAILABLE;
+        return false;
+    }
+
+    // Prefer iptables when usable to preserve historical behaviour; fall
+    // back to nft, the only backend on iptables-less systems.
+    if(try_ipt && setup_iptables()) {
+        fw_backend = FW_IPTABLES;
+        fw_state = FW_READY;
+        return true;
+    }
+    if(try_nft && setup_nftables()) {
+        fw_backend = FW_NFTABLES;
+        fw_state = FW_READY;
+        return true;
+    }
+
+    LL_PRINT("firewall not available (missing CAP_NET_ADMIN or backend "
+             "binary?); automatic firewall setup skipped.  See hm2_eth(9) "
+             "NOTES for the manual rule recipe.\n");
+    fw_backend = FW_NONE;
+    fw_state = FW_UNAVAILABLE;
+    return false;
+}
+
+// Drop all rules from our chain/table but keep the chain in place, so a
+// fresh set can be installed on (re-)init.
+static void clear_firewall() {
+    if(!use_firewall()) return;
+    switch(fw_backend) {
+    case FW_IPTABLES:
+        IPT(1, "-F", CHAIN);
+        IP6T(1, "-F", CHAIN);
+        break;
+    case FW_NFTABLES:
+        NFT(1, "flush", "chain", "inet", NFT_TABLE, NFT_CHAIN);
+        break;
+    case FW_NONE:
+        break;
+    }
+}
+
+// Remove everything we installed: chain, OUTPUT jump, and (nft) table.
+static void cleanup_firewall() {
+    if(!use_firewall()) return;
+    switch(fw_backend) {
+    case FW_IPTABLES:
+        IPT(1, "-F", CHAIN);
+        IPT(1, "-D", "OUTPUT", "-j", CHAIN);
+        IPT(1, "-X", CHAIN);
+        IP6T(1, "-F", CHAIN);
+        IP6T(1, "-D", "OUTPUT", "-j", CHAIN);
+        IP6T(1, "-X", CHAIN);
+        break;
+    case FW_NFTABLES:
+        NFT(1, "delete", "table", "inet", NFT_TABLE);
+        break;
+    case FW_NONE:
+        break;
+    }
 }
 
 static char* inet_ntoa_buf(struct in_addr in, char *buf, size_t n) {
@@ -530,46 +699,12 @@ static char* fetch_ifname(int sockfd, char *buf, size_t n) {
     return NULL;
 }
 
-static char *vseprintf(char *buf, char *ebuf, const char *fmt, va_list ap) {
-    int result = vsnprintf(buf, ebuf-buf, fmt, ap);
-    if(result < 0) return ebuf;
-    else if(buf + result > ebuf) return ebuf;
-    else return buf + result;
-}
-
-static char *seprintf(char *buf, char *ebuf, const char *fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-    char *result = vseprintf(buf, ebuf, fmt, ap);
-    va_end(ap);
-    return result;
-}
-
-static int install_iptables_rule(const char *fmt, ...) {
-    char commandbuf[1024], *ptr = commandbuf,
-        *ebuf = commandbuf + sizeof(commandbuf);
-    ptr = seprintf(ptr, ebuf, IPTABLES" -A "CHAIN" ");
-    va_list ap;
-    va_start(ap, fmt);
-    ptr = vseprintf(ptr, ebuf, fmt, ap);
-    va_end(ap);
-
-    if(ptr == ebuf)
-    {
-        LL_PRINT("ERROR: commandbuf too small\n");
-        return -ENOSPC;
-    }
-
-    int res = shell(commandbuf);
-    if(res == EXIT_SUCCESS) return 0;
-
-    LL_PRINT("ERROR: Failed to execute '%s'\n", commandbuf);
-    return -EINVAL;
-}
-
-static int install_iptables_board(int sockfd) {
+static int install_firewall_board(int sockfd) {
     struct sockaddr_in srcaddr, dstaddr;
     char srchost[16], dsthost[16]; // enough for 255.255.255.255\0
+    char dport_s[8], sport_s[8];
+
+    if(!use_firewall()) return 0;
 
     socklen_t addrlen = sizeof(srcaddr);
     int res = getsockname(sockfd, &srcaddr, &addrlen);
@@ -579,34 +714,77 @@ static int install_iptables_board(int sockfd) {
     res = getpeername(sockfd, &dstaddr, &addrlen);
     if(res < 0) return -errno;
 
-    res = install_iptables_rule(
-        "-p udp -m udp -d %s --dport %d -s %s --sport %d -j ACCEPT",
-        inet_ntoa_buf(dstaddr.sin_addr, dsthost, sizeof(dsthost)),
-        ntohs(dstaddr.sin_port),
-        inet_ntoa_buf(srcaddr.sin_addr, srchost, sizeof(srchost)),
-        ntohs(srcaddr.sin_port));
-    return res;
+    inet_ntoa_buf(srcaddr.sin_addr, srchost, sizeof(srchost));
+    inet_ntoa_buf(dstaddr.sin_addr, dsthost, sizeof(dsthost));
+    snprintf(dport_s, sizeof(dport_s), "%d", ntohs(dstaddr.sin_port));
+    snprintf(sport_s, sizeof(sport_s), "%d", ntohs(srcaddr.sin_port));
+
+    // --sport / sport is safe here: cleanup_firewall() removes the chain
+    // on exit, so a stale rule from a previous run with a different
+    // ephemeral port cannot block the second invocation.
+    switch(fw_backend) {
+    case FW_IPTABLES:
+        if(IPT(0, "-A", CHAIN,
+               "-p", "udp", "-m", "udp",
+               "-d", dsthost, "--dport", dport_s,
+               "-s", srchost, "--sport", sport_s,
+               "-j", "ACCEPT") != 0)
+            return -EINVAL;
+        break;
+    case FW_NFTABLES:
+        if(NFT(0, "add", "rule", "inet", NFT_TABLE, NFT_CHAIN,
+               "ip", "saddr", srchost, "ip", "daddr", dsthost,
+               "udp", "sport", sport_s, "udp", "dport", dport_s,
+               "accept") != 0)
+            return -EINVAL;
+        break;
+    case FW_NONE:
+        break;
+    }
+    return 0;
 }
 
-static int install_iptables_perinterface(const char *ifbuf) {
-    // without this rule, 'ping' spews a lot of messages like
-    //    From 192.168.1.1 icmp_seq=5 Packet filtered
-    // many times for each ping packet sent.  With this rule,
-    // ping prints 'ping: sendmsg: Operation not permitted' once
-    // per second.
-    int res = install_iptables_rule(
-        "-o %s -p icmp -j DROP",
-        ifbuf);
-    if(res < 0) return res;
+static int install_firewall_perinterface(const char *ifbuf) {
+    // Without these rules, 'ping' spews a lot of "Packet filtered"
+    // messages.  With them, ping prints 'ping: sendmsg: Operation not
+    // permitted' once per second.
+    //
+    // Outbound IPv6 on the dedicated interface is dropped at the firewall
+    // rather than via the disable_ipv6 sysctl: writing the sysctl needs
+    // CAP_DAC_OVERRIDE (file is mode 644 root:root) and we'd rather not
+    // grant it to rtapi_app.  Users who want full IPv6 quiescence (no
+    // router solicitations etc.) can additionally set
+    // 'net.ipv6.conf.<iface>.disable_ipv6=1' in /etc/sysctl.conf.
+    if(!use_firewall()) return 0;
 
-    res = install_iptables_rule(
-        "-o %s -j REJECT --reject-with icmp-admin-prohibited",
-        ifbuf);
-    if(res < 0) return res;
-
-    res = eshellf(HM2_LLIO_NAME, "/sbin/sysctl -q net.ipv6.conf.%s.disable_ipv6=1", ifbuf);
-    if(res < 0) return res;
-
+    switch(fw_backend) {
+    case FW_IPTABLES:
+        if(IPT(0, "-A", CHAIN, "-o", (char *)ifbuf, "-p", "icmp", "-j", "DROP") != 0)
+            return -EINVAL;
+        if(IPT(0, "-A", CHAIN, "-o", (char *)ifbuf,
+               "-j", "REJECT", "--reject-with", "icmp-admin-prohibited") != 0)
+            return -EINVAL;
+        // ip6tables is best-effort: kernel may not have IPv6 support
+        // compiled in, in which case the chain creation in setup_iptables()
+        // already failed and this rule is simply absent.
+        IP6T(1, "-A", CHAIN, "-o", (char *)ifbuf, "-j", "DROP");
+        break;
+    case FW_NFTABLES:
+        // The inet chain covers both families, so a single set of rules
+        // handles IPv4 ICMP, the catch-all reject, and all IPv6.
+        if(NFT(0, "add", "rule", "inet", NFT_TABLE, NFT_CHAIN,
+               "oifname", (char *)ifbuf, "ip", "protocol", "icmp", "drop") != 0)
+            return -EINVAL;
+        if(NFT(0, "add", "rule", "inet", NFT_TABLE, NFT_CHAIN,
+               "oifname", (char *)ifbuf,
+               "reject", "with", "icmp", "type", "admin-prohibited") != 0)
+            return -EINVAL;
+        NFT(1, "add", "rule", "inet", NFT_TABLE, NFT_CHAIN,
+            "oifname", (char *)ifbuf, "ip6", "version", "6", "drop");
+        break;
+    case FW_NONE:
+        break;
+    }
     return 0;
 }
 
@@ -663,7 +841,7 @@ static int init_board(hm2_eth_t *board, const char *board_ip) {
         return -errno;
     }
 
-    if(!use_iptables()) {
+    if(!use_firewall()) {
         LL_PRINT(\
 "WARNING: Unable to restrict other access to the hm2-eth device.\n"
 "This means that other software using the same network interface can violate\n"
@@ -702,18 +880,24 @@ static int init_board(hm2_eth_t *board, const char *board_ip) {
         return ret;
     }
 
+    // Pinning the ARP entry needs CAP_NET_ADMIN; rootless without setcap
+    // fails with EPERM.  Best-effort, not fatal: fall back to dynamic ARP
+    // so the board still loads.  Clear ATF_PERM so the SIOCDARP teardown
+    // in close_board() does not try to remove an entry we never set.
     ret = ioctl_siocsarp(board);
     if(ret < 0) {
-        LL_PRINT("ERROR: ioctl SIOCSARP failed: %s\n", strerror(errno));
+        LL_PRINT("WARNING: ioctl SIOCSARP failed: %s; continuing with "
+                 "dynamic ARP.  Install file capabilities (sudo make "
+                 "setcap) or run setuid to pin the board's ARP entry and "
+                 "avoid occasional transmit latency.\n", strerror(errno));
         board->req.arp_flags &= ~ATF_PERM;
-        return -errno;
     }
 
-    if(use_iptables())
-    {
-        ret = install_iptables_board(board->sockfd);
-        if(ret < 0) return ret;
-    }
+    // install_firewall_board() is a no-op when no firewall backend is
+    // available (rootless install without CAP_NET_ADMIN, or
+    // firewall=none), so it is safe to call unconditionally.
+    ret = install_firewall_board(board->sockfd);
+    if(ret < 0) return ret;
 
     board->write_packet_ptr = board->write_packet;
     board->read_packet_ptr = board->read_packet;
@@ -725,7 +909,7 @@ static int close_board(hm2_eth_t *board) {
     int ret;
     board->llio.reset(&board->llio);
 
-    if(use_iptables()) clear_iptables();
+    clear_firewall();
 
     if(board->req.arp_flags & ATF_PERM) {
         ret = ioctl_siocdarp(board);
@@ -751,11 +935,11 @@ static int eth_socket_recv(int sockfd, void *buffer, int len, int flags) {
 }
 
 static int eth_socket_recv_loop(int sockfd, void *buffer, int len, int flags, long timeout) {
-    long long end = rtapi_get_clocks() + timeout;
+    long long end = rtapi_get_time() + timeout;
     int result;
     do {
         result = eth_socket_recv(sockfd, buffer, len, flags);
-    } while(result < 0 && rtapi_get_clocks() < end);
+    } while(result < 0 && rtapi_get_time() < end);
     return result;
 }
 
@@ -1557,7 +1741,7 @@ int rtapi_app_main(void) {
         return ret;
     comp_id = ret;
 
-    if(use_iptables()) clear_iptables();
+    clear_firewall();
 
     for(i = 0, ret = 0; ret == 0 && i<MAX_ETH_BOARDS && board_ip[i] && *board_ip[i]; i++) {
         ret = init_board(&boards[i], board_ip[i]);
@@ -1595,7 +1779,7 @@ int rtapi_app_main(void) {
         if(!added)
             goto error;
         if(*added) continue;
-        install_iptables_perinterface(ifptr);
+        install_firewall_perinterface(ifptr);
         *added = 1;
     }
 
@@ -1606,7 +1790,9 @@ int rtapi_app_main(void) {
 error:
     for(i = 0; i<MAX_ETH_BOARDS && board_ip[i] && board_ip[i][0]; i++)
         close_board(&boards[i]);
-    if(use_iptables()) clear_iptables();
+    // Full teardown: rtapi_app_exit() is not called when rtapi_app_main()
+    // fails, so this is the only chance to remove the chain and jump.
+    cleanup_firewall();
     kvlist_free(&board_num);
     kvlist_free(&ifnames);
     hal_exit(comp_id);
@@ -1619,7 +1805,7 @@ void rtapi_app_exit(void) {
     for(i = 0; i<MAX_ETH_BOARDS && board_ip[i] && board_ip[i][0]; i++)
         close_board(&boards[i]);
 
-    if(use_iptables()) clear_iptables();
+    cleanup_firewall();
 
     kvlist_free(&board_num);
     kvlist_free(&ifnames);

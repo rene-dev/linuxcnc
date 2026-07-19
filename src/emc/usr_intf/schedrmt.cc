@@ -32,15 +32,14 @@
 
 #include <getopt.h>
 
-#include "rcs.hh"
-#include "posemath.h"		// PM_POSE, TO_RAD
-#include "emc.hh"		// EMC NML
-#include "canon.hh"		// CANON_UNITS, CANON_UNITS_INCHES,MM,CM
-#include "emcglb.h"		// EMC_NMLFILE, TRAJ_MAX_VELOCITY, etc.
-#include "emccfg.h"		// DEFAULT_TRAJ_MAX_VELOCITY
-#include "inifile.hh"		// INIFILE
-#include "rcs_print.hh"
-#include "timer.hh"             // etime()
+#include "libnml/rcs/rcs.hh"
+#include <posemath.h>		// PM_POSE, TO_RAD
+#include "nml_intf/emc.hh"		// EMC NML
+#include "nml_intf/canon.hh"		// CANON_UNITS, CANON_UNITS_INCHES,MM,CM
+#include "nml_intf/emcglb.h"		// EMC_NMLFILE, TRAJ_MAX_VELOCITY, etc.
+#include "nml_intf/emccfg.h"		// DEFAULT_TRAJ_MAX_VELOCITY
+#include "libnml/rcs/rcs_print.hh"
+#include "libnml/os_intf/timer.hh"             // etime()
 #include "shcom.hh"             // NML Messaging functions
 #include "emcsched.hh"
 #include <rtapi_string.h>
@@ -282,7 +281,7 @@ struct option longopts[] = {
   {"connectpw", 1, NULL, 'w'},
   {"enablepw", 1, NULL, 'e'},
   {"path", 1, NULL, 'd'},
-  {0,0,0,0}
+  {NULL,0,NULL,0}
   };
 
 
@@ -290,27 +289,27 @@ static void thisQuit()
 {
     EMC_NULL emc_null_msg;
 
-    if (emcStatusBuffer != 0) {
+    if (emcStatusBuffer != NULL) {
 	// wait until current message has been received
 	emcCommandWaitReceived();
     }
 
     // clean up NML buffers
 
-    if (emcErrorBuffer != 0) {
+    if (emcErrorBuffer != NULL) {
 	delete emcErrorBuffer;
-	emcErrorBuffer = 0;
+	emcErrorBuffer = NULL;
     }
 
-    if (emcStatusBuffer != 0) {
+    if (emcStatusBuffer != NULL) {
 	delete emcStatusBuffer;
-	emcStatusBuffer = 0;
-	emcStatus = 0;
+	emcStatusBuffer = NULL;
+	emcStatus = NULL;
     }
 
-    if (emcCommandBuffer != 0) {
+    if (emcCommandBuffer != NULL) {
 	delete emcCommandBuffer;
-	emcCommandBuffer = 0;
+	emcCommandBuffer = NULL;
     }
 
     exit(0);
@@ -323,7 +322,7 @@ static int initSockets()
   server_address.sin_addr.s_addr = htonl(INADDR_ANY);
   server_address.sin_port = htons(port);
   server_len = sizeof(server_address);
-  bind(server_sockfd, (struct sockaddr *)&server_address, server_len);
+  bind(server_sockfd, reinterpret_cast<struct sockaddr *>(&server_address), server_len);
   listen(server_sockfd, 5);
   signal(SIGCHLD, SIG_IGN);
   return 0;
@@ -1140,7 +1139,7 @@ void *checkQueue(void * /*arg*/)
     updateQueue();
     sleep((unsigned)pollDelay);
     }
-  return 0;
+  return NULL;
 }  
 
 void *readClient(void * /*arg*/)
@@ -1154,6 +1153,10 @@ void *readClient(void * /*arg*/)
   
 //  res = 1;
   context = (connectionRecType *) malloc(sizeof(connectionRecType));
+  if (!context) {
+    fprintf(stderr, "emcrsh: no memory\n");
+    goto fail;
+  }
   context->cliSock = client_sockfd;
   context->linked = false;
   context->echo = true;
@@ -1197,7 +1200,8 @@ void *readClient(void * /*arg*/)
 finished:
   close(context->cliSock);
   free(context);
-  pthread_exit((void *)0);
+fail:
+  pthread_exit(NULL);
   sessions--;  // FIXME: not reached
 }
 
@@ -1210,7 +1214,7 @@ int sockMain()
       
       client_len = sizeof(client_address);
       client_sockfd = accept(server_sockfd,
-        (struct sockaddr *)&client_address, &client_len);
+        reinterpret_cast<struct sockaddr *>(&client_address), &client_len);
       if (client_sockfd < 0) exit(0);
       sessions++;
       if ((maxSessions == -1) || (sessions <= maxSessions))
@@ -1232,14 +1236,14 @@ static void initMain()
     emcUpdateType = EMC_UPDATE_AUTO;
     linearUnitConversion = LINEAR_UNITS_AUTO;
     angularUnitConversion = ANGULAR_UNITS_AUTO;
-    emcCommandBuffer = 0;
-    emcStatusBuffer = 0;
-    emcStatus = 0;
+    emcCommandBuffer = NULL;
+    emcStatusBuffer = NULL;
+    emcStatus = NULL;
 
-    emcErrorBuffer = 0;
-    error_string[LINELEN-1] = 0;
-    operator_text_string[LINELEN-1] = 0;
-    operator_display_string[LINELEN-1] = 0;
+    emcErrorBuffer = NULL;
+    error_string.clear();
+    operator_text_string.clear();
+    operator_display_string.clear();
     programStartLine = 0;
 }
 
@@ -1259,7 +1263,7 @@ int main(int argc, char *argv[])
         case 'p': sscanf(optarg, "%d", &port); break;
         case 's': sscanf(optarg, "%d", &maxSessions); break;
         case 'w': snprintf(pwd, sizeof(pwd), "%s", optarg); break;
-        case 'd': snprintf(defaultPath, sizeof(defaultPath), "%s", optarg); break;
+        case 'd': defaultPath = optarg; break;
         }
       }
 

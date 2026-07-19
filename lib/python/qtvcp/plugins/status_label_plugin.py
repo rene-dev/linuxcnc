@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 
-from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtGui import QIcon, QPixmap
-from PyQt5.QtCore import QVariant
-from PyQt5.QtDesigner import QPyDesignerCustomWidgetPlugin, QExtensionFactory, QPyDesignerTaskMenuExtension, \
+from qtpy import QtCore, QtGui, QtWidgets
+from qtpy.QtGui import QIcon, QPixmap
+from qtpy.QtDesigner import QPyDesignerCustomWidgetPlugin, QExtensionFactory, QPyDesignerTaskMenuExtension, \
     QPyDesignerPropertySheetExtension, QDesignerFormWindowInterface
 
 from qtvcp.widgets.richtext_selector import RichTextEditorDialog
@@ -99,9 +98,13 @@ class GstatLabelPropertySheet(QPyDesignerPropertySheetExtension):
         self.temp_flag = True
         # print dir(self.widget.pyqtConfigure.__sizeof__)
         # print self.widget.pyqtConfigure.__sizeof__()
+        try:
+            from qtpy.QtCore import Property as _QtProperty
+        except Exception:
+            from PyQt5.QtCore import pyqtProperty as _QtProperty
         for i in StatusLabel.__dict__:
             # print i
-            if 'PyQt5.QtCore.pyqtProperty' in str(StatusLabel.__dict__[i]):
+            if isinstance(StatusLabel.__dict__[i], _QtProperty):
                 self.propertylist.append(i)
                 print(i)
         # print dir(self.widget)
@@ -113,12 +116,12 @@ class GstatLabelPropertySheet(QPyDesignerPropertySheetExtension):
         name = self.propertyName(index)
         print('property index:', index, name)
         if 'object' in name:
-            return QVariant('default')
+            return 'default'
         if 'orient' in name:
-            return QVariant(False)
+            return False
         if 'text' == name or 'alt' in name:
-            return QVariant(self.widget.text)
-        return QVariant(self.widget[str(name)])
+            return self.widget.text
+        return self.widget[str(name)]
 
     def indexOf(self, name):
         # print 'NAME:',name
@@ -166,7 +169,7 @@ class GstatLabelPropertySheet(QPyDesignerPropertySheetExtension):
 
         return
         if self.formWindow:
-            self.formWindow.cursor().setProperty(self.propertyName(index), QVariant(value))
+            self.formWindow.cursor().setProperty(self.propertyName(index), value)
         return
 
     def getVisible(self, index, data):
@@ -204,7 +207,7 @@ class StatusLabelMenuEntry(QPyDesignerTaskMenuExtension):
 
     def updateOptions(self):
         dialog = StatusLabelDialog(self.widget)
-        dialog.exec_()
+        dialog.exec()
 
 
 class StatusLabelTaskMenuFactory(QExtensionFactory):
@@ -506,27 +509,27 @@ class StatusLabelDialog(QtWidgets.QDialog):
 
         if formWindow and winProperty == 'unused':
             formWindow.cursor().setProperty('feed_override_status',
-                                            QtCore.QVariant(True))
+                                            True)
             formWindow.cursor().setProperty('feed_override_status',
-                                            QtCore.QVariant(False))
+                                            False)
         elif formWindow:
             # set widget option
             formWindow.cursor().setProperty(winProperty + '_status',
-                                            QtCore.QVariant(True))
+                                            True)
 
         # set related data
         formWindow.cursor().setProperty('index_number',
-                                        QtCore.QVariant(self.JNumSpinBox.value()))
+                                        self.JNumSpinBox.value())
         # block signal so button text doesn't change when selecting action
         self.widget._designer_block_signal = True
         formWindow.cursor().setProperty('textTemplate',
-                                        QtCore.QVariant(self.textTemplateEditBox.text()))
+                                        self.textTemplateEditBox.text())
         formWindow.cursor().setProperty('alt_textTemplate',
-                                        QtCore.QVariant(self.altTextTemplateEditBox.text()))
+                                        self.altTextTemplateEditBox.text())
         formWindow.cursor().setProperty('text',
-                                        QtCore.QVariant(self.defaultTextTemplateEditBox.text()))
+                                        self.defaultTextTemplateEditBox.text())
         formWindow.cursor().setProperty('halpin_name',
-                                        QtCore.QVariant(self.halpinEditBox.text()))
+                                        self.halpinEditBox.text())
         self.widget._designer_block_signal = False
 
         self.accept()

@@ -28,7 +28,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string>
-#include "rtapi_math.h"
+#include <rtapi_math.h>
 #include "rs274ngc.hh"
 #include "rs274ngc_return.hh"
 #include "rs274ngc_interp.hh"
@@ -1148,6 +1148,38 @@ int Interp::convert_arc2(int move,       //!< either G_2 (cw arc) or G_3 (ccw ar
   inverse_time_rate_arc(*current1, *current2, *current3, center1, center2,
                         turn, end1, end2, end3, block, settings);
 
+        // We need to determine which 'center' is X and which is Y
+        double abs_x = 0, abs_y = 0, abs_z =0;
+        double abs_cx = 0, abs_cy = 0,abs_cz=0;
+
+        if (settings->plane == CANON_PLANE::XY) {
+                // Plane 1=X, 2=Y, 3=Z
+                abs_x = end1;
+                abs_y = end2;
+                abs_z = end3;
+                abs_cx = center1;
+                abs_cy = center2;
+                abs_cz = *current3;
+        } else if (settings->plane == CANON_PLANE::XZ) {
+                // Plane 1=X, 2=Z, 3=Y
+                abs_x = end1;
+                abs_y = end3; // Or whatever your system expects for non-active axes
+                abs_z = end2;
+                abs_cx = center1;
+                abs_cy = *current3;
+                abs_cz = center2;
+        } else { // YZ plane
+                // Plane 1=Y, 2=Z, 3=X
+                abs_x = end3;
+                abs_y = end1;
+                abs_z = end2;
+                abs_cx = *current3;
+                abs_cy = center1;
+                abs_cz = center2;
+        }
+  // Call tagger with the resolved X, Y, CX, and CY
+  tag_arc(block, abs_x, abs_y, abs_z, abs_cx, abs_cy, abs_cz, move, settings->plane );
+  
   ARC_FEED(block->line_number, end1, end2, center1, center2, turn, end3,
            AA_end, BB_end, CC_end, u, v, w);
   *current1 = end1;
@@ -2195,21 +2227,26 @@ int Interp::convert_control_mode(
     SET_MOTION_CONTROL_MODE(CANON_EXACT_STOP, 0);
     settings->control_mode = CANON_EXACT_STOP;
   } else if (g_code == G_64) {
-      if (tolerance_in >= 0)
-	  tolerance = tolerance_in;
-      else
-	  tolerance = 0;
+      if (tolerance_in >= 0){
+	      tolerance = tolerance_in;
+      }
+      else{
+	      tolerance = _setup.tolerance_default;
+      }
       settings->control_mode = CANON_CONTINUOUS;
       settings->tolerance = tolerance;
       SET_MOTION_CONTROL_MODE(CANON_CONTINUOUS, tolerance);
 
-      if (naivecam_tolerance_in >= 0)
-	  naivecam_tolerance = naivecam_tolerance_in;
-      else if (tolerance_in >= 0)
-	  // if no naivecam_tolerance specified use same for both
-	  naivecam_tolerance = tolerance_in;
-      else
-	  naivecam_tolerance = 0;
+      if (naivecam_tolerance_in >= 0){
+	      naivecam_tolerance = naivecam_tolerance_in;
+      }
+      else if (tolerance_in >= 0){
+	      // if no naivecam_tolerance specified use same for both
+	      naivecam_tolerance = tolerance_in;
+      }
+      else{
+	      naivecam_tolerance = _setup.naivecam_tolerance_default;
+      }
       settings->naivecam_tolerance = naivecam_tolerance;
       SET_NAIVECAM_TOLERANCE(naivecam_tolerance);
 
@@ -2959,6 +2996,39 @@ int Interp::convert_g(block_pointer block,       //!< pointer to a block of RS27
       CHP(status);
   }
   return INTERP_OK;
+}
+
+/*! get_abs_position
+
+Returned Value: none
+
+Side effects:
+   abs_pos[0..8] is filled with the current absolute machine position
+   (G53 frame) for X, Y, Z, A, B, C, U, V, W.
+
+Called by: read (to fill #5021-#5029) and the #<_abs_*> named parameters.
+
+The values are in the same units and frame as the #<_abs_*> named
+parameters: the controlled point mapped through the active G92/G52,
+coordinate system rotation, G5x and tool length offset, i.e. the
+offsetless machine coordinate.
+
+*/
+
+void Interp::get_abs_position(setup_pointer s, double abs_pos[9])
+{
+    double x = s->current_x + s->axis_offset_x;
+    double y = s->current_y + s->axis_offset_y;
+    rotate(&x, &y, s->rotation_xy);
+    abs_pos[0] = x + s->origin_offset_x + s->tool_offset.tran.x;
+    abs_pos[1] = y + s->origin_offset_y + s->tool_offset.tran.y;
+    abs_pos[2] = s->current_z + s->axis_offset_z + s->origin_offset_z + s->tool_offset.tran.z;
+    abs_pos[3] = s->AA_current + s->AA_axis_offset + s->AA_origin_offset + s->tool_offset.a;
+    abs_pos[4] = s->BB_current + s->BB_axis_offset + s->BB_origin_offset + s->tool_offset.b;
+    abs_pos[5] = s->CC_current + s->CC_axis_offset + s->CC_origin_offset + s->tool_offset.c;
+    abs_pos[6] = s->u_current + s->u_axis_offset + s->u_origin_offset + s->tool_offset.u;
+    abs_pos[7] = s->v_current + s->v_axis_offset + s->v_origin_offset + s->tool_offset.v;
+    abs_pos[8] = s->w_current + s->w_axis_offset + s->w_origin_offset + s->tool_offset.w;
 }
 
 /*! convert_savehome
@@ -4200,7 +4270,7 @@ if (is_user_defined_m_code(block, settings, 10) && ONCE_M(10)) {
  } else if ((block->m_modes[10] != -1)  && ONCE_M(10)){
      /* user-defined M codes */
     int index = block->m_modes[10];
-    if (USER_DEFINED_FUNCTION[index - 100] == 0) {
+    if (USER_DEFINED_FUNCTION[index - 100] == NULL) {
       CHKS(1, NCE_UNKNOWN_M_CODE_USED,index);
     }
     enqueue_M_USER_COMMAND(index,block->p_number,block->q_number);
@@ -4656,6 +4726,10 @@ int Interp::convert_setup_tool(block_pointer block, setup_pointer settings) {
         }
     }
 
+    // #5401-#5409 hold the loaded tool's stored offset, refreshed here so
+    // G10 L1/L10/L11 edits to the loaded tool are reflected.  The offset
+    // actually applied to motion (G43/G43.1/G43.2) is reported by
+    // #5081-#5089.
     settings->parameters[5401] = settings->tool_table[0].offset.tran.x;
     settings->parameters[5402] = settings->tool_table[0].offset.tran.y;
     settings->parameters[5403] = settings->tool_table[0].offset.tran.z;
@@ -5119,65 +5193,73 @@ int Interp::convert_stop(block_pointer block,    //!< pointer to a block of RS27
     PROGRAM_STOP();
   } else if (block->m_modes[4] == 1) {
     OPTIONAL_PROGRAM_STOP();
-  } else if (block->m_modes[4] == 99 && _setup.loop_on_main_m99) {
+  } else if (block->m_modes[4] == 99 && _setup.loop_on_main_m99 &&
+             settings->file_pointer != NULL) {
 
     // Fanuc-style M99 main program endless loop
+    // Only loops when running from a file; in MDI there is no file to
+    // seek back to, so M99 falls through to the M2/M30 program-end path
+    // below (avoids a fseek(NULL) segfault).
     logDebug("M99 main program endless loop");
 
     loop_to_beginning(settings);  // return control to beginning of file
     FINISH();  // Output any final linked segments
     return INTERP_EXECUTE_FINISH;  // tell task to issue any queued commands
   } else if ((block->m_modes[4] == 2) || (block->m_modes[4] == 30) ||
-            (block->m_modes[4] == 99 && !_setup.loop_on_main_m99)
+            (block->m_modes[4] == 99 &&
+             (!_setup.loop_on_main_m99 || settings->file_pointer == NULL))
             ) {   /* reset stuff here */
 
 /*1*/
-    rotate(&settings->current_x, &settings->current_y, settings->rotation_xy);
-    settings->current_x += settings->origin_offset_x;
-    settings->current_y += settings->origin_offset_y;
-    settings->current_z += settings->origin_offset_z;
-    settings->AA_current += settings->AA_origin_offset;
-    settings->BB_current += settings->BB_origin_offset;
-    settings->CC_current += settings->CC_origin_offset;
-    settings->u_current += settings->u_origin_offset;
-    settings->v_current += settings->v_origin_offset;
-    settings->w_current += settings->w_origin_offset;
 
-    settings->origin_index = 1;
-    settings->parameters[5220] = 1.0;
-    settings->origin_offset_x = USER_TO_PROGRAM_LEN(settings->parameters[5221]);
-    settings->origin_offset_y = USER_TO_PROGRAM_LEN(settings->parameters[5222]);
-    settings->origin_offset_z = USER_TO_PROGRAM_LEN(settings->parameters[5223]);
-    settings->AA_origin_offset = USER_TO_PROGRAM_ANG(settings->parameters[5224]);
-    settings->BB_origin_offset = USER_TO_PROGRAM_ANG(settings->parameters[5225]);
-    settings->CC_origin_offset = USER_TO_PROGRAM_ANG(settings->parameters[5226]);
-    settings->u_origin_offset = USER_TO_PROGRAM_LEN(settings->parameters[5227]);
-    settings->v_origin_offset = USER_TO_PROGRAM_LEN(settings->parameters[5228]);
-    settings->w_origin_offset = USER_TO_PROGRAM_LEN(settings->parameters[5229]);
-    settings->rotation_xy = settings->parameters[5230];
+    if (!settings->disable_auto_g54) {
+        rotate(&settings->current_x, &settings->current_y, settings->rotation_xy);
+        settings->current_x += settings->origin_offset_x;
+        settings->current_y += settings->origin_offset_y;
+        settings->current_z += settings->origin_offset_z;
+        settings->AA_current += settings->AA_origin_offset;
+        settings->BB_current += settings->BB_origin_offset;
+        settings->CC_current += settings->CC_origin_offset;
+        settings->u_current += settings->u_origin_offset;
+        settings->v_current += settings->v_origin_offset;
+        settings->w_current += settings->w_origin_offset;
 
-    settings->current_x -= settings->origin_offset_x;
-    settings->current_y -= settings->origin_offset_y;
-    settings->current_z -= settings->origin_offset_z;
-    settings->AA_current -= settings->AA_origin_offset;
-    settings->BB_current -= settings->BB_origin_offset;
-    settings->CC_current -= settings->CC_origin_offset;
-    settings->u_current -= settings->u_origin_offset;
-    settings->v_current -= settings->v_origin_offset;
-    settings->w_current -= settings->w_origin_offset;
-    rotate(&settings->current_x, &settings->current_y, -settings->rotation_xy);
+        settings->origin_index = 1;
+        settings->parameters[5220] = 1.0;
+        settings->origin_offset_x = USER_TO_PROGRAM_LEN(settings->parameters[5221]);
+        settings->origin_offset_y = USER_TO_PROGRAM_LEN(settings->parameters[5222]);
+        settings->origin_offset_z = USER_TO_PROGRAM_LEN(settings->parameters[5223]);
+        settings->AA_origin_offset = USER_TO_PROGRAM_ANG(settings->parameters[5224]);
+        settings->BB_origin_offset = USER_TO_PROGRAM_ANG(settings->parameters[5225]);
+        settings->CC_origin_offset = USER_TO_PROGRAM_ANG(settings->parameters[5226]);
+        settings->u_origin_offset = USER_TO_PROGRAM_LEN(settings->parameters[5227]);
+        settings->v_origin_offset = USER_TO_PROGRAM_LEN(settings->parameters[5228]);
+        settings->w_origin_offset = USER_TO_PROGRAM_LEN(settings->parameters[5229]);
+        settings->rotation_xy = settings->parameters[5230];
 
-    SET_G5X_OFFSET(settings->origin_index,
-                   settings->origin_offset_x,
-                   settings->origin_offset_y,
-                   settings->origin_offset_z,
-                   settings->AA_origin_offset,
-                   settings->BB_origin_offset,
-                   settings->CC_origin_offset,
-                   settings->u_origin_offset,
-                   settings->v_origin_offset,
-                   settings->w_origin_offset);
-    SET_XY_ROTATION(settings->rotation_xy);
+        settings->current_x -= settings->origin_offset_x;
+        settings->current_y -= settings->origin_offset_y;
+        settings->current_z -= settings->origin_offset_z;
+        settings->AA_current -= settings->AA_origin_offset;
+        settings->BB_current -= settings->BB_origin_offset;
+        settings->CC_current -= settings->CC_origin_offset;
+        settings->u_current -= settings->u_origin_offset;
+        settings->v_current -= settings->v_origin_offset;
+        settings->w_current -= settings->w_origin_offset;
+        rotate(&settings->current_x, &settings->current_y, -settings->rotation_xy);
+
+        SET_G5X_OFFSET(settings->origin_index,
+                       settings->origin_offset_x,
+                       settings->origin_offset_y,
+                       settings->origin_offset_z,
+                       settings->AA_origin_offset,
+                       settings->BB_origin_offset,
+                       settings->CC_origin_offset,
+                       settings->u_origin_offset,
+                       settings->v_origin_offset,
+                       settings->w_origin_offset);
+        SET_XY_ROTATION(settings->rotation_xy);
+    }
 
 /*2*/ if (settings->plane != CANON_PLANE::XY) {
       SELECT_PLANE(CANON_PLANE::XY);
@@ -5223,10 +5305,32 @@ int Interp::convert_stop(block_pointer block,    //!< pointer to a block of RS27
     }
 
 /*10*/
-    if (settings->disable_g92_persistence)
+    if (settings->disable_g92_persistence) {
       // Clear G92/G52 offset
       for (index=5210; index<=5219; index++)
           settings->parameters[index] = 0;
+      settings->current_x = settings->current_x + settings->axis_offset_x;
+      settings->current_y = settings->current_y + settings->axis_offset_y;
+      settings->current_z = settings->current_z + settings->axis_offset_z;
+      settings->AA_current = (settings->AA_current + settings->AA_axis_offset);
+      settings->BB_current = (settings->BB_current + settings->BB_axis_offset);
+      settings->CC_current = (settings->CC_current + settings->CC_axis_offset);
+      settings->u_current = (settings->u_current + settings->u_axis_offset);
+      settings->v_current = (settings->v_current + settings->v_axis_offset);
+      settings->w_current = (settings->w_current + settings->w_axis_offset);
+
+      SET_G92_OFFSET(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+
+      settings->axis_offset_x = 0.0;
+      settings->axis_offset_y = 0.0;
+      settings->axis_offset_z = 0.0;
+      settings->AA_axis_offset = 0.0;
+      settings->BB_axis_offset = 0.0;
+      settings->CC_axis_offset = 0.0;
+      settings->u_axis_offset = 0.0;
+      settings->v_axis_offset = 0.0;
+      settings->w_axis_offset = 0.0;
+    }
 
     if (block->m_modes[4] == 30)
       PALLET_SHUTTLE();
@@ -5374,6 +5478,7 @@ int Interp::convert_straight(int move,   //!< either G_0 or G_1
     } else ERS("BUG: Invalid plane for cutter compensation");
     CHP(status);
   } else if (move == G_0) {
+        tag_straight(block,end_x, end_y); // Update the heading and clear arc data for ANY straight move
     STRAIGHT_TRAVERSE(block->line_number, end_x, end_y, end_z,
                       AA_end, BB_end, CC_end,
                       u_end, v_end, w_end);
@@ -5381,6 +5486,7 @@ int Interp::convert_straight(int move,   //!< either G_0 or G_1
     settings->current_y = end_y;
     settings->current_z = end_z;
   } else if (move == G_1) {
+        tag_straight(block,end_x, end_y); // Update the heading and clear arc data for ANY straight move
     STRAIGHT_FEED(block->line_number, end_x, end_y, end_z,
                   AA_end, BB_end, CC_end,
                   u_end, v_end, w_end);
@@ -6194,7 +6300,8 @@ int Interp::convert_tool_length_offset(int g_code,       //!< g_code being execu
   int idx;
   EmcPose tool_offset;
   ZERO_EMC_POSE(tool_offset);
-
+  settings->g43_with_zero_offset = 0;
+  
   CHKS((settings->cutter_comp_side != CUTTER_COMP::OFF),
        (_("Cannot change tool offset with cutter radius compensation on")));
   if (g_code == G_49) {
@@ -6232,6 +6339,10 @@ int Interp::convert_tool_length_offset(int g_code,       //!< g_code being execu
     tool_offset.u = USER_TO_PROGRAM_LEN(settings->tool_table[idx].offset.u);
     tool_offset.v = USER_TO_PROGRAM_LEN(settings->tool_table[idx].offset.v);
     tool_offset.w = USER_TO_PROGRAM_LEN(settings->tool_table[idx].offset.w);
+    settings->g43_with_zero_offset =
+      !(tool_offset.tran.x || tool_offset.tran.y || tool_offset.tran.z ||
+        tool_offset.a || tool_offset.b || tool_offset.c ||
+        tool_offset.u || tool_offset.v || tool_offset.w);
   } else if (g_code == G_43_1) {
     tool_offset = settings->tool_offset;
     idx = -1;
@@ -6297,6 +6408,25 @@ int Interp::convert_tool_length_offset(int g_code,       //!< g_code being execu
   settings->w_current += settings->tool_offset.w - tool_offset.w;
 
   settings->tool_offset = tool_offset;
+
+  // Update parameters #5081-#5089 to reflect the tool length offset
+  // actually applied to motion (covers G43, G43Hn with n != loaded tool,
+  // G43.1 dynamic offsets, G43.2 additive offsets, and G49 which zeroes
+  // them).  This mirrors the Fanuc #5081-#5088 semantic.  #5401-#5409, by
+  // contrast, track the loaded tool's stored offset and refresh on M6 /
+  // G10 L1.  See issue #2994.
+  // tool_offset here is in program units; params follow the user-unit
+  // convention used elsewhere.
+  settings->parameters[5081] = PROGRAM_TO_USER_LEN(tool_offset.tran.x);
+  settings->parameters[5082] = PROGRAM_TO_USER_LEN(tool_offset.tran.y);
+  settings->parameters[5083] = PROGRAM_TO_USER_LEN(tool_offset.tran.z);
+  settings->parameters[5084] = PROGRAM_TO_USER_ANG(tool_offset.a);
+  settings->parameters[5085] = PROGRAM_TO_USER_ANG(tool_offset.b);
+  settings->parameters[5086] = PROGRAM_TO_USER_ANG(tool_offset.c);
+  settings->parameters[5087] = PROGRAM_TO_USER_LEN(tool_offset.u);
+  settings->parameters[5088] = PROGRAM_TO_USER_LEN(tool_offset.v);
+  settings->parameters[5089] = PROGRAM_TO_USER_LEN(tool_offset.w);
+
   return INTERP_OK;
 }
 
@@ -6342,3 +6472,132 @@ int Interp::update_tag(StateTag &tag)
     UPDATE_TAG(tag);
     return INTERP_OK;
 }
+
+/****************************************************************************/
+
+/*! tag_straight
+
+Returned Value: int
+   Applies new geometric tags for straight moves  (G0 and G1 segments)
+   Called from convert_arc2
+*/
+
+int Interp::tag_straight(block_pointer block, double x, double y)
+{
+    // Use a static variable to remember the heading between function calls
+    // Initialize to 0.0 or your preferred default start angle
+    static double last_valid_heading = 0.0;
+
+    double start_x = _setup.current_x;
+    double start_y = _setup.current_y;
+
+    double dx = x - start_x;
+    double dy = y - start_y;
+
+    // Only update the heading if there is actual XY motion
+    if (hypot(dx, dy) > 0.0001)
+    {
+        double heading = atan2(dy, dx) * (180.0 / M_PI);
+
+        // Normalization
+        heading = fmod(heading, 360.0);
+        if (heading < 0.0) heading += 360.0;
+
+        // Store it for this block AND for the next Z-only move
+        block->arc_heading = heading;
+        last_valid_heading = heading;
+    }
+    else
+    {
+        // For Z-only moves, reuse the last calculated XY heading
+        block->arc_heading = last_valid_heading;
+    }
+
+    // Reset Arc data for safety
+    block->radius = 0.0;
+    block->arc_center_x = 0.0;
+    block->arc_center_y = 0.0;
+    block->arc_center_z = 0.0;
+    block->iscircle = false;
+
+    // Ship the data to the status registers
+    write_canon_state_tag(block, &_setup);
+
+    return INTERP_OK;
+}
+
+/****************************************************************************/
+
+/*! tag_arcs
+
+Returned Value: int
+   Applies new tags for Arcs (G2 and G3 segments)
+   Called from convert_arc2
+*/
+
+int Interp::tag_arc(block_pointer block, double x, double y, double z, double center_x, double center_y, double center_z, int move, CANON_PLANE plane)
+    {
+
+                // Initialize variables to be populated by the plane logic
+                double dx = 0, dy = 0;
+                bool is_helix = false;
+                bool is_360 = false;
+
+                // Resolve Plane-Specific Deltas (Heading) and Helix (Perpendicular Move)
+                if (plane == CANON_PLANE::XY) {
+                        // Heading axes: X=Horiz, Y=Vert
+                        dx = center_x - _setup.current_x;
+                        dy = center_y - _setup.current_y;
+
+                        // Helix axis: Z
+                        if (fabs(z - _setup.current_z) > TOLERANCE_EQUAL)
+                                is_helix = true;
+
+                        // 360 Check: Do planar endpoints match start?
+                        if (fabs(x - _setup.current_x) < TOLERANCE_EQUAL && fabs(y - _setup.current_y) < TOLERANCE_EQUAL)
+                                is_360 = true;
+                }
+                else if (plane == CANON_PLANE::XZ) {
+                        // Heading axes: Z=Horiz, X=Vert (Standard G18 orientation)
+                        dx = center_z - _setup.current_z;
+                        dy = center_x - _setup.current_x;
+
+                        // Helix axis: Y
+                        if (fabs(y - _setup.current_y) > TOLERANCE_EQUAL)
+                                is_helix = true;
+
+                        if (fabs(x - _setup.current_x) < TOLERANCE_EQUAL && fabs(z - _setup.current_z) < TOLERANCE_EQUAL)
+                                is_360 = true;
+                }
+                else { // plane == CANON_PLANE::YZ
+                        // Heading axes: Y=Horiz, Z=Vert
+                        dx = center_y - _setup.current_y;
+                        dy = center_z - _setup.current_z;
+
+                        // Helix axis: X
+                        if (fabs(x - _setup.current_x) > TOLERANCE_EQUAL)
+                                is_helix = true;
+
+                        if (fabs(y - _setup.current_y) < TOLERANCE_EQUAL && fabs(z - _setup.current_z) < TOLERANCE_EQUAL)
+                                is_360 = true;
+                }
+
+                // Heading Calculation (Using the dx/dy resolved above)
+                double radial_angle = atan2(dy, dx);
+                double tangent_angle = (move == G_3) ? (radial_angle + (M_PI / 2.0)) : (radial_angle - (M_PI / 2.0));
+                double heading = tangent_angle * (180.0 / M_PI);
+
+                // Normalise 0-360
+                while (heading < 0) heading += 360.0;
+                while (heading >= 360.0) heading -= 360.0;
+                // Final Assignments
+                block->iscircle = (is_360 && !is_helix) ? 1 : 0;
+                block->arc_center_x = center_x;
+                block->arc_center_y = center_y;
+                block->arc_center_z = center_z;
+                block->arc_radius = hypot(dx, dy); // Radius in the active plane
+                block->arc_heading = heading;
+
+                write_canon_state_tag(block, &_setup);
+                return INTERP_OK;
+    }

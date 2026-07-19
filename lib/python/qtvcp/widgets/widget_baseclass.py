@@ -17,7 +17,9 @@
 # the other subclasses are for simple HAL widget functionality
 
 import hal
-from PyQt5.QtCore import pyqtProperty
+from qtpy.QtCore import Property
+from qtpy.QtWidgets import QDialog
+
 from qtvcp import logger
 
 # Instantiate the libraries with global reference
@@ -52,6 +54,7 @@ class _HalWidgetBase_(object):
         # INSTANCE_NAME is the embedded panel name
     def hal_init(self, HAL_NAME=None,INSTANCE_NAME = None):
         self.__class__.QTVCP_INSTANCE_.registerHalWidget(self)
+
         if INSTANCE_NAME is not None:
             self.__class__.THIS_INSTANCE_ = self.__class__.QTVCP_INSTANCE_[INSTANCE_NAME]
         else:
@@ -67,6 +70,13 @@ class _HalWidgetBase_(object):
             self.PREFS_ = self.QTVCP_INSTANCE_.PREFS_
         except:
             self.PREFS_ = None
+
+        # register avaliable dialogs (for external controls)
+        if isinstance(self, QDialog):
+            idname = self.objectName()
+            LOG.verbose('green<Registered Dialog:> {}'.format(idname))
+            self.__class__.QTVCP_INSTANCE_.registerDialog(self)
+
         LOG.verbose("HAL_init: ObjectName:'{}'\n    SELF:{}\n    HAL NAME:{}\n    PREFS:{}\n    INSTANMCE:{}".format(self.objectName(),self,self.HAL_NAME_,self.PREFS_ ,self.__class__.THIS_INSTANCE_))
         self._hal_init()
 
@@ -124,7 +134,7 @@ class _HalToggleBase(_HalWidgetBase):
         return self._pin_name_
     def reset_pin_name(self):
         self._pin_name_ = ''
-    pin_name = pyqtProperty(str, get_pin_name, set_pin_name, reset_pin_name)
+    pin_name = Property(str, get_pin_name, set_pin_name, reset_pin_name)
 
 class _HalScaleBase(_HalWidgetBase):
     def _hal_init(self):
@@ -150,7 +160,7 @@ class _HalScaleBase(_HalWidgetBase):
         return self._pin_name_
     def reset_pin_name(self):
         self._pin_name_ = ''
-    pin_name = pyqtProperty(str, get_pin_name, set_pin_name, reset_pin_name)
+    pin_name = Property(str, get_pin_name, set_pin_name, reset_pin_name)
 
 # reacts to HAL pin changes
 class _HalSensitiveBase(_HalWidgetBase):
@@ -168,5 +178,5 @@ class _HalSensitiveBase(_HalWidgetBase):
         return self._pin_name_
     def reset_pin_name(self):
         self._pin_name_ = ''
-    pin_name = pyqtProperty(str, get_pin_name, set_pin_name, reset_pin_name)
+    pin_name = Property(str, get_pin_name, set_pin_name, reset_pin_name)
 

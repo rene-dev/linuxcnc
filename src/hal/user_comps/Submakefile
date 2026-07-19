@@ -1,8 +1,8 @@
-USER_COMP_PY = pyvcp hal_input gladevcp scorbot-er-3 mitsub_vfd pmx485 sim-torch z_level_compensation mqtt-publisher
+USER_COMP_PY = pyvcp hal_input gladevcp scorbot-er-3 mitsub_vfd pmx485 sim-torch z_level_compensation mqtt-publisher hal_bridge
 
 USER_COMPS := $(sort $(wildcard hal/user_comps/*.comp))
 USER_COMP_BINS := $(patsubst hal/user_comps/%.comp, ../bin/%, $(USER_COMPS))
-USER_COMP_MANPAGES := $(patsubst hal/user_comps/%.comp, ../docs/man/man1/%.1, $(USER_COMPS))
+USER_COMP_MANPAGES := $(patsubst hal/user_comps/%.comp, ../docs/build/man/man1/%.1, $(USER_COMPS))
 USER_COMP_SRCS := $(patsubst %.comp, objects/%.c, $(USER_COMPS))
 GENERATED_MANPAGES += $(USER_COMP_MANPAGES)
 USERSRCS += $(USER_COMP_SRCS)
@@ -73,7 +73,7 @@ ifdef HAVE_LIBUSB10
 XHC_HB04_SRC = hal/user_comps/xhc-hb04.cc
 USERSRCS += $(XHC_HB04_SRC)
 $(call TOOBJSDEPS, $(XHC_HB04_SRC)) : EXTRAFLAGS += $(LIBUSB10_CFLAGS)
-../bin/xhc-hb04: $(call TOOBJS, $(XHC_HB04_SRC)) ../lib/liblinuxcnchal.so.0 ../lib/liblinuxcncini.so.0
+../bin/xhc-hb04: $(call TOOBJS, $(XHC_HB04_SRC)) ../lib/liblinuxcnchal.so.0 ../lib/liblinuxcncini.so.1
 	$(ECHO) Linking $(notdir $@)
 	$(Q)$(CXX) $(LDFLAGS) -o $@ $^ -lm $(LIBUSB10_LIBS)
 TARGETS += ../bin/xhc-hb04
@@ -86,12 +86,7 @@ USERSRCS += $(SENDKEYS_SRC)
 	$(Q)$(CC) $(LDFLAGS) -o $@ $^
 TARGETS += ../bin/sendkeys
 
-$(patsubst ./hal/user_comps/%,../include/%,$(wildcard ./hal/user_comps/*.h)): ../include/%.h: ./hal/user_comps/%.h
-	cp $^ $@
-$(patsubst ./hal/user_comps/%,../include/%,$(wildcard ./hal/user_comps/*.hh)): ../include/%.hh: ./hal/user_comps/%.hh
-	cp $^ $@
-
-$(USER_COMP_MANPAGES): ../docs/man/man1/%.1: hal/user_comps/%.comp ../bin/halcompile
+$(USER_COMP_MANPAGES): ../docs/build/man/man1/%.1: hal/user_comps/%.comp ../bin/halcompile
 	$(ECHO) Making halcompile manpage $(notdir $@)
 	@mkdir -p $(dir $@) objects/man/man1
 	$(Q)../bin/halcompile -U --userspace --document --keep-adoc=$@.adoc -o $@ $<

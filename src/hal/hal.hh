@@ -6,7 +6,7 @@
 #include <variant>
 #include <stdexcept>
 #include <hal.h>
-#include <hal_priv.h>
+#include <hal/hal_priv.h>
 #include <string.h>
 
 class hal_mutex_guard {
@@ -18,6 +18,7 @@ class hal_mutex_guard {
         rtapi_mutex_give(&(hal_data->mutex));
     }
 };
+#include "hal.h"
 
 enum class hal_dir{
     IN = HAL_IN,
@@ -169,6 +170,10 @@ class PyPin{
         return 0;
     }
 };
+
+
+
+
 
 class hal{
     private:

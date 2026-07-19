@@ -38,8 +38,8 @@
  */
 
 #include "config.h"
-#include "rtapi.h"		// RTAPI realtime OS API
-#include "hal.h"		// HAL public API decls
+#include <rtapi.h>		// RTAPI realtime OS API
+#include <hal.h>		// HAL public API decls
 #include "../hal_priv.h"	// private HAL decls
 #include "halcmd_commands.h"
 #include <rtapi_mutex.h>
@@ -167,12 +167,12 @@ int do_linkpp_cmd(char *first_pin_name, char *second_pin_name)
     /* check if the pins are there */
     first_pin = halpr_find_pin_by_name(first_pin_name);
     second_pin = halpr_find_pin_by_name(second_pin_name);
-    if (first_pin == 0) {
+    if (first_pin == NULL) {
 	/* first pin not found*/
 	rtapi_mutex_give(&(hal_data->mutex));
 	halcmd_error("pin '%s' not found\n", first_pin_name);
 	return -EINVAL; 
-    } else if (second_pin == 0) {
+    } else if (second_pin == NULL) {
 	rtapi_mutex_give(&(hal_data->mutex));
 	halcmd_error("pin '%s' not found\n", second_pin_name);
 	return -EINVAL; 
@@ -241,12 +241,19 @@ int do_unlinkp_cmd(char *pin)
 }
 
 int do_set_debug_cmd(char* level){
-    int new_level = atoi(level);
-    if (new_level < 0 || new_level > 5){
-        halcmd_error("Debug level must be >=0 and <= 5\n");
-        return -EINVAL;
-    }
-    return rtapi_set_msg_level(atoi(level));
+    int retval = -EINVAL;
+#if defined(RTAPI_USPACE)
+    int m = 0;
+    const char *argv[4];
+    argv[m++] = EMC2_BIN_DIR "/rtapi_app";
+    argv[m++] = "debug";
+    argv[m++] = level;
+    argv[m++] = NULL;
+    retval = hal_systemv(argv);
+#else
+    halcmd_error("debug: not implemented for anything else than uspace\n");
+#endif
+    return retval;
 }
 
 int do_source_cmd(char *hal_filename) {
@@ -272,7 +279,7 @@ int do_source_cmd(char *hal_filename) {
     while(1) {
         char *readresult = fgets(buf, MAX_CMD_LEN, f);
         halcmd_set_linenumber(linenumber++);
-        if(readresult == 0) {
+        if(readresult == NULL) {
             if(feof(f)) break;
             halcmd_error("Error reading file: %s\n", strerror(errno));
             result = -EINVAL;
@@ -332,6 +339,31 @@ int do_addf_cmd(char *func, char *thread, char **opt) {
     return retval;
 }
 
+int do_initf_cmd(char *func, char *thread, char **opt) {
+    /* usage: initf <funct> <thread> [position]
+       position has the same meaning as in addf: +N from start of the init
+       list (+1 = run first), -N from end (-1 = run last, default), 0 illegal.
+       The function runs once in realtime context in a dedicated cycle before
+       the cyclic funct list; next cyclic cycle wakes one period later. */
+    char *position_str = opt ? opt[0] : NULL;
+    int position = -1;
+    int retval;
+
+    if(position_str && *position_str) position = atoi(position_str);
+
+    retval = hal_init_funct_to_thread(func, thread, position);
+    if(retval == 0) {
+        halcmd_info("Init function '%s' registered on thread '%s'\n",
+                    func, thread);
+    } else if(retval == -EALREADY) {
+        halcmd_error("initf: thread '%s' init cycle already executed; "
+                     "'%s' was NOT registered\n", thread, func);
+    } else {
+        halcmd_error("initf failed\n");
+    }
+    return retval;
+}
+
 int do_alias_cmd(char *pinparam, char *name, char *alias) {
     int retval;
 
@@ -384,7 +416,7 @@ int do_delf_cmd(char *func, char *thread) {
 
 static int preflight_net_cmd(char *signal, hal_sig_t *sig, char *pins[]) {
     int i, type=-1, writers=0, bidirs=0, pincnt=0;
-    char *writer_name=0, *bidir_name=0;
+    char *writer_name=NULL, *bidir_name=NULL;
     /* if signal already exists, use its info */
     if (sig) {
 	type = sig->type;
@@ -407,7 +439,7 @@ static int preflight_net_cmd(char *signal, hal_sig_t *sig, char *pins[]) {
     }
 
     for(i=0; pins[i] && *pins[i]; i++) {
-        hal_pin_t *pin = 0;
+        hal_pin_t *pin = NULL;
         pin = halpr_find_pin_by_name(pins[i]);
         if(!pin) {
             halcmd_error("Pin '%s' does not exist\n",
@@ -754,9 +786,9 @@ int do_setp_cmd(char *name, char *value)
     rtapi_mutex_get(&(hal_data->mutex));
     /* search param list for name */
     param = halpr_find_param_by_name(name);
-    if (param == 0) {
+    if (param == NULL) {
         pin = halpr_find_pin_by_name(name);
-        if(pin == 0) {
+        if(pin == NULL) {
             rtapi_mutex_give(&(hal_data->mutex));
             halcmd_error("parameter or pin '%s' not found\n", name);
             return -EINVAL;
@@ -877,7 +909,7 @@ int do_getp_cmd(char *name)
             sig = SHMPTR(pin->signal);
             d_ptr = SHMPTR(sig->data_ptr);
         } else {
-            sig = 0;
+            sig = NULL;
             d_ptr = &(pin->dummysig);
         }
         halcmd_output("%s\n", data_value2((int) type, d_ptr));
@@ -902,7 +934,7 @@ int do_sets_cmd(char *name, char *value)
     rtapi_mutex_get(&(hal_data->mutex));
     /* search signal list for name */
     sig = halpr_find_sig_by_name(name);
-    if (sig == 0) {
+    if (sig == NULL) {
 	rtapi_mutex_give(&(hal_data->mutex));
 	halcmd_error("signal '%s' not found\n", name);
 	return -EINVAL;
@@ -938,7 +970,7 @@ int do_stype_cmd(char *name)
     rtapi_mutex_get(&(hal_data->mutex));
     /* search signal list for name */
     sig = halpr_find_sig_by_name(name);
-    if (sig == 0) {
+    if (sig == NULL) {
 	rtapi_mutex_give(&(hal_data->mutex));
 	halcmd_error("signal '%s' not found\n", name);
 	return -EINVAL;
@@ -961,7 +993,7 @@ int do_gets_cmd(char *name)
     rtapi_mutex_get(&(hal_data->mutex));
     /* search signal list for name */
     sig = halpr_find_sig_by_name(name);
-    if (sig == 0) {
+    if (sig == NULL) {
 	rtapi_mutex_give(&(hal_data->mutex));
 	halcmd_error("signal '%s' not found\n", name);
 	return -EINVAL;
@@ -975,7 +1007,7 @@ int do_gets_cmd(char *name)
 }
 
 static int get_type(char ***patterns) {
-    char *typestr = 0;
+    char *typestr = NULL;
     if(!(*patterns)) return -1;
     if(!(*patterns)[0]) return -1;
     if((*patterns)[0][0] != '-' || (*patterns)[0][1] != 't') return -1;
@@ -1213,7 +1245,7 @@ int do_loadrt_cmd(char *mod_name, char *args[])
     rtapi_mutex_get(&(hal_data->mutex));
     /* search component list for the newly loaded component */
     comp = halpr_find_comp_by_name(mod_name);
-    if (comp == 0) {
+    if (comp == NULL) {
 	rtapi_mutex_give(&(hal_data->mutex));
 	halcmd_error("module '%s' not loaded\n", mod_name);
 	return -EINVAL;
@@ -1333,7 +1365,11 @@ int do_unloadrt_cmd(char *mod_name)
     } else {
 	all = 0;
     }
-    /* build a list of component(s) to unload */
+    /* Build a list of component(s) to unload. hal_lib inserts new
+       components at the head of comp_list_ptr (see hal_init() in
+       hal_lib.c), so this traversal walks newest-first and produces
+       comps[] in newest-to-oldest order. The unload loop below relies
+       on that invariant: do not change one without the other. */
     n = 0;
     rtapi_mutex_get(&(hal_data->mutex));
     next = hal_data->comp_list_ptr;
@@ -1359,16 +1395,25 @@ int do_unloadrt_cmd(char *mod_name)
 	halcmd_error("component '%s' is not loaded\n", mod_name);
 	return -1;
     }
-    /* we now have a list of components, unload them in reverse order */
-    n -= 1;
+    /* Unload newest first so dependent modules release their references
+       before the ones they depend on are removed. This matters for
+       kernel modules (RTAI) where rmmod refuses to unload an in-use
+       module. Uspace dlclose has no such check, which is why a wrong
+       direction here only ever surfaces on RTAI.
+
+       Iterating forward (i = 0 .. n-1) is "newest first" because the
+       array was built by walking comp_list_ptr from its head, and that
+       list is ordered newest-at-head. If you are tempted to "reverse"
+       this loop to match insmod order: you are doing the wrong thing,
+       this IS already reverse-insmod order. See PR #3443 for an
+       example of that exact mistake. */
     retval1 = 0;
-    while ( n >= 0 ) {
+    for ( int i = 0; i < n; i++ ) {
         // special case: initial prefix means it is not a real comp
-        if (strstr(comps[n],HAL_PSEUDO_COMP_PREFIX) == comps[n] ) {
-           n--;
+        if (strstr(comps[i],HAL_PSEUDO_COMP_PREFIX) == comps[i] ) {
            continue;
         }
-	retval = unloadrt_comp(comps[n--]);
+	retval = unloadrt_comp(comps[i]);
 	/* check for fatal error */
 	if ( retval < -1 ) {
 	    return retval;
@@ -1536,7 +1581,7 @@ int do_loadusr_cmd(const char *args[])
     /* get program and component name */
     args += optind;
     prog_name = *args++;
-    if (prog_name == 0) { return -EINVAL; }
+    if (prog_name == NULL) { return -EINVAL; }
     if(!new_comp_name) {
 	new_comp_name = guess_comp_name(prog_name);
     }
@@ -1748,7 +1793,7 @@ static void print_pin_info(int type, char **patterns)
 		sig = SHMPTR(pin->signal);
 		dptr = SHMPTR(sig->data_ptr);
 	    } else {
-		sig = 0;
+		sig = NULL;
 		dptr = &(pin->dummysig);
 	    }
 	    if (scriptmode == 0) {
@@ -1766,7 +1811,7 @@ static void print_pin_info(int type, char **patterns)
 		    data_value2((int) pin->type, dptr),
 		    pin->name);
 	    } 
-	    if (sig == 0) {
+	    if (sig == NULL) {
 		halcmd_output("\n");
 	    } else {
 		halcmd_output(" %s %s\n", data_arrow1((int) pin->dir), sig->name);
@@ -1831,8 +1876,8 @@ static void print_sig_info(int type, char **patterns)
 	    halcmd_output("%s  %s  %s\n", data_type((int) sig->type),
 		data_value((int) sig->type, dptr), sig->name);
 	    /* look for pin(s) linked to this signal */
-	    pin = halpr_find_pin_by_sig(sig, 0);
-	    while (pin != 0) {
+	    pin = halpr_find_pin_by_sig(sig, NULL);
+	    while (pin != NULL) {
 		halcmd_output("                                 %s %s\n",
 		    data_arrow2((int) pin->dir), pin->name);
 		pin = halpr_find_pin_by_sig(sig, pin);
@@ -1863,8 +1908,8 @@ static void print_script_sig_info(int type, char **patterns)
 	    halcmd_output("%s  %s  %s", data_type((int) sig->type),
 		data_value2((int) sig->type, dptr), sig->name);
 	    /* look for pin(s) linked to this signal */
-	    pin = halpr_find_pin_by_sig(sig, 0);
-	    while (pin != 0) {
+	    pin = halpr_find_pin_by_sig(sig, NULL);
+	    while (pin != NULL) {
 		halcmd_output(" %s %s",
 		    data_arrow2((int) pin->dir), pin->name);
 		pin = halpr_find_pin_by_sig(sig, pin);
@@ -2016,7 +2061,7 @@ static void print_thread_info(char **patterns)
                     sig = SHMPTR(pin->signal);
                     dptr = SHMPTR(sig->data_ptr);
                 } else {
-                    sig = 0;
+                    sig = NULL;
                     dptr = &(pin->dummysig);
                 }
 
@@ -2039,7 +2084,7 @@ static void print_thread_info(char **patterns)
 	    n = 1;
 	    while (list_entry != list_root) {
 		/* print the function info */
-		fentry = (hal_funct_entry_t *) list_entry;
+		fentry = reinterpret_cast<hal_funct_entry_t *>(list_entry);
 		funct = SHMPTR(fentry->funct_ptr);
 		/* scriptmode only uses one line per thread, which contains: 
 		   thread period, FP flag, name, then all functs separated by spaces  */
@@ -2525,7 +2570,7 @@ int do_save_cmd(const char *type, char *filename)
 	return -1;
 	}
     }
-    if (type == 0 || *type == '\0') {
+    if (type == NULL || *type == '\0') {
 	type = "all";
     }
     if (   (strcmp(type, "all")  == 0)
@@ -2605,7 +2650,7 @@ static void save_comps(FILE *dst)
         return;
 	}
 
-    std::vector<hal_comp_t *> comps(ncomps, nullptr);
+    std::vector<hal_comp_t *> comps(ncomps, NULL);
     hal_comp_t **compptr = comps.data();
     next = hal_data->comp_list_ptr;
     while(next != 0)  {
@@ -2738,14 +2783,14 @@ static void save_nets(FILE *dst, int arrow)
             int state = 0, first = 1;
 
             /* If there are no pins connected to this signal, do nothing */
-            pin = halpr_find_pin_by_sig(sig, 0);
+            pin = halpr_find_pin_by_sig(sig, NULL);
             if(!pin) continue;
 
             fprintf(dst, "net %s", sig->name);
 
             /* Step 1: Output pin, if any */
             
-            for(pin = halpr_find_pin_by_sig(sig, 0); pin;
+            for(pin = halpr_find_pin_by_sig(sig, NULL); pin;
                     pin = halpr_find_pin_by_sig(sig, pin)) {
                 if(pin->dir != HAL_OUT) continue;
                 fprintf(dst, " %s", pin->name);
@@ -2753,7 +2798,7 @@ static void save_nets(FILE *dst, int arrow)
             }
             
             /* Step 2: I/O pins, if any */
-            for(pin = halpr_find_pin_by_sig(sig, 0); pin;
+            for(pin = halpr_find_pin_by_sig(sig, NULL); pin;
                     pin = halpr_find_pin_by_sig(sig, pin)) {
                 if(pin->dir != HAL_IO) continue;
                 fprintf(dst, " ");
@@ -2765,7 +2810,7 @@ static void save_nets(FILE *dst, int arrow)
             if(!first) state = 1;
 
             /* Step 3: Input pins, if any */
-            for(pin = halpr_find_pin_by_sig(sig, 0); pin;
+            for(pin = halpr_find_pin_by_sig(sig, NULL); pin;
                     pin = halpr_find_pin_by_sig(sig, pin)) {
                 if(pin->dir != HAL_IN) continue;
                 fprintf(dst, " ");
@@ -2776,12 +2821,12 @@ static void save_nets(FILE *dst, int arrow)
             fprintf(dst, "\n");
         } else if(arrow == 2) {
             /* If there are no pins connected to this signal, do nothing */
-            pin = halpr_find_pin_by_sig(sig, 0);
+            pin = halpr_find_pin_by_sig(sig, NULL);
             if(!pin) continue;
 
             fprintf(dst, "net %s", sig->name);
-            pin = halpr_find_pin_by_sig(sig, 0);
-            while (pin != 0) {
+            pin = halpr_find_pin_by_sig(sig, NULL);
+            while (pin != NULL) {
                 fprintf(dst, " %s", pin->name);
                 pin = halpr_find_pin_by_sig(sig, pin);
             }
@@ -2789,8 +2834,8 @@ static void save_nets(FILE *dst, int arrow)
         } else {
             fprintf(dst, "newsig %s %s\n",
                     sig->name, data_type((int) sig->type));
-            pin = halpr_find_pin_by_sig(sig, 0);
-            while (pin != 0) {
+            pin = halpr_find_pin_by_sig(sig, NULL);
+            while (pin != NULL) {
                 if (arrow != 0) {
                     arrow_str = data_arrow2((int) pin->dir);
                 } else {
@@ -2842,7 +2887,7 @@ static void save_threads(FILE *dst)
 	list_entry = list_next(list_root);
 	while (list_entry != list_root) {
 	    /* print the function info */
-	    fentry = (hal_funct_entry_t *) list_entry;
+	    fentry = reinterpret_cast<hal_funct_entry_t *>(list_entry);
 	    funct = SHMPTR(fentry->funct_ptr);
 	    fprintf(dst, "addf %s %s\n", funct->name, tptr->name);
 	    list_entry = list_next(list_entry);

@@ -47,8 +47,8 @@
 
 #include "rs274ngc.hh"
 #include "rs274ngc_interp.hh"
-#include "interp_return.hh"
-#include "canon.hh"
+#include "nml_intf/interp_return.hh"
+#include "nml_intf/canon.hh"
 #include "config.h"		// LINELEN
 #include "units.h"
 
@@ -120,6 +120,8 @@ static PyMemberDef LineCodeMembers[] = {
     {}
 };
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"
 static PyTypeObject LineCodeType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     "gcode.linecode",       /*tp_name*/
@@ -180,6 +182,7 @@ static PyTypeObject LineCodeType = {
 #endif
 #endif
 };
+#pragma GCC diagnostic pop
 
 static PyObject *callback;
 static int interp_error;
@@ -551,7 +554,7 @@ void STOP_SPEED_FEED_SYNCH() {}
 void START_SPINDLE_COUNTERCLOCKWISE(int /*spindle*/, int /*wait_for_at_speed*/) {}
 void START_SPINDLE_CLOCKWISE(int /*spindle*/, int /*wait_for_at_speed*/) {}
 void SET_SPINDLE_MODE(int /*spindle*/, double) {}
-void STOP_SPINDLE_TURNING(int /*spindle*/) {}
+void STOP_SPINDLE_TURNING(int /*spindle*/, int /*wait_for_at_speed*/) {}
 void SET_SPINDLE_SPEED(int /*spindle*/, double /*rpm*/) {}
 void ORIENT_SPINDLE(int /*spindle*/, double /*d*/, int /*i*/) {}
 void WAIT_SPINDLE_ORIENT_COMPLETE(int /*s*/, double /*timeout*/) {}
@@ -854,8 +857,8 @@ void SET_NAIVECAM_TOLERANCE(double /*tolerance*/) { }
 #define RESULT_OK (result == INTERP_OK || result == INTERP_EXECUTE_FINISH)
 static PyObject *parse_file(PyObject * /*self*/, PyObject *args) {
     char *f;
-    char *unitcode=0, *initcode=0, *interpname=0;
-    PyObject *initcodes=0;
+    char *unitcode=NULL, *initcode=NULL, *interpname=NULL;
+    PyObject *initcodes=NULL;
     int error_line_offset = 0;
     struct timeval t0, t1;
     int wait = 1;
@@ -872,7 +875,7 @@ static PyObject *parse_file(PyObject * /*self*/, PyObject *args) {
 
     if(pinterp) {
         delete pinterp;
-        pinterp = 0;
+        pinterp = NULL;
     }
     if(interpname && *interpname)
         pinterp = interp_from_shlib(interpname);
@@ -911,6 +914,12 @@ static PyObject *parse_file(PyObject * /*self*/, PyObject *args) {
     }
     if(unitcode && RESULT_OK) {
         result = pinterp->read(unitcode);
+        if(!RESULT_OK) goto out_error;
+        result = pinterp->execute();
+    }
+
+    if(initcode && RESULT_OK) {
+        result = pinterp->read(initcode);
         if(!RESULT_OK) goto out_error;
         result = pinterp->execute();
     }

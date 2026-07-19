@@ -25,7 +25,7 @@
 // it uses RTAPI realtime code and HAL code for memory allocation and input/output.
 // this adaptation was started Jan 2008 by Chris Morley  
 
-#include "../config.h"
+#include "../../config.h"
 #ifdef MODULE
 #include <linux/string.h>
 #else
@@ -35,7 +35,7 @@
 #include <unistd.h>
 #endif
 
-#include "hal.h"
+#include <hal.h>
 #include "classicladder.h"
 #include "global.h"
 #include "files_project.h"
@@ -136,13 +136,13 @@ void process_options (int argc, char *argv[])
 	{
 		int option_index = 0;
 		static const struct option long_options[] = {
-			{"nogui", no_argument, 0, 'n'},
-			{"modmaster",no_argument,0,'m'},
-			{"modslave",no_argument,0,'s'},
-			{"debug",no_argument,0,'d'},
-			{"modbus_port", required_argument, 0, 'p'},
-			{"newpath", required_argument, 0, 'f'},
-			{0, 0, 0, 0},
+			{"nogui", no_argument, NULL, 'n'},
+			{"modmaster",no_argument,NULL,'m'},
+			{"modslave",no_argument,NULL,'s'},
+			{"debug",no_argument,NULL,'d'},
+			{"modbus_port", required_argument, NULL, 'p'},
+			{"newpath", required_argument, NULL, 'f'},
+			{NULL, 0, NULL, 0},
 		};
 
 		int c = getopt_long(argc, argv, "",

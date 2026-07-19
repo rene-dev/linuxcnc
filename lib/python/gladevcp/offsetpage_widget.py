@@ -88,6 +88,7 @@ class OffsetPage(Gtk.Box):
         self.status = linuxcnc.stat()
         self.cmd = linuxcnc.command()
         self.hash_check = None
+        self.use_localization = False # Set to True for float value conversion using locale settings (not recommended)
         self.display_units_mm = 0 # imperial
         self.machine_units_mm = 0 # imperial
         self.program_units = 0 # imperial
@@ -200,15 +201,13 @@ class OffsetPage(Gtk.Box):
         else:
             tmpl = self.imperial_text_template
 
-        degree_tmpl = "%11.2f"
-
         # fill each row of the liststore from the offsets arrays
         for row, i in enumerate([tool, g28, g30, g92]):
             for column in range(0, 11):
                 if column > 8:
                     self.store[row][column + 1] = " " # Blank R column
                 else:
-                    self.store[row][column + 1] = locale.format_string(tmpl, i[column])
+                    self.store[row][column + 1] = tmpl % i[column]
             # set the current system's label's color - to make it stand out a bit
             if self.store[row][0] == self.current_system:
                 if isinstance(self.foreground_color, str):
@@ -226,7 +225,7 @@ class OffsetPage(Gtk.Box):
 
         for row, i in enumerate([g54, g55, g56, g57, g58, g59, g59_1, g59_2, g59_3]):
             for column in range(0, 10):
-                self.store[row+4][column + 1] = locale.format_string(tmpl, i[column])
+                self.store[row+4][column + 1] = tmpl % i[column]
             # set the current system's label's color - to make it stand out a bit
             if self.store[row+4][0] == self.current_system:
                 if isinstance(self.foreground_color, str):
@@ -380,17 +379,26 @@ class OffsetPage(Gtk.Box):
         if col == 11:
             self.store[row][15] = new_text
             return
+        # for all other columns we expect a float value
+        else:
+            try:
+                if self.use_localization:
+                    # using locale settings can lead to issues but we make it optional for backwards compatibility
+                    new_float = float(locale.atof(new_text))
+                else:
+                    # this is the preferred way, allowing dot or comma as decimal symbol
+                    new_float = float(new_text.replace(',', '.'))
+            except Exception as error:
+                print('new_text: ', new_text, error)
+                print(_("offsetpage widget error: unrecognized float input"))
+                return
 
         # ignore entries to the Rot column in non-wcs rows
         if self.store[row][0] not in ["G54", "G55", "G56", "G57", "G58", "G59", "G59.1", "G59.2", "G59.3"] and col == 10:
             return
 
         # set the text in the table
-        try:
-            self.store[row][col] = locale.format_string("%10.4f", locale.atof(new_text))
-        except Exception as error:
-            print('new_text: ', new_text, error)
-            print(_("offsetpage widget error: unrecognized float input"))
+        self.store[row][col] = f"{new_float:10.4f}"
         # make sure we switch to correct units for machine and rotational, row 2, does not get converted
         try:
             if not self.display_units_mm == self.program_units and not row == 2:
@@ -398,9 +406,9 @@ class OffsetPage(Gtk.Box):
                     convert = 25.4
                 else:
                     convert = 1.0 / 25.4
-                qualified = float(locale.atof(new_text)) * convert
+                qualified = new_float * convert
             else:
-                qualified = float(locale.atof(new_text))
+                qualified = new_float
         except:
             print('error')
         # now update linuxcnc to the change

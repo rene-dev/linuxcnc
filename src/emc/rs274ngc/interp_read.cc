@@ -27,7 +27,7 @@
 #include "rs274ngc_return.hh"
 #include "interp_internal.hh"
 #include "rs274ngc_interp.hh"
-#include "rtapi_math.h"
+#include <rtapi_math.h>
 #include <cmath>
 #include <rtapi_string.h>	// rtapi_strlcpy()
 
@@ -1206,7 +1206,7 @@ int Interp::read_one_item(
   CHKS(((letter < ' ') || (letter > 'z')),
 	_("Bad character '\\%03o' used"), (unsigned char)letter);
   function_pointer = _readers[(int) letter]; /* Find the function pointer in the array */
-  CHKS((function_pointer == 0),
+  CHKS((function_pointer == NULL),
 	(!isprint(letter) || isspace(letter)) ?
 	    _("Bad character '\\%03o' used") : _("Bad character '%c' used"), letter);
   CHP((*this.*function_pointer)(line, counter, block, parameters)); /* Call the function */ 
@@ -1716,12 +1716,24 @@ int Interp::read_o(    /* ARGUMENTS                                     */
     {
 	// Check we're not already defining a main- or sub-program
 	CHKS((_setup.defining_sub == 1), NCE_NESTED_SUBROUTINE_DEFN);
+
+	// Check for sub definition inside a called subroutine.
+	// When call_level > 0 and not seeking (skipping_o == NULL),
+	// hitting a sub that doesn't match the current call is an error.
+	if (_setup.call_level > 0 && _setup.skipping_o == NULL) {
+	    const char *current_sub =
+		_setup.sub_context[_setup.call_level].subName;
+	    CHKS((current_sub && strcmp(current_sub, block->o_name) != 0),
+		 _("Nested subroutine definition: 'O%s sub' found inside "
+		   "called subroutine 'O%s'"),
+		 block->o_name, current_sub);
+	}
     }
   // in terms of execution endsub and return do the same thing
   else if ((block->o_type == O_endsub) || (block->o_type == O_return) ||
 	   (block->o_type == M_99))
     {
-	if ((_setup.skipping_o != 0) &&
+	if ((_setup.skipping_o != NULL) &&
 	    (0 != strcmp(_setup.skipping_o, block->o_name))) {
 	    return INTERP_OK;
 	}
@@ -1749,7 +1761,7 @@ int Interp::read_o(    /* ARGUMENTS                                     */
     {
       // we need to NOT evaluate parameters if skipping
       // skipping never ends on a "call"
-      if(_setup.skipping_o != 0)
+      if(_setup.skipping_o != NULL)
       {
           block->o_type = O_none;
           return INTERP_OK;
@@ -1797,7 +1809,7 @@ int Interp::read_o(    /* ARGUMENTS                                     */
   else if(block->o_type == O_while)
     {
       // TESTME !!!KL -- should not eval expressions if skipping ???
-      if((_setup.skipping_o != 0) &&
+      if((_setup.skipping_o != NULL) &&
 	 (0 != strcmp(_setup.skipping_o, block->o_name)))
       {
 	    return INTERP_OK;
@@ -1812,7 +1824,7 @@ int Interp::read_o(    /* ARGUMENTS                                     */
   else if(block->o_type == O_repeat)
       {
           // TESTME !!!KL -- should not eval expressions if skipping ???
-          if((_setup.skipping_o != 0) &&
+          if((_setup.skipping_o != NULL) &&
 	     (0 != strcmp(_setup.skipping_o, block->o_name)))
           {
 	    return INTERP_OK;
@@ -1827,7 +1839,7 @@ int Interp::read_o(    /* ARGUMENTS                                     */
   else if(block->o_type == O_if)
     {
       // TESTME !!!KL -- should not eval expressions if skipping ???
-      if((_setup.skipping_o != 0) &&
+      if((_setup.skipping_o != NULL) &&
 	 (0 != strcmp(_setup.skipping_o, block->o_name)))
       {
 	    return INTERP_OK;
@@ -1842,7 +1854,7 @@ int Interp::read_o(    /* ARGUMENTS                                     */
   else if(block->o_type == O_elseif)
     {
       // TESTME !!!KL -- should not eval expressions if skipping ???
-      if((_setup.skipping_o != 0) &&
+      if((_setup.skipping_o != NULL) &&
 	 (0 != strcmp(_setup.skipping_o, block->o_name)))
       {
 	    return INTERP_OK;
@@ -2173,7 +2185,7 @@ int Interp::read_parameter_setting(
                _setup.named_parameter_occurrence, param, value);
 
       dup = strstore(param); // no more need to free this
-      if(dup == 0)
+      if(dup == NULL)
       {
           ERS(NCE_OUT_OF_MEMORY);
       }

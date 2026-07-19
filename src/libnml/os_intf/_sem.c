@@ -40,7 +40,7 @@ typedef int rcs_sem_t;
 
 #include "_sem.h"
 #include "_timer.h"		/* etime() */
-#include "rcs_print.hh"
+#include "libnml/rcs/rcs_print.hh"
 
 #define SEM_TAKE (-1)		/* decrement sembuf.sem_op */
 #define SEM_GIVE (1)		/* increment sembuf.sem_op */
@@ -138,7 +138,7 @@ rcs_sem_t *rcs_sem_open(key_t name, int oflag, /* int mode */ ...)
 
 int rcs_sem_close(rcs_sem_t * sem)
 {
-    if (sem != 0) {
+    if (sem != NULL) {
 	free(sem);
     }
     return 0;
@@ -212,7 +212,7 @@ int rcs_sem_wait(rcs_sem_t * sem, double timeout)
     sops.sem_op = SEM_TAKE;
     sops.sem_flg = 0;
     
-    if (0 == sem) {
+    if (NULL == sem) {
 	return -1;
     }
 

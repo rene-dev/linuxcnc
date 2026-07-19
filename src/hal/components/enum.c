@@ -17,11 +17,11 @@
 
 // Convert bit pins to enumerated ints and vice-versa
 
-#include "rtapi.h"
-#include "rtapi_slab.h"
-#include "rtapi_app.h"
-#include "rtapi_string.h"
-#include "hal.h"
+#include <rtapi.h>
+#include <rtapi_slab.h>
+#include <rtapi_app.h>
+#include <rtapi_string.h>
+#include <hal.h>
 
 #if !defined(__KERNEL__)
 #include <stdio.h>
@@ -183,6 +183,8 @@ int rtapi_app_main(void){
     return -1;
 
 }
+
+void rtapi_app_exit(void) {}
 
 static void decode(void *v_inst, long period){
     (void)period;

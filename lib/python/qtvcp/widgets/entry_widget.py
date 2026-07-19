@@ -18,7 +18,7 @@
 # This widget pops up an onscreen keyboard for entries
 # Used in the Macro and MDI line widget
 
-from PyQt5 import QtWidgets, QtCore, QtGui
+from qtpy import QtWidgets, QtCore, QtGui
 #from decimal import Decimal
 
 # applicationle widgets
@@ -56,7 +56,8 @@ class SoftInputWidget(QtWidgets.QDialog):
 
         self.do_layout(keyboard_type)
 
-        self.signalMapper.mapped[int].connect(self.buttonClicked)
+        mapped = getattr(self.signalMapper, 'mappedInt', None) or self.signalMapper.mapped[int]
+        mapped.connect(self.buttonClicked)
 
     def do_layout(self, keyboard_type='default'):
         """
@@ -215,7 +216,7 @@ class SoftInputWidget(QtWidgets.QDialog):
         widget_rect = widget.rect()
         widget_bottom = widget.mapToGlobal(QtCore.QPoint(widget.frameGeometry().x(),
                                                          widget.frameGeometry().y())).y()
-        screen_height = QtWidgets.qApp.desktop().availableGeometry().height()
+        screen_height = QtWidgets.QApplication.primaryScreen().availableGeometry().height()
         input_panel_height = self.geometry().height() + 5
 
         if (screen_height - widget_bottom) > input_panel_height:
@@ -267,7 +268,7 @@ class TouchInterface(QtWidgets.QWidget):
 ## testing ##
 if __name__ == '__main__':
     import sys
-    from PyQt5.QtWidgets import QWidget
+    from qtpy.QtWidgets import QWidget
     app = QtWidgets.QApplication([])
     w = QWidget()
     w.setGeometry(100, 100, 200, 100)
@@ -281,4 +282,4 @@ if __name__ == '__main__':
     test.callDialog(line, 'default')
     w.setLayout(layout)
     w.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

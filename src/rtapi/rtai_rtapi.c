@@ -527,24 +527,6 @@ long long int rtapi_get_time(void)
     return rt_get_cpu_time_ns();    
 }
 
-/* This returns a result in clocks instead of nS, and needs to be used
-   with care around CPUs that change the clock speed to save power and
-   other disgusting, non-realtime oriented behavior.  But at least it
-   doesn't take a week every time you call it.
-*/
-
-long long int rtapi_get_clocks(void)
-{
-    long long int retval;
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,0)
-    retval = rdtsc_ordered();
-#else
-    rdtscll(retval);
-#endif
-    return retval;
-}
-
 void rtapi_delay(long int nsec)
 {
     if (nsec > max_delay) {
@@ -685,9 +667,10 @@ int rtapi_task_new(void (*taskcode) (void *), void *arg,
     }
     task->taskcode = taskcode;
     task->arg = arg;
-    /* call OS to initialize the task - use predetermined CPU */
+    /* call OS to initialize the task - use predetermined CPU.
+       uses_fp is deprecated and ignored; always save FPU state. */
     retval = rt_task_init_cpuid(ostask_array[task_id], wrapper, task_id,
-	 stacksize, prio, uses_fp, 0 /* signal */, rtapi_data->rt_cpu );
+	 stacksize, prio, 1 /* always save FPU */, 0 /* signal */, rtapi_data->rt_cpu );
     if (retval != 0) {
 	/* couldn't create task, free task data memory */
 	kfree(ostask_array[task_id]);
@@ -915,6 +898,23 @@ int rtapi_task_pause(int task_id)
     }
     /* update task data */
     return 0;
+}
+
+void rtapi_task_self_resync(void)
+{
+    /* RTAI backend stub: re-anchoring the period from inside an RTAI task
+       requires per-task period storage that is not currently kept. The
+       primary consumer (EtherCAT init via initf) runs on the uspace
+       backend. If RTAI support is needed, store period_counts per task in
+       rtapi_task_start() and call
+       rt_task_make_periodic(rt_whoami(), rt_get_time() + period_counts,
+                             period_counts) here. */
+    static int warned = 0;
+    if (!warned) {
+	rtapi_print_msg(RTAPI_MSG_WARN,
+	    "RTAPI: rtapi_task_self_resync() is a no-op on the RTAI backend\n");
+	warned = 1;
+    }
 }
 
 int rtapi_task_self(void)
@@ -1688,8 +1688,9 @@ unsigned char rtapi_inb(unsigned int port)
     return inb(port);
 }
 
-int rtapi_is_realtime() { return 1; }
-int rtapi_is_kernelspace() { return 1; }
+int rtapi_is_realtime(void) { return 1; }
+rtapi_realtime_type_t rtapi_get_realtime_type(void){ return REALTIME_TYPE_RTAI; }
+int rtapi_is_kernelspace(void) { return 1; }
 
 /* starting with kernel 2.6, symbols that are used by other modules
    _must_ be explicitly exported.  2.4 and earlier kernels exported
@@ -1713,7 +1714,6 @@ EXPORT_SYMBOL(rtapi_set_msg_handler);
 EXPORT_SYMBOL(rtapi_get_msg_handler);
 EXPORT_SYMBOL(rtapi_clock_set_period);
 EXPORT_SYMBOL(rtapi_get_time);
-EXPORT_SYMBOL(rtapi_get_clocks);
 EXPORT_SYMBOL(rtapi_delay);
 EXPORT_SYMBOL(rtapi_delay_max);
 EXPORT_SYMBOL(rtapi_prio_highest);
@@ -1727,6 +1727,7 @@ EXPORT_SYMBOL(rtapi_wait);
 EXPORT_SYMBOL(rtapi_task_resume);
 EXPORT_SYMBOL(rtapi_task_pause);
 EXPORT_SYMBOL(rtapi_task_self);
+EXPORT_SYMBOL(rtapi_task_self_resync);
 EXPORT_SYMBOL(rtapi_shmem_new);
 EXPORT_SYMBOL(rtapi_shmem_delete);
 EXPORT_SYMBOL(rtapi_shmem_getptr);
@@ -1746,4 +1747,5 @@ EXPORT_SYMBOL(rtapi_disable_interrupt);
 EXPORT_SYMBOL(rtapi_outb);
 EXPORT_SYMBOL(rtapi_inb);
 EXPORT_SYMBOL(rtapi_is_realtime);
+EXPORT_SYMBOL(rtapi_get_realtime_type);
 EXPORT_SYMBOL(rtapi_is_kernelspace);

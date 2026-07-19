@@ -788,7 +788,7 @@ void g7x::pocket(int cycle, std::complex<double> location, iterator p,
 	if (p==std::prev(end()))
 	    return;
 
-	if(std::abs(imag(location)-x)>tolerance) {
+	if(std::abs(imag(location)-x)>tolerance || (*p)->ep()==location) {
 	    /* Our x coordinate is beyond the current segment, move onto
 	       the next
 	    */
@@ -1056,7 +1056,7 @@ int Interp::convert_g7x(int /*mode*/,
     auto exit_call_level=settings->call_level;
     CHP(read((std::string("O")+std::to_string(static_cast<int>(block->q_number))+" CALL").c_str()));
     for(;;) {
-	if(block->o_name!=0)
+	if(block->o_name!=NULL)
 	    CHP(convert_control_functions(block, settings));
 	if(settings->call_level==exit_call_level)
 	    break;

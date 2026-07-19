@@ -14,16 +14,8 @@
 #ifndef RCS_PRNT_HH
 #define RCS_PRNT_HH
 
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdarg.h>		/* va_list */
 
-#ifdef __cplusplus
-}
-#endif
 #ifdef __cplusplus
 class LinkedList;
 
@@ -135,7 +127,7 @@ extern "C" {
 #define PRINT_ALL_SOCKET_REQUESTS       0x10000000
 #define PRINT_EVERYTHING                0xFFFFFFFF	/* 4294967295 */
 #ifdef __cplusplus
-enum RCS_PRINT_DESTINATION_TYPE {
+enum RCS_PRINT_DESTINATION_TYPE : int {
 #else
 typedef enum {
 #endif

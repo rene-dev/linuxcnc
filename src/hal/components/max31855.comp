@@ -43,13 +43,13 @@ variable unsigned data_frame [15];
 variable unsigned state = 1;
 
 option period no;
-function bitbang_spi fp;
+function bitbang_spi;
 license "GPL";
 author "Joseph Calderon";
 
 ;;
 
-#include "rtapi_math.h"
+#include <rtapi_math.h>
 
 static float accpoly(float *v, size_t n, float p) {
   size_t i;

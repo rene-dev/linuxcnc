@@ -122,30 +122,30 @@ xhc-hb04.stepsize-down (bit in)::
 xhc-hb04.[xyza].pos-absolute (float in)::
   Absolute position display. The LCD display for pos-absolute is fixed
   format with a sign, 4 number digits and 3 fraction digits (+XXXX.XXX),
-  require: -9999.999 <= value <= 9999.999
+  require: -9999.999 \<= value \<= 9999.999
   (typically connect to: `halui.axis.N.pos-feedback`).
 xhc-hb04.[xyza].pos-relative (float in)::
   Relative position display (typically connect to:
   halui.axis.N.pos-relative). The LCD display for pos-relative is fixed
   format with a sign, 4 number digits and 3 fraction digits (+XXXX.XXX),
-  require: -9999.999 <= value <= 9999.999.
+  require: -9999.999 \<= value \<= 9999.999.
 xhc-hb04.feed-override (float in)::
   Feed-override value. The float value is converted to a 16 bit integer
-  and multiplied by 100 in order to display as percent, require: 0 <=
-  pinvalue <= 655 (typically connect to: `halui.feed-override.value`).
+  and multiplied by 100 in order to display as percent, require: 0 \<=
+  pinvalue \<= 655 (typically connect to: `halui.feed-override.value`).
 xhc-hb04.feed-value (float in)::
   Current Feed-value (units/sec). The float value is converted to a 16
   bit integer and multiplied by 60 in order to display as
-  units-per-minute, require: 0 <= pinvalue <= 1092 (65520 units-per-minute)
+  units-per-minute, require: 0 \<= pinvalue \<= 1092 (65520 units-per-minute)
   (typically connect to: `motion.current-vel`).
 xhc-hb04.spindle-override (float in)::
   Spindle-override value. The float value is converted to a 16 bit
   integer and multiplied by 100 in order to display as percent, require:
-  0 <= pinvalue <= 655) (typically connect to: `halui.spindle-override.value`).
+  0 \<= pinvalue \<= 655) (typically connect to: `halui.spindle-override.value`).
 xhc-hb04.spindle-rps (float in)::
   Spindle speed in RPS (revolutions per second).
   The float value is converted to a 16 bit integer and multiplied by 60
-  in order to display as RPMs, require: 0 <= pinvalue <= 1092 (65520 RPM)
+  in order to display as RPMs, require: 0 \<= pinvalue \<= 1092 (65520 RPM)
   (typically connect to: `spindle.N.speed-out-rps-abs`).
 xhc-hb04.inch-icon (bit in)::
   Use inch icon (default is mm):
@@ -269,17 +269,21 @@ a number of INI file settings. The script uses an additional HAL
 component (xhc_hb04_util) to provide common functionality and includes
 support for a standard method for the start-pause button.
 
-The settings available include: 1) specify button-cfg-file for standard
-layout1 or layout2 2) select axes (up to 4 axes from set of x y z a b c
-u v w) 3) implement per-axis filtering coefficients 4) implement
-per-axis acceleration for mpg jogging 5) implement per-axis scale
-settings 6) select normal or velocity based jog modes 7) select stepsize
-sequence 8) option to initialize pin for inch or mm display icon 9)
-option to require pendant on startup
+The settings available include:
+ * Specify button-cfg-file for standard layout1 or layout2,
+ * select axes (up to 4 axes from set of x y z a b c u v w),
+ * implement per-axis filtering coefficients,
+ * implement per-axis acceleration for mpg jogging,
+ * implement per-axis scale settings,
+ * select normal or velocity based jog modes,
+ * select stepsize sequence,
+ * option to initialize pin for inch or mm display icon,
+ * option to require pendant on startup.
 
-The sim configs illustrate button connections that: 1) connect pendant
-stepsize-up button to the step input pin. 2) connect buttons to halui.*
-pins 3) connect buttons to motion.* pins
+The sim configs illustrate button connections that:
+ * Connect pendant stepsize-up button to the step input pin,
+ * connect buttons to halui.* pins,
+ * connect buttons to motion.* pins.
 
 Another script is included to monitor the pendant and report loss of USB connectivity.
 See the README and .txt files in the above directory for usage.
@@ -294,9 +298,9 @@ included in README file in the directory named above.
 Use halcmd to display the pins and signals used by the xhc-hb04.tcl script:
 
 ....
-  halcmd show pin xhc-hb04       (show all xhc-hb04 pins)
-  halcmd show pin pendant_util   (show all pendant_util pins)
-  halcmd show sig pendant:       (show all pendant signals)
+halcmd show pin xhc-hb04       (show all xhc-hb04 pins)
+halcmd show pin pendant_util   (show all pendant_util pins)
+halcmd show sig pendant:       (show all pendant signals)
 ....
 
 == AUTHOR

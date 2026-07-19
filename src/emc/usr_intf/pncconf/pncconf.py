@@ -59,6 +59,7 @@ from pncconf import data
 from pncconf import private_data
 import cairo
 import hal
+import lcnc_realtime
 #import mesatest
 try:
     LINUXCNCVERSION = os.environ['LINUXCNCVERSION']
@@ -246,6 +247,8 @@ class App:
                         self.widgets.useinisubstitution.set_active(eval(text))
                     elif name == "show_advanced_pages":
                         show_pages = eval(text)
+                    elif name == "dont_show_again":
+                        self.d._dont_show_again = eval(text)
                     elif name == "machinename":
                         self.d._lastconfigname = text
                     elif name == "chooselastconfig":
@@ -650,7 +653,7 @@ class App:
     # check for realtime kernel
     def check_for_rt(self):
         actual_kernel = os.uname()[2]
-        if hal.is_sim :
+        if not lcnc_realtime.verify():
             self.warning_dialog(self._p.MESS_NO_REALTIME,True)
             if self.debugstate:
                 return True
@@ -676,12 +679,34 @@ class App:
                 self._p.MESA_BOARDNAMES.append(folder)
         else:
             #TODO what if there are no external firmware is this enough?
-            self.warning_dialog(_("""Some older cards require firmware.
+
+            if not self.d._dont_show_again:
+                dialog = Gtk.MessageDialog(
+                    parent=self.widgets.window1,
+                    modal=True,
+                    destroy_with_parent=True,
+                    message_type=Gtk.MessageType.WARNING,
+                    buttons=Gtk.ButtonsType.OK,
+                    text=_("""Some older cards require firmware.
 You have no hostmot2 firmware downloaded in folder:
 %s
 PNCconf will use It's internal firmware data samples so you can continue.
 You could also try the discovery option if your card is connected and doesn't require firmware to be loaded at run time.
-Discovery option requires the advanced options checked on this page."""%self._p.FIRMDIR),True)
+Discovery option requires the advanced options checked on this page."""%self._p.FIRMDIR))
+
+                checkbox = Gtk.CheckButton.new_with_label(_("Don't show this again"))
+                checkbox.set_halign(Gtk.Align.START)
+
+                dialog.get_content_area().pack_end(checkbox, False, False, 0)
+                checkbox.show_all()
+
+                dialog.show_all()
+                dialog.run()
+                dialog.destroy()
+
+                if checkbox.get_active():
+                    self.d._dont_show_again = True
+
         for firmware in self._p.MESA_INTERNAL_FIRMWAREDATA:
             if 'internal' in firmware[0].lower():
                 if firmware[0] in self._p.MESA_BOARDNAMES:
@@ -4877,7 +4902,7 @@ Clicking 'existing custom program' will avoid this warning. "),False):
 
                 encoder_cpr = get_value(w[("encoderline")]) * 4
                 encoder_scale = (encoder_pulley_ratio * encoder_worm_ratio * encoder_pitch * encoder_cpr) / rotary_scale
-                w["calcencoder_scale"].set_text(locale.format("%.4f", (encoder_scale)))
+                w["calcencoder_scale"].set_text(locale.format_string("%.4f", (encoder_scale)))
             else:
                 w["calcencoder_scale"].set_sensitive(False)
                 w["encoderscaleframe"].set_sensitive(False)
@@ -5636,7 +5661,7 @@ Clicking 'existing custom program' will avoid this warning. "),False):
                         return "%s."% (make_name(boardname,halboardnum)) + "outm.00.out-%02d"% (compnum)
                     elif ptype == _PD.INM0:
                         compnum -= 100
-                        if boardname in ("7i95t"):
+                        if boardname in ("7i95t", "7i97t"):
                             return "%s."% (make_name(boardname,halboardnum)) + "inmux.00.input-%02d"% (compnum)
                         else:
                             return "%s."% (make_name(boardname,halboardnum)) + "inm.00.input-%02d"% (compnum)

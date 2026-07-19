@@ -18,7 +18,7 @@
 #define RS274NGC_INTERP_H
 #include "rs274ngc.hh"
 #include "interp_internal.hh"
-#include "interp_return.hh"
+#include "nml_intf/interp_return.hh"
 
 class Interp : public InterpBase {
 
@@ -360,7 +360,7 @@ public:
  int cycle_traverse(block_pointer block, CANON_PLANE plane, double end1, double end2,
                           double end3);
  int enhance_block(block_pointer block, setup_pointer settings);
- int _execute(const char *command = 0);
+ int _execute(const char *command = NULL);
  int execute_binary(double *left, int operation, double *right);
  int execute_binary1(double *left, int operation, double *right);
  int execute_binary2(double *left, int operation, double *right);
@@ -522,6 +522,7 @@ int read_dollar(char *line, int *counter, block_pointer block,
  int read_z(char *line, int *counter, block_pointer block,
                   double *parameters);
  int refresh_actual_position(setup_pointer settings);
+ void get_abs_position(setup_pointer settings, double abs_pos[9]);
  void rotate(double *x, double *y, double t);
  int set_probe_data(setup_pointer settings);
  int write_g_codes(block_pointer block, setup_pointer settings);
@@ -657,6 +658,10 @@ int read_inputs(setup_pointer settings);
  void doLog(unsigned int flags, const char *file, int line,
 	    const char *fmt, ...) __attribute__((format(printf,5,6)));
 
+ /* State Tags Helpers */
+ int tag_straight(block_pointer block, double x, double y);
+ int tag_arc(block_pointer block, double x, double y, double z, double center_x, double center_y, double center_z, int move, CANON_PLANE plane);
+       
  const char *interp_status(int status);
 
     //technically this violates encapsulation rules but is needed for

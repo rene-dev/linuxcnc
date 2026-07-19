@@ -1,4 +1,5 @@
 //    Copyright 2015 Jeff Epler
+//    Copyright 2026 B.Stultiens
 //
 //    This program is free software; you can redistribute it and/or modify
 //    it under the terms of the GNU General Public License as published by
@@ -13,38 +14,68 @@
 //    You should have received a copy of the GNU General Public License
 //    along with this program; if not, write to the Free Software
 //    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-#ifndef RTAPI_ATOMIC_H
-#define RTAPI_ATOMIC_H
+#ifndef __LINUXCNC_RTAPI_ATOMIC_H
+#define __LINUXCNC_RTAPI_ATOMIC_H
 
-#if defined(__GNUC__) && ((__GNUC__ << 8) | __GNUC_MINOR__) >= 0x409
+#if defined(__cplusplus)
+
+// We use C++20 and that has all the atomics we need
+#include <atomic>
+
+#else // defined(__cplusplus)
+
+// Standard C, we require C11 or better
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 #define RTAPI_USE_STDATOMIC
-#elif defined(__STDC_VERSION__) && __STDC_VERSION > 201112L
+#elif defined(__GNUC__) && ((__GNUC__ << 8) | __GNUC_MINOR__) >= 0x409
 #define RTAPI_USE_STDATOMIC
 #endif
 
-#ifdef RTAPI_USE_STDATOMIC
+#if defined(RTAPI_USE_STDATOMIC)
 #include <stdatomic.h>
+
+#if defined(__STDC_NO_ATOMICS__)
+#error "Your compiler/libc has set __STDC_NO_ATOMICS__ and atomics are required."
+#endif
+
+#else // defined(RTAPI_USE_STDATOMIC)
+
+#error "Old compiler has no C11 atomics. Please upgrade your compiler to support C11 or better."
+
+#endif // defined(RTAPI_USE_STDATOMIC)
+
+#endif // defined(__cplusplus)
+
+/* Prefixed aliases for the C11 atomic typedefs. C++ pre-C++23 does not
+   expose the unqualified <stdatomic.h> typedefs at global scope, so use
+   these names when declaring atomic fields in headers shared between C
+   and C++ translation units. */
+#if defined(__cplusplus)
+typedef std::atomic_bool   rtapi_atomic_bool;
+typedef std::atomic_char   rtapi_atomic_char;
+typedef std::atomic_schar  rtapi_atomic_schar;
+typedef std::atomic_uchar  rtapi_atomic_uchar;
+typedef std::atomic_short  rtapi_atomic_short;
+typedef std::atomic_ushort rtapi_atomic_ushort;
+typedef std::atomic_int    rtapi_atomic_int;
+typedef std::atomic_uint   rtapi_atomic_uint;
+typedef std::atomic_long   rtapi_atomic_long;
+typedef std::atomic_ulong  rtapi_atomic_ulong;
+typedef std::atomic_llong  rtapi_atomic_llong;
+typedef std::atomic_ullong rtapi_atomic_ullong;
 #else
-
-enum memory_order {
-    memory_order_relaxed,
-    memory_order_consume,
-    memory_order_acquire,
-    memory_order_release,
-    memory_order_acq_rel,
-    memory_order_seq_cst
-};
-
-#define atomic_store(obj, desired) atomic_store_explicit((obj), (desired), memory_order_seq_cst)
-#define atomic_load(obj) atomic_load_explicit((obj), memory_order_seq_cst)
-
-// note that in this implementation, only one level of synchronization is supported, equivalent to memory_order_seq_cst
-#define atomic_store_explicit(obj, desired, order) \
-    ({ (void)order; __sync_synchronize(); *(obj) = (desired); (void)0; })
-
-#define atomic_load_explicit(obj, order) \
-    ({ (void)order; __typeof__(*(obj)) v = *(obj); __sync_synchronize(); v; })
-
+typedef atomic_bool   rtapi_atomic_bool;
+typedef atomic_char   rtapi_atomic_char;
+typedef atomic_schar  rtapi_atomic_schar;
+typedef atomic_uchar  rtapi_atomic_uchar;
+typedef atomic_short  rtapi_atomic_short;
+typedef atomic_ushort rtapi_atomic_ushort;
+typedef atomic_int    rtapi_atomic_int;
+typedef atomic_uint   rtapi_atomic_uint;
+typedef atomic_long   rtapi_atomic_long;
+typedef atomic_ulong  rtapi_atomic_ulong;
+typedef atomic_llong  rtapi_atomic_llong;
+typedef atomic_ullong rtapi_atomic_ullong;
 #endif
 
 #endif

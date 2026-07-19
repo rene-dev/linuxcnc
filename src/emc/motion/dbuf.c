@@ -19,8 +19,8 @@
 #else
 #include <stdlib.h>
 #endif
-#include "rtapi_string.h"
-#include "rtapi_errno.h"
+#include <rtapi_string.h>
+#include <rtapi_errno.h>
 #include "dbuf.h"
 
 typedef struct dbuf dbuf;
@@ -187,7 +187,7 @@ int dbuf_get_string(dbuf_iter *di, const char **s) {
     // NUL, but let's be safe and not return a string if there's no terminated
     // string in the dbuf
     if(ch != 0) {
-        *s = 0;
+        *s = NULL;
         return -EAGAIN;
     }
 

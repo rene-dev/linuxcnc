@@ -31,11 +31,11 @@
 * Last change:
 ********************************************************************/
 
-#include <saicanon.hh>
-#include "tooldata.hh"
+#include "saicanon.hh"
+#include "tooldata/tooldata.hh"
 
-#include "rs274ngc.hh"
-#include "rs274ngc_interp.hh"
+#include "rs274ngc/rs274ngc.hh"
+#include "rs274ngc/rs274ngc_interp.hh"
 #include <math.h>
 #include <string.h>
 #include <stdarg.h>
@@ -485,7 +485,7 @@ void SET_SPINDLE_SPEED(int spindle, double rpm)
   _sai._spindle_speed[spindle] = rpm;
 }
 
-void STOP_SPINDLE_TURNING(int spindle)
+void STOP_SPINDLE_TURNING(int spindle, int /*wait_for_atspeed*/)
 {
   PRINT("STOP_SPINDLE_TURNING(%i)\n", spindle);
   _sai._spindle_turning[spindle] = CANON_STOPPED;
@@ -784,7 +784,7 @@ void GET_EXTERNAL_PARAMETER_FILE_NAME(
  int max_size)           /* maximum number of characters to copy */
 {
     // Paranoid checks
-    if (0 == file_name)
+    if (NULL == file_name)
 	return;
 
     if (max_size < 0)
@@ -971,7 +971,7 @@ double GET_EXTERNAL_TRAVERSE_RATE()
   return _sai._traverse_rate;
 }
 
-USER_DEFINED_FUNCTION_TYPE USER_DEFINED_FUNCTION[USER_DEFINED_FUNCTION_NUM] = {0};
+USER_DEFINED_FUNCTION_TYPE USER_DEFINED_FUNCTION[USER_DEFINED_FUNCTION_NUM] = {NULL};
 
 int USER_DEFINED_FUNCTION_ADD(USER_DEFINED_FUNCTION_TYPE func, int num)
 {
@@ -1111,7 +1111,7 @@ void CANON_ERROR(const char *fmt, ...)
 	va_start(ap, fmt);
 	char *err;
 	int res = vasprintf(&err, fmt, ap);
-	if(res < 0) err = 0;
+	if(res < 0) err = NULL;
 	va_end(ap);
 	if(err)
 	{

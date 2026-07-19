@@ -8,14 +8,18 @@ import hal
 import signal
 import subprocess
 
+
+if '--force_pyqt=6' in sys.argv:
+    os.environ["QT_API"] = "pyqt6"
+
 from optparse import Option, OptionParser
-from PyQt5 import QtWidgets, QtCore, QtGui
+from qtpy import QtWidgets, QtCore, QtGui
 
 try:
-    from PyQt5.QtWebEngineWidgets import QWebEngineView as QWebView
+    from qtpy.QtWebEngineWidgets import QWebEngineView as QWebView
 except:
     try:
-        from PyQt5.QtWebKitWidgets import QWebView
+        from qtpy.QtWebKitWidgets import QWebView
     except:
         print('Qtvcp Error with loading webView - is python3-pyqt5.qtwebengine installed?')
 
@@ -51,12 +55,14 @@ use -g WIDTHxHEIGHT for just setting size or -g +XOFFSET+YOFFSET for just positi
           , Option( '-u', dest='usermod', default="", help='file path of user defined handler file')
           , Option( '-o', dest='useropts', action='append', metavar='USEROPTS', default=[]
                   , help='pass USEROPTS strings to handler under self.w.USEROPTIONS_ list variable')
+          , Option( '--force_pyqt', dest='force_version', default="5"
+                  , help="You can force PyQt version 5 or 6 as available")
           ]
 
-from PyQt5.QtCore import QObject, QEvent, pyqtSignal
+from qtpy.QtCore import QObject, QEvent, Signal
 
 class inputFocusFilter(QObject):
-    focusIn = pyqtSignal(object)
+    focusIn = Signal(object)
 
     def eventFilter(self, widget, event):
         if event.type() == QEvent.FocusIn and not isinstance(widget,QtWidgets.QCommonStyle):
@@ -107,6 +113,23 @@ class QTVCP:
         # initialize QApp so we can pop up dialogs now.
         global APP
         APP = MyApplication(sys.argv)
+
+        # Install signal handlers before the slow screen construction. SIGINT's
+        # default handler raises KeyboardInterrupt, so an interrupt mid-build
+        # would otherwise be an unhandled exception. Before the loop runs
+        # APP.quit() is a no-op, so exit cleanly instead.
+        self._loop_running = False
+        def _handle_quit_signal(signum, frame):
+            if self._loop_running:
+                APP.quit()
+            else:
+                try:
+                    self.shutdown()
+                except Exception:
+                    pass
+                os._exit(0)
+        signal.signal(signal.SIGTERM, _handle_quit_signal)
+        signal.signal(signal.SIGINT, _handle_quit_signal)
 
         # a specific path has been set to load from or...
         # no path set but -ini is present: default qtvcp screen...or
@@ -171,6 +194,7 @@ class QTVCP:
         #################
         if SCRN_INIPATH:
             LOG.info('green<Building A LinuxCNC Main Screen with: {}>'.format(ver))
+            LOG.info('green<Qt version: {}>'.format(QtCore.qVersion()))
             import linuxcnc
             # pull info from the INI file
             self.inifile = linuxcnc.ini(SCRN_INIPATH)
@@ -440,9 +464,11 @@ Pressing cancel will close linuxcnc.""" % target)
             if (INITITLE !=''):
                 window.setWindowTitle(INITITLE)
 
-        # catch control c and terminate signals
-        signal.signal(signal.SIGTERM, self.shutdown)
-        signal.signal(signal.SIGINT, self.shutdown)
+        # Handlers were installed above. Qt's C++ event loop rarely returns to
+        # Python, so a periodic no-op timer yields to let them fire.
+        self._signal_timer = QtCore.QTimer()
+        self._signal_timer.timeout.connect(lambda: None)
+        self._signal_timer.start(200)
 
         # check for handler file and if it has 'before_loop' function in
         # ineach screen/embedded panel. (screen should be last)
@@ -460,7 +486,9 @@ Pressing cancel will close linuxcnc.""" % target)
 
         # start loop
         global _app
+        self._loop_running = True
         _app = APP.exec()
+        self._loop_running = False
         self.shutdown()
 
     # finds the postgui file name and INI file path
@@ -516,6 +544,11 @@ Pressing cancel will close linuxcnc.""" % target)
         LOG.debug('Exiting HAL')
         if not HAL is None:
             try:
+                # Stop the QPin polling timer before hal_exit; otherwise its
+                # next tick dereferences pin->u after hal_exit has unmapped
+                # HAL shmem, causing SIGSEGV on glibc 2.39 (Ubuntu 24.04).
+                from qtvcp.qt_halobjects import QPin
+                QPin.update_stop()
                 HAL.exit()
             except Exception as e:
                 print(e)
@@ -556,6 +589,8 @@ Pressing cancel will close linuxcnc.""" % target)
             if retval == QtWidgets.QMessageBox.Abort: #cancel button
                 LOG.critical("Aborted from Error Dialog\n {}\n{}\n".format(self._message,''.join(lines)))
                 self.shutdown()
+                global APP
+                APP.quit()
             else:
                 ERROR_COUNT = 0
                 LOG.critical("Retry from Error Dialog\n {}\n{}\n".format(self._message,''.join(lines)))

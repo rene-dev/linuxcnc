@@ -46,6 +46,7 @@
 RTAPI_BEGIN_DECLS
 
 extern int do_addf_cmd(char *funct, char *thread, char *tokens[]);
+extern int do_initf_cmd(char *funct, char *thread, char *tokens[]);
 extern int do_alias_cmd(char *pinparam, char *name, char *alias);
 extern int do_unalias_cmd(char *pinparam, char *name);
 extern int do_delf_cmd(char *funct, char *thread);

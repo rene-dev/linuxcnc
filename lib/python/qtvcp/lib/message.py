@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QColor
+from qtpy.QtWidgets import *
+from qtpy.QtCore import Qt
+from qtpy.QtGui import QColor
 from qtvcp.core import Status, Info
 from qtvcp.widgets.dialog_widget import LcncDialog
 import hal
@@ -251,7 +251,7 @@ class Message:
 
 if __name__ == '__main__':
     import sys
-    from PyQt5.QtCore import *
+    from qtpy.QtCore import *
 
     def callreturn(dialog, btn, pinname):
         result = dialog.qualifiedReturn(btn)
@@ -295,4 +295,4 @@ if __name__ == '__main__':
     w.setWindowTitle("PyQt Dialog demo")
     w.setGeometry(300, 300, 300, 150)
     w.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

@@ -10,15 +10,16 @@
 ********************************************************************/
 
 #include <stdarg.h>
-#include "rtapi.h"		/* RTAPI realtime OS API */
-#include "rtapi_app.h"		/* RTAPI realtime module decls */
-#include "rtapi_string.h"       /* memset */
-#include "hal.h"		/* decls for HAL implementation */
+#include <rtapi.h>		/* RTAPI realtime OS API */
+#include <rtapi_app.h>		/* RTAPI realtime module decls */
+#include <rtapi_string.h>       /* memset */
+#include <rtapi_math.h>
+#include <hal.h>		/* decls for HAL implementation */
+
+#include "../tp/tp.h"
 #include "motion.h"
 #include "motion_struct.h"
 #include "mot_priv.h"
-#include "tp.h"
-#include "rtapi_math.h"
 #include "homing.h"
 #include "axis.h"
 
@@ -195,29 +196,70 @@ void emcmot_config_change(void)
     }
 }
 
+static rtapi_msg_handler_t old_handler = NULL;
+
 void reportError(const char *fmt, ...)
 {
     va_list args;
 
     va_start(args, fmt);
+
+    //Report trough emcmotError() so they are shown
+    //in the gui in the configured language.
     emcmotErrorPutfv(emcmotError, fmt, args);
+
     va_end(args);
+
+
+    //Report trough the old_handler which is typically
+    //the rtapi handler. These messages are shown on the console.
+    if(old_handler){
+        //We must add a \n due to reportError() strings normally
+        //don't have a newline at the end but rtapi_print() strings
+        //need one.
+        char fmt_tmp[EMCMOT_ERROR_LEN];
+        size_t fmt_len = strlen(fmt);
+        //Manually check string length and truncate if it is to long
+        if(fmt_len < EMCMOT_ERROR_LEN-1){
+            memcpy(fmt_tmp, fmt, fmt_len);
+            fmt_tmp[fmt_len+0] = '\n';
+            fmt_tmp[fmt_len+1] = '\0';
+        }else{
+            memcpy(fmt_tmp, fmt, EMCMOT_ERROR_LEN-2);
+            fmt_tmp[EMCMOT_ERROR_LEN-2] = '\n';
+            fmt_tmp[EMCMOT_ERROR_LEN-1] = '\0';
+        }
+
+        va_start(args, fmt);
+        old_handler(RTAPI_MSG_ERR, fmt_tmp, args);
+        va_end(args);
+    }
 }
 
 #ifndef va_copy
 #define va_copy(dest, src) ((dest)=(src))
 #endif
 
-static rtapi_msg_handler_t old_handler = NULL;
 static void emc_message_handler(msg_level_t level, const char *fmt, va_list ap)
 {
     va_list apc;
     // False positive. Cppcheck does not seem to know the properties of va_copy()
     // cppcheck-suppress va_list_usedBeforeStarted
     va_copy(apc, ap);
-    // cppcheck-suppress va_list_usedBeforeStarted
-    if(level == RTAPI_MSG_ERR) emcmotErrorPutfv(emcmotError, fmt, apc);
-    if(old_handler) old_handler(level, fmt, ap);
+
+    //Report errors trough emcmotError() so they are shown
+    //in the gui in the configured language.
+    if(level == RTAPI_MSG_ERR){
+        // cppcheck-suppress va_list_usedBeforeStarted
+        emcmotErrorPutfv(emcmotError, fmt, apc);
+    }
+
+    //Report everything trough the old_handler which is typically
+    //the rtapi handler. These messages are shown on the console.
+    if(old_handler){
+        old_handler(level, fmt, ap);
+    }
+
     // cppcheck-suppress va_list_usedBeforeStarted
     va_end(apc);
 }
@@ -550,6 +592,20 @@ static int init_hal_io(void)
     CALL_CHECK(hal_pin_s32_newf(HAL_OUT, &(emcmot_hal_data->program_line), mot_comp_id, "motion.program-line"));
     CALL_CHECK(hal_pin_bit_newf(HAL_OUT, &(emcmot_hal_data->jog_is_active), mot_comp_id, "motion.jog-is-active"));
 
+    /* Standard Interp State Pins */
+    CALL_CHECK(hal_pin_s32_newf(HAL_OUT, &(emcmot_hal_data->interp_line_number), mot_comp_id, "motion.interp.line-number"));
+    CALL_CHECK(hal_pin_s32_newf(HAL_OUT, &(emcmot_hal_data->interp_motion_type), mot_comp_id, "motion.interp.motion-type"));
+    CALL_CHECK(hal_pin_float_newf(HAL_OUT, &(emcmot_hal_data->interp_feedrate), mot_comp_id, "motion.interp.feedrate"));
+
+    /* New Geometric Metadata Pins */
+    CALL_CHECK(hal_pin_float_newf(HAL_OUT, &(emcmot_hal_data->interp_arc_radius), mot_comp_id, "motion.interp.arc-radius"));
+    CALL_CHECK(hal_pin_float_newf(HAL_OUT, &(emcmot_hal_data->interp_arc_center_x), mot_comp_id, "motion.interp.arc-center-x"));
+    CALL_CHECK(hal_pin_float_newf(HAL_OUT, &(emcmot_hal_data->interp_arc_center_y), mot_comp_id, "motion.interp.arc-center-y"));
+    CALL_CHECK(hal_pin_float_newf(HAL_OUT, &(emcmot_hal_data->interp_arc_center_z), mot_comp_id, "motion.interp.arc-center-z"));
+    CALL_CHECK(hal_pin_float_newf(HAL_OUT, &(emcmot_hal_data->interp_straight_heading), mot_comp_id, "motion.interp.heading"));
+    CALL_CHECK(hal_pin_float_newf(HAL_OUT, &(emcmot_hal_data->interp_normal_heading), mot_comp_id, "motion.interp.normal-heading"));
+    CALL_CHECK(hal_pin_bit_newf(HAL_OUT, &emcmot_hal_data->iscircle, mot_comp_id, "motion.interp.iscircle"));
+
     /* export debug parameters */
     /* these can be used to view any internal variable, simply change a line
        in control.c:output_to_hal() and recompile */
@@ -578,9 +634,6 @@ static int init_hal_io(void)
 
     // export timing related HAL pins so they can be scoped and/or connected
     CALL_CHECK(hal_pin_u32_newf(HAL_OUT, &(emcmot_hal_data->last_period), mot_comp_id, "motion.servo.last-period"));
-#ifdef HAVE_CPU_KHZ
-    CALL_CHECK(hal_pin_float_newf(HAL_OUT, &(emcmot_hal_data->last_period_ns), mot_comp_id, "motion.servo.last-period-ns"));
-#endif
 
     // export timing related HAL pins so they can be scoped
     CALL_CHECK(hal_pin_float_newf(HAL_OUT, &(emcmot_hal_data->tooloffset_x), mot_comp_id, "motion.tooloffset.x"));
@@ -723,6 +776,8 @@ static int export_spindle(int num, spindle_hal_t * addr){
     if ((retval = hal_pin_float_newf(HAL_IN, &(addr->spindle_revs), mot_comp_id, "spindle.%d.revs", num)) != 0) return retval;
     if ((retval = hal_pin_float_newf(HAL_IN, &(addr->spindle_speed_in), mot_comp_id, "spindle.%d.speed-in", num)) != 0) return retval;
     if ((retval = hal_pin_bit_newf(HAL_IN, &(addr->spindle_is_atspeed), mot_comp_id, "spindle.%d.at-speed", num)) != 0) return retval;
+    /* Default 1: an unwired at-speed pin must never block motion. Do not
+       change to 0 or machines without at-speed wired would idle forever. */
     *(addr->spindle_is_atspeed) = 1;
     /* restore saved message level */
     rtapi_set_msg_level(msg);
@@ -757,6 +812,7 @@ static int export_joint(int num, joint_hal_t * addr)
     if ((retval = hal_pin_bit_newf(HAL_IN,   &(addr->jjog_vel_mode), mot_comp_id, "joint.%d.jog-vel-mode", num)) != 0) return retval;
     if ((retval = hal_pin_float_newf(HAL_OUT, &(addr->joint_vel_cmd), mot_comp_id, "joint.%d.vel-cmd", num)) != 0) return retval;
     if ((retval = hal_pin_float_newf(HAL_OUT, &(addr->joint_acc_cmd), mot_comp_id, "joint.%d.acc-cmd", num)) != 0) return retval;
+    if ((retval = hal_pin_float_newf(HAL_OUT, &(addr->joint_jerk_cmd), mot_comp_id, "joint.%d.jerk-cmd", num)) != 0) return retval;
     if ((retval = hal_pin_float_newf(HAL_OUT, &(addr->backlash_corr), mot_comp_id, "joint.%d.backlash-corr", num)) != 0) return retval;
     if ((retval = hal_pin_float_newf(HAL_OUT, &(addr->backlash_filt), mot_comp_id, "joint.%d.backlash-filt", num)) != 0) return retval;
     if ((retval = hal_pin_float_newf(HAL_OUT, &(addr->backlash_vel), mot_comp_id, "joint.%d.backlash-vel", num)) != 0) return retval;
@@ -918,6 +974,7 @@ static int init_comm_buffers(void)
 	joint->min_pos_limit = -1.0;
 	joint->vel_limit = 1.0;
 	joint->acc_limit = 1.0;
+    joint->jerk_limit = 1.0;
 	joint->min_ferror = 0.01;
 	joint->max_ferror = 1.0;
 	joint->backlash = 0.0;

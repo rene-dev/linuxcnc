@@ -26,10 +26,12 @@
 *    kinematicsSwitchable()
 *  Using modules must supply function: switchkinsSetup()
 */
-#include "motion.h"
-#include "hal.h"
-#include "rtapi_app.h"
-#include "kinematics.h"
+#include <rtapi.h>
+#include <rtapi_app.h>
+#include <hal.h>
+#include <emcmotcfg.h>
+#include <kinematics.h>
+
 #include "switchkins.h"
 
 //*********************************************************************
@@ -100,7 +102,7 @@ static int gui_forward_kins(const double *joints)
     // genhexkins and identity kinematic types
     // (similar needs for many parallel kinemtic machines)
     int res;
-    KINEMATICS_FORWARD_FLAGS  fflags;
+    KINEMATICS_FORWARD_FLAGS  fflags = 0;
     KINEMATICS_INVERSE_FLAGS  iflags;
     switch (kp.gui_kinstype) {
         case 0: res = kfwd0(joints, &lastpose[0], &fflags, &iflags);break;

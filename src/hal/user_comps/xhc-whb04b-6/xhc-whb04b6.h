@@ -42,9 +42,6 @@ public:
     virtual ~XhcWhb04b6Component();
     void process();
     void teardownUsb();
-    void setUsbContext(libusb_context* context);
-    libusb_device_handle* getUsbDeviceHandle();
-    libusb_context* getUsbContext();
     //! \return the name as specified to \ref XhcWhb04b6Component
     const char* getName() const;
     //! \return the name as specified to \ref Hal
@@ -54,7 +51,6 @@ public:
     void initWhb();
     void initHal();
     void teardownHal();
-    bool enableReceiveAsyncTransfer();
     void updateDisplay();
     void linuxcncSimulate();
     void requestTermination(int signal = -42);
@@ -74,6 +70,7 @@ public:
     void setLeadModeSpindle(bool enable);
     void setLeadModeFeed(bool enable);
     void setStepMode_5_10(bool enable);
+    void setUsbProductId(uint16_t usbProductId);
 
 private:
     const char* mName;

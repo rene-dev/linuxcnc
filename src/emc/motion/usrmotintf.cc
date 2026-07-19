@@ -13,60 +13,64 @@
 * Copyright (c) 2004 All rights reserved.
 ********************************************************************/
 
-#include "emc/linuxcnc.h"     	/* LINELEN definition */
 #include <stdlib.h>		/* exit() */
 #include <sys/stat.h>
 #include <string.h>		/* memcpy() */
 #include <float.h>		/* DBL_MIN */
+#include <rtapi.h>
+#include <linuxcnc.h>     	/* LINELEN definition */
+#include <emcmotcfg.h>		/* EMCMOT_ERROR_NUM,LEN */
+
 #include "motion.h"		/* emcmot_status_t,CMD */
 #include "motion_struct.h"      /* emcmot_struct_t */
-#include "emcmotcfg.h"		/* EMCMOT_ERROR_NUM,LEN */
 #include "emcmotglb.h"		/* SHMEM_KEY */
 #include "usrmotintf.h"		/* these decls */
-#include "_timer.h"
-#include "rcs_print.hh"
+#include "libnml/os_intf/_timer.h"
+#include "libnml/rcs/rcs_print.hh"
 
-#include "inifile.hh"
+#include <inifile.hh>
 
 #define READ_TIMEOUT_SEC 0	/* seconds for timeout */
 #define READ_TIMEOUT_USEC 100000	/* microseconds for timeout */
 
-#include "rtapi.h"
-
 #include "dbuf.h"
 #include "stashf.h"
 
+using namespace linuxcnc;
+
 static int inited = 0;		/* flag if inited */
 
-static emcmot_command_t *emcmotCommand = 0;
-static emcmot_status_t *emcmotStatus = 0;
-static emcmot_config_t *emcmotConfig = 0;
-static emcmot_internal_t *emcmotInternal = 0;
-static emcmot_error_t *emcmotError = 0;
-static emcmot_struct_t *emcmotStruct = 0;
+static emcmot_command_t *emcmotCommand = NULL;
+static emcmot_status_t *emcmotStatus = NULL;
+static emcmot_config_t *emcmotConfig = NULL;
+static emcmot_internal_t *emcmotInternal = NULL;
+static emcmot_error_t *emcmotError = NULL;
+static emcmot_struct_t *emcmotStruct = NULL;
 
 /* usrmotIniLoad() loads params (SHMEM_KEY, COMM_TIMEOUT)
    from named INI file */
 int usrmotIniLoad(const char *filename)
 {
-    IniFile inifile(IniFile::ERR_CONVERSION);   // Enable exception.
+    IniFile inifile(filename);
 
-    /* open it */
-    if (!inifile.Open(filename)) {
-	rtapi_print("can't find emcmot INI file %s\n", filename);
-	return -1;
+    if (!inifile) {
+        return -1;
     }
 
-    try {
-        inifile.Find((int *)&SHMEM_KEY, "SHMEM_KEY", "EMCMOT");
-        inifile.Find(&EMCMOT_COMM_TIMEOUT, "COMM_TIMEOUT", "EMCMOT");
+    if (inifile.isSet("SHMEM_KEY", "EMCMOT")) {
+        if (auto inival = inifile.findUInt("SHMEM_KEY", "EMCMOT")) {
+            SHMEM_KEY = *inival;
+        } else {
+            rcs_print("USRMOT: ERROR: Invalid [EMCMOT]SHMEM_KEY\n");
+        }
     }
-
-    catch(IniFile::Exception &e){
-        e.Print();
-	return -1;
+    if (inifile.isSet("COMM_TIMEOUT", "EMCMOT")) {
+        if (auto inival = inifile.findReal("COMM_TIMEOUT", "EMCMOT")) {
+            EMCMOT_COMM_TIMEOUT = *inival;
+        } else {
+            rcs_print("USRMOT: ERROR: Invalid [EMCMOT]COMM_TIMEOUT\n");
+        }
     }
-
     return 0;
 }
 
@@ -85,7 +89,7 @@ int usrmotWriteEmcmotCommand(emcmot_command_t * c)
     c->commandNum = ++commandNum;
 
     /* check for mapped mem still around */
-    if (0 == emcmotCommand) {
+    if (NULL == emcmotCommand) {
         rcs_print("USRMOT: ERROR: can't connect to shared memory\n");
 	return EMCMOT_COMM_ERROR_CONNECT;
     }
@@ -122,7 +126,7 @@ int usrmotReadEmcmotStatus(emcmot_status_t * s)
     int split_read_count;
 
     /* check for shmem still around */
-    if (0 == emcmotStatus) {
+    if (NULL == emcmotStatus) {
 	return EMCMOT_COMM_ERROR_CONNECT;
     }
     split_read_count = 0;
@@ -148,7 +152,7 @@ int usrmotReadEmcmotConfig(emcmot_config_t * s)
     int split_read_count;
 
     /* check for shmem still around */
-    if (0 == emcmotConfig) {
+    if (NULL == emcmotConfig) {
 	return EMCMOT_COMM_ERROR_CONNECT;
     }
     split_read_count = 0;
@@ -173,7 +177,7 @@ int usrmotReadEmcmotInternal(emcmot_internal_t * s)
     int split_read_count;
 
     /* check for shmem still around */
-    if (0 == emcmotInternal) {
+    if (NULL == emcmotInternal) {
 	return EMCMOT_COMM_ERROR_CONNECT;
     }
     split_read_count = 0;
@@ -196,7 +200,7 @@ int usrmotReadEmcmotInternal(emcmot_internal_t * s)
 int usrmotReadEmcmotError(char *e)
 {
     /* check to see if ptr still around */
-    if (emcmotError == 0) {
+    if (emcmotError == NULL) {
 	return -1;
     }
 
@@ -211,6 +215,7 @@ int usrmotReadEmcmotError(char *e)
     struct dbuf_iter di;
     dbuf_iter_init(&di, &d);
 
+    /* snprintdbuf() translates the language of the message */
     result =  snprintdbuf(e, EMCMOT_ERROR_LEN, &di);
     if(result < 0) return result;
     return 0;
@@ -370,7 +375,7 @@ void usrmotPrintEmcmotStatus(emcmot_status_t *s, int which)
 	    );
 	printf("cmd:          \t%d\n", s->commandEcho);
 	printf("cmd num:      \t%d\n", s->commandNumEcho);
-	printf("heartbeat:    \t%u\n", s->heartbeat);
+	printf("heartbeat:    \t%lu\n", s->heartbeat);
 /*! \todo Another #if 0 */
 #if 0				/*! \todo FIXME - change to work with joint
 				   structures */
@@ -604,10 +609,10 @@ int usrmotExit(void)
 	rtapi_exit(module_id);
     }
 
-    emcmotStruct = 0;
-    emcmotCommand = 0;
-    emcmotStatus = 0;
-    emcmotError = 0;
+    emcmotStruct = NULL;
+    emcmotCommand = NULL;
+    emcmotStatus = NULL;
+    emcmotError = NULL;
 /*! \todo Another #if 0 */
 #if 0
 /*! \todo FIXME - comp structs no longer in shmem */

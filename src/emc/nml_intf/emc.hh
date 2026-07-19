@@ -15,11 +15,11 @@
 #ifndef EMC_HH
 #define EMC_HH
 
-#include "emcmotcfg.h"		// EMC_JOINT_MAX, EMC_AXIS_MAX
-#include "nml_type.hh"
+#include <emcmotcfg.h>		// EMC_JOINT_MAX, EMC_AXIS_MAX
+#include "libnml/nml/nml_type.hh"
 #include "motion_types.h"
 #include <stdint.h>
-#include "modal_state.hh"
+#include "rs274ngc/modal_state.hh"
 
 // Forward class declarations
 class EMC_JOINT_STAT;
@@ -290,6 +290,9 @@ extern int emcAxisSetLockingJoint(int axis,int joint);
 
 extern int emcAxisUpdate(EMC_AXIS_STAT stat[], int numAxes);
 
+extern int emcAxisSetMaxJerk(int axis,double jerk);
+extern int emcAxisHasMaxJerk(int axis);
+extern double emcAxisGetMaxJerk(int axis);
 // implementation functions for EMC_JOINT types
 
 extern int emcJointSetType(int joint, unsigned char jointType);
@@ -325,6 +328,7 @@ extern int emcJogAbs(int nr, double pos, double vel, int jjogmode);
 
 extern int emcJointUpdate(EMC_JOINT_STAT stat[], int numJoints);
 
+extern int emcJointSetMaxJerk(int joint, double jerk);
 
 // implementation functions for EMC_SPINDLE types
 
@@ -366,20 +370,23 @@ extern int emcTrajStep();
 extern int emcTrajResume();
 extern int emcTrajDelay(double delay);
 extern int emcTrajLinearMove(const EmcPose& end, int type, double vel,
-                             double ini_maxvel, double acc, int indexer_jnum);
+                             double ini_maxvel, double acc, double ini_maxjerk, int indexer_jnum);
 extern int emcTrajCircularMove(const EmcPose& end, const PM_CARTESIAN& center, const PM_CARTESIAN&
-        normal, int turn, int type, double vel, double ini_maxvel, double acc);
+        normal, int turn, int type, double vel, double ini_maxvel, double acc, double ini_maxjerk);
 extern int emcTrajSetTermCond(int cond, double tolerance);
 extern int emcTrajSetSpindleSync(int spindle, double feed_per_revolution, bool wait_for_index);
 extern int emcTrajSetOffset(const EmcPose& tool_offset);
 extern int emcTrajSetHome(const EmcPose& home);
 extern int emcTrajClearProbeTrippedFlag();
 extern int emcTrajProbe(const EmcPose& pos, int type, double vel,
-                        double ini_maxvel, double acc, unsigned char probe_type);
-extern int emcTrajRigidTap(const EmcPose& pos, double vel, double ini_maxvel, double acc, double scale);
+                        double ini_maxvel, double acc, double ini_maxjerk, unsigned char probe_type);
+extern int emcTrajRigidTap(const EmcPose& pos, double vel, double ini_maxvel, double acc, double ini_maxjerk, double scale);
 
 extern int emcTrajUpdate(EMC_TRAJ_STAT * stat);
 
+extern int emcTrajSetJerk(double jerk);
+extern int emcTrajSetMaxJerk(double jerk);
+extern int emcTrajPlannerType(int type);
 // implementation functions for EMC_MOTION aggregate types
 
 extern int emcMotionInit();
@@ -416,7 +423,7 @@ extern int emcSpindleAbort(int spindle);
 extern int emcSpindleSpeed(int spindle, double speed, double factor, double xoffset);
 extern int emcSpindleOn(int spindle, double speed, double factor, double xoffset,int wait_for_atspeed = 1);
 extern int emcSpindleOrient(int spindle, double orientation, int direction);
-extern int emcSpindleOff(int spindle);
+extern int emcSpindleOff(int spindle, int wait_for_atspeed = 0);
 extern int emcSpindleIncrease(int spindle);
 extern int emcSpindleDecrease(int spindle);
 extern int emcSpindleConstant(int spindle);
@@ -461,7 +468,7 @@ extern EMC_IO_STAT *emcIoStatus;
 extern EMC_MOTION_STAT *emcMotionStatus;
 
 // values for EMC_JOINT_SET_JOINT, jointType
-enum EmcJointType {
+enum EmcJointType : int {
     EMC_LINEAR             = 1,
     EMC_ANGULAR            = 2,
 };

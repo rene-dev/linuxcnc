@@ -2,9 +2,9 @@
 # **** IMPORT SECTION **** #
 ############################
 import sys
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from qtpy.QtCore import *
+from qtpy.QtGui import *
+from qtpy.QtWidgets import *
 from qtvcp.core import Status
 from qtvcp.widgets.hal_selectionbox import HALSelectionBox
 from qtvcp.widgets.simple_widgets import PushButton
@@ -40,7 +40,7 @@ class HandlerClass:
     # the HAL pins are built but HAL is not set ready
     def initialized__(self):
         geom = self.w.frameGeometry()
-        geom.moveCenter(QDesktopWidget().availableGeometry().center())
+        geom.moveCenter(QApplication.primaryScreen().availableGeometry().center())
         self.w.setGeometry(geom)
 
         if self.w.USEROPTIONS_ is not None:

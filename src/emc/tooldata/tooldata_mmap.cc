@@ -16,14 +16,15 @@
 ** along with this program; if not, write to the Free Software
 ** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
+
 #include <stdio.h>
 #include <sys/types.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <unistd.h> // write(2),lseek(2)
+#include <fcntl.h> // open(2)
 #include <sys/mman.h>
 #include <string.h>
 #include "config.h"
-#include "rtapi_mutex.h"
+#include <rtapi_mutex.h>
 #include "tooldata.hh"
 
 #define UNEXPECTED_MSG fprintf(stderr,"UNEXPECTED %s %d\n",__FILE__,__LINE__);
@@ -35,7 +36,7 @@
 
 static int           creator_fd;
 static char          filename[LINELEN] = {};
-static char*         tool_mmap_base = 0;
+static char*         tool_mmap_base = NULL;
 static EMC_TOOL_STAT const *toolstat;
 
 typedef struct {
@@ -58,10 +59,10 @@ typedef struct {
 
 #define TOOL_MMAP_STRIDE  sizeof(CANON_TOOL_TABLE)
 //---------------------------------------------------------------------
-#define HPTR()    (tooldata_header_t*)( tool_mmap_base \
+#define HPTR()    reinterpret_cast<tooldata_header_t*>( tool_mmap_base \
                                       + TOOL_MMAP_HEADER_OFFSET)
 
-#define TPTR(idx) (CANON_TOOL_TABLE*)( tool_mmap_base \
+#define TPTR(idx) reinterpret_cast<CANON_TOOL_TABLE*>( tool_mmap_base \
                                      + TOOL_MMAP_HEADER_OFFSET \
                                      + TOOL_MMAP_HEADER_SIZE \
                                      + idx * TOOL_MMAP_STRIDE)
@@ -133,7 +134,7 @@ int tool_mmap_creator(EMC_TOOL_STAT const * ptr,int random_toolchanger)
     toolstat = ptr; //note NULL for sai
     creator_fd = open(tool_mmap_fname(),
                      TOOL_MMAP_CREATOR_OPEN_FLAGS,TOOL_MMAP_MODE);
-    if (!creator_fd) {
+    if (creator_fd < 0) {
         perror("tool_mmap_creator(): file open fail");
         exit(EXIT_FAILURE);
     }
@@ -147,7 +148,7 @@ int tool_mmap_creator(EMC_TOOL_STAT const * ptr,int random_toolchanger)
         perror("tool_mmap_creator(): file tail write fail");
         exit(EXIT_FAILURE);
     }
-    tool_mmap_base = (char*)mmap(0, TOOL_MMAP_SIZE, PROT_READ | PROT_WRITE,
+    tool_mmap_base = (char*)mmap(NULL, TOOL_MMAP_SIZE, PROT_READ | PROT_WRITE,
                                  MAP_SHARED, creator_fd, 0);
     if (tool_mmap_base == MAP_FAILED) {
         close(creator_fd);
@@ -179,10 +180,10 @@ int tool_mmap_user()
         ** So print message and return fail indicator.
         */
         fprintf(stderr,"tool_mmap_user(): tool mmap not available\n");
-        tool_mmap_base = (char*)0;
+        tool_mmap_base = (char*)NULL;
         return(-1);
     }
-    tool_mmap_base = (char*)mmap(0, TOOL_MMAP_SIZE, PROT_READ|PROT_WRITE,
+    tool_mmap_base = (char*)mmap(NULL, TOOL_MMAP_SIZE, PROT_READ|PROT_WRITE,
                                  MAP_SHARED, fd, 0);
 
     if (tool_mmap_base == MAP_FAILED) {

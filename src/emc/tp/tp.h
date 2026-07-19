@@ -14,7 +14,8 @@
 #ifndef TP_H
 #define TP_H
 
-#include "posemath.h"
+#include <posemath.h>
+
 #include "tc_types.h"
 #include "tp_types.h"
 #include "tcq.h"
@@ -50,15 +51,16 @@ int tpAddRigidTap(TP_STRUCT * const tp,
         double vel,
         double ini_maxvel,
         double acc,
+        double ini_maxjerk,
         unsigned char enables,
         double scale,
         struct state_tag_t tag);
 int tpAddLine(TP_STRUCT * const tp, EmcPose end, int canon_motion_type,
-	      double vel, double ini_maxvel, double acc, unsigned char enables,
+	      double vel, double ini_maxvel, double acc, double ini_maxjerk, unsigned char enables,
 	      char atspeed, int indexrotary, struct state_tag_t tag);
 int tpAddCircle(TP_STRUCT * const tp, EmcPose end, PmCartesian center,
 		PmCartesian normal, int turn, int canon_motion_type, double vel,
-		double ini_maxvel, double acc, unsigned char enables,
+		double ini_maxvel, double acc, double ini_maxjerk, unsigned char enables,
 		char atspeed, struct state_tag_t tag);
 int tpGetPos(TP_STRUCT const  * const tp, EmcPose * const pos);
 int tpIsDone(TP_STRUCT * const tp);
@@ -81,6 +83,13 @@ void tpMotFunctions(void(*pDioWrite)(int,char)
                    ,double(*paxis_get_vel_limit)(int)
                    ,double(*paxis_get_acc_limit)(int)
                    );
+
+// These are here so we don't need to include "motion/motion.h"
+// because that feels very wrong. The real solution is to untangle
+// motion controller and trajectory planner sources. Only the shared
+// data should be exposed to each other.
+typedef struct emcmot_status_t emcmot_status_t;
+typedef struct emcmot_config_t emcmot_config_t;
 
 void tpMotData(emcmot_status_t *
               ,emcmot_config_t *

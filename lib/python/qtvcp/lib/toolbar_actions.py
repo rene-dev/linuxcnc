@@ -14,7 +14,7 @@
 # GNU General Public License for more details.
 
 import os
-from PyQt5 import QtWidgets, QtCore
+from qtpy import QtWidgets, QtCore
 from qtvcp.core import Status, Action, Info
 from qtvcp.qt_makegui import VCPWindow
 from qtvcp.lib.aux_program_loader import Aux_program_loader
@@ -454,7 +454,7 @@ class ToolBarActions():
         msg.setWindowTitle("Gcode Properties")
         msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
         msg.show()
-        retval = msg.exec_()
+        retval = msg.exec()
 
     def actOnRun(self, widget, state=None):
         ACTION.RUN()
@@ -580,7 +580,7 @@ class ToolBarActions():
         msg.setIcon(QtWidgets.QMessageBox.Information)
         msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
         msg.show()
-        retval = msg.exec_()
+        retval = msg.exec()
 
     def actOnRunFromLine(self, widget, state=False):
         STATUS.emit('dialog-request', {'NAME': 'RUNFROMLINE', 'LINE':self.selected_line})

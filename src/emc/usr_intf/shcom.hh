@@ -17,11 +17,19 @@
 #ifndef SHCOM_HH
 #define SHCOM_HH
 
-#include "linuxcnc.h"           // INCH_PER_MM
-#include "emc_nml.hh"
-#include "nml_oi.hh"            // NML_ERROR_LEN
+#include <cmath>
+#include <string>
 
-#define CLOSE(a,b,eps) ((a)-(b) < +(eps) && (a)-(b) > -(eps))
+#include <linuxcnc.h>           // INCH_PER_MM
+#include <inifile.hh>
+#include "nml_intf/emc_nml.hh"
+#include "libnml/nml/nml_oi.hh"            // NML_ERROR_LEN
+#include "unitenum.hh"
+
+static inline bool CLOSE(double a, double b, double eps)
+{
+    return std::fabs(a - b) < eps;
+}
 #define LINEAR_CLOSENESS 0.0001
 #define ANGULAR_CLOSENESS 0.0001
 #define CM_PER_MM 0.1
@@ -32,22 +40,7 @@
 #define JOGTELEOP 0
 #define JOGJOINT  1
 
-enum LINEAR_UNIT_CONVERSION {
-    LINEAR_UNITS_CUSTOM = 1,
-    LINEAR_UNITS_AUTO,
-    LINEAR_UNITS_MM,
-    LINEAR_UNITS_INCH,
-    LINEAR_UNITS_CM
-};
 extern LINEAR_UNIT_CONVERSION linearUnitConversion;
-
-enum ANGULAR_UNIT_CONVERSION {
-    ANGULAR_UNITS_CUSTOM = 1,
-    ANGULAR_UNITS_AUTO,
-    ANGULAR_UNITS_DEG,
-    ANGULAR_UNITS_RAD,
-    ANGULAR_UNITS_GRAD
-};
 extern ANGULAR_UNIT_CONVERSION angularUnitConversion;
 
 // the current command numbers, set up updateStatus(), used in main()
@@ -60,10 +53,10 @@ extern RCS_STAT_CHANNEL *emcStatusBuffer;
 
 // the NML channel for errors
 extern NML *emcErrorBuffer;
-extern char error_string[NML_ERROR_LEN];
-extern char operator_text_string[NML_TEXT_LEN];
-extern char operator_display_string[NML_DISPLAY_LEN];
-extern char defaultPath[80]; 
+extern std::string error_string;
+extern std::string operator_text_string;
+extern std::string operator_display_string;
+extern std::string defaultPath;
 
 // default value for timeout, 0 means wait forever
 extern double emcTimeout;
@@ -75,6 +68,7 @@ enum EMC_UPDATE_TYPE {
 extern EMC_UPDATE_TYPE emcUpdateType;
 
 enum EMC_WAIT_TYPE {
+    EMC_WAIT_NEVER = 0,
     EMC_WAIT_RECEIVED = 2,
     EMC_WAIT_DONE
 };
@@ -127,7 +121,7 @@ extern int sendRapidOverride(double override);
 extern int sendMaxVelocity(double velocity);
 extern int sendSpindleOverride(int spindle, double override);
 extern int sendTaskPlanInit();
-extern int sendProgramOpen(char *program);
+extern int sendProgramOpen(const char *program);
 extern int sendProgramRun(int line);
 extern int sendProgramPause();
 extern int sendProgramResume();
@@ -145,3 +139,4 @@ extern int iniLoad(const char *filename);
 extern int checkStatus();
 
 #endif				/* ifndef SHCOM_HH */
+// vim: ts=4 sw=4

@@ -15,11 +15,7 @@
 
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
-#include "rcsversion.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "libnml/rcs/rcsversion.h"
 
 #include <string.h>		// memcpy()
 #include <stdlib.h>		// atexit()
@@ -27,19 +23,16 @@ extern "C" {
 #include <netdb.h>
 #include <arpa/inet.h>		// inet_ntoa
 
-#ifdef __cplusplus
-}
-#endif
 #include <rtapi_string.h>	// rtapi_strlcpy()
 #include "nml.hh"		// class NML
 #include "nmlmsg.hh"		// class NMLmsg
-#include "cms.hh"		// class CMS
-#include "timer.hh"		// esleep()
+#include "libnml/cms/cms.hh"		// class CMS
+#include "libnml/os_intf/timer.hh"		// esleep()
 #include "nml_srv.hh"		// NML_Default_Super_Server
-#include "cms_cfg.hh"		// cms_config(), cms_copy()
-#include "linklist.hh"		// class LinkedList
-#include "rcs_print.hh"		// rcs_print_error()
-#include "physmem.hh"
+#include "libnml/cms/cms_cfg.hh"		// cms_config(), cms_copy()
+#include "libnml/linklist/linklist.hh"		// class LinkedList
+#include "libnml/rcs/rcs_print.hh"		// rcs_print_error()
+#include "libnml/buffer/physmem.hh"
 #ifndef MAXHOSTNAMELEN
 #define MAXHOSTNAMELEN 64
 #endif
@@ -115,7 +108,7 @@ void *NML::operator new(size_t size)
 	cptr = ((char *) nml_space) + sizeof(NML);
 	// guarantee alignment
 	cptr += sizeof(int) - (((size_t) cptr) % sizeof(int));
-	*((int *) cptr) = dynamic_list_id;
+	*reinterpret_cast<int *>(cptr) = dynamic_list_id;
     }
     rcs_print_debug(PRINT_NML_CONSTRUCTORS, "%p = NML::operator new(%zd)\n",
 	nml_space, size);
@@ -137,7 +130,7 @@ void NML::operator delete(void *nml_space)
     if (NULL != Dynamically_Allocated_NML_Objects) {
 	cptr = ((char *) nml_space) + sizeof(NML);
 	cptr += sizeof(int) - (((size_t) cptr) % sizeof(int));
-	dynamic_list_id = *((int *) cptr);
+	dynamic_list_id = *reinterpret_cast<int *>(cptr);
 	Dynamically_Allocated_NML_Objects->delete_node(dynamic_list_id);
 	if (Dynamically_Allocated_NML_Objects->list_size == 0) {
 	    delete Dynamically_Allocated_NML_Objects;
@@ -177,7 +170,7 @@ NML::NML(NML_FORMAT_PTR f_ptr, const char *buf, const char *proc, const char *fi
     const int set_to_server, const int set_to_master)
 {
     registered_with_server = 0;
-    cms_for_msg_string_conversions = 0;
+    cms_for_msg_string_conversions = NULL;
     info_printed = 0;
     blocking_read_poll_interval = -1.0;
     forced_type = 0;
@@ -348,7 +341,7 @@ NML::NML(const char *buf, const char *proc, const char *file, const int set_to_s
 	file = default_nml_config_file;
     }
     registered_with_server = 0;
-    cms_for_msg_string_conversions = 0;
+    cms_for_msg_string_conversions = NULL;
     snprintf(bufname, 40 , "%s", buf);
     snprintf(procname, 40, "%s", proc);
     snprintf(cfgfilename, 160, "%s", file);
@@ -461,7 +454,7 @@ NML::NML(const char *buf, const char *proc, const char *file, const int set_to_s
 NML::NML(const char * buffer_line, const char * proc_line)
 {
     registered_with_server = 0;
-    cms_for_msg_string_conversions = 0;
+    cms_for_msg_string_conversions = NULL;
     cms = (CMS *) NULL;
     blocking_read_poll_interval = -1.0;
     forced_type = 0;
@@ -604,7 +597,7 @@ void NML::register_with_server()
 NML::NML(NML * nml_ptr, const int set_to_server, const int set_to_master)
 {
     registered_with_server = 0;
-    cms_for_msg_string_conversions = 0;
+    cms_for_msg_string_conversions = NULL;
     already_deleted = 0;
     forced_type = 0;
     cms = (CMS *) NULL;
@@ -773,7 +766,7 @@ void NML::delete_channel()
     if (NULL != cms_for_msg_string_conversions
 	&& cms != cms_for_msg_string_conversions) {
 	delete cms_for_msg_string_conversions;
-	cms_for_msg_string_conversions = 0;
+	cms_for_msg_string_conversions = NULL;
     }
     if (NULL != cms) {
 	rcs_print_debug(PRINT_NML_DESTRUCTORS, " delete (CMS *) %p;\n", cms);
@@ -1865,7 +1858,7 @@ int NML::format_input(NMLmsg * nml_msg)
 	    return (-1);
 	}
 
-	cms->format_low_ptr = (char *) nml_msg;
+	cms->format_low_ptr = reinterpret_cast<char *>(nml_msg);
 	cms->format_high_ptr = cms->format_low_ptr + nml_msg->size;
 	/* Handle the generic part of the message. */
 	cms->rewind();		/* Move to the start of the encoded buffer. */
@@ -2008,7 +2001,7 @@ const char *NML::msg2str(NMLmsg * nml_msg)
 		    cms_for_msg_string_conversions->size > 2048) ||
 		cms_for_msg_string_conversions->size < 4 * msg_length) {
 		delete cms_for_msg_string_conversions;
-		cms_for_msg_string_conversions = 0;
+		cms_for_msg_string_conversions = NULL;
 	    }
 	}
 	if (NULL == cms_for_msg_string_conversions) {
@@ -2050,7 +2043,7 @@ NMLTYPE NML::str2msg(const char *string)
 		    cms_for_msg_string_conversions->size > 2048) ||
 		cms_for_msg_string_conversions->size < 4 * string_length) {
 		delete cms_for_msg_string_conversions;
-		cms_for_msg_string_conversions = 0;
+		cms_for_msg_string_conversions = NULL;
 	    }
 	}
 	if (NULL == cms_for_msg_string_conversions) {
@@ -2304,7 +2297,7 @@ int NML::print_queue_info()
 NML *nmlWaitOpen(NML_FORMAT_PTR fPtr, char *buffer, char *name, char *file,
     double sleepTime)
 {
-    NML *nmlChannel = 0;
+    NML *nmlChannel = NULL;
 
     RCS_PRINT_DESTINATION_TYPE olddest = get_rcs_print_destination();
     set_rcs_print_destination(RCS_PRINT_TO_NULL);
@@ -2436,7 +2429,7 @@ NML_DIAGNOSTICS_INFO *NML::get_diagnostics_info()
     if (NULL == cms) {
 	return NULL;
     }
-    return (NML_DIAGNOSTICS_INFO *) cms->get_diagnostics_info();
+    return reinterpret_cast<NML_DIAGNOSTICS_INFO *>(cms->get_diagnostics_info());
 }
 
 void nmlSetHostAlias(const char * const hostName, const char * const hostAlias)
