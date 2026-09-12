@@ -4,7 +4,7 @@
 # connect out test panel controls to TOUCHY
 # In a real machine you would connect similarly to REAL buttons
 
-net TEST-MPG    touchy_test.mpg =>
+net TEST-MPG    touchy_test.mpg-f =>
 net TEST-MPG    touchy.wheel-counts
 net TEST-MPG    axis.x.jog-counts   joint.0.jog-counts
 net TEST-MPG    axis.y.jog-counts   joint.1.jog-counts

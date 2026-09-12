@@ -528,6 +528,16 @@ int hm2_encoder_parse_md(hostmot2_t *hm2, int md_index) {
                 goto fail1;
             }
 
+            // float twin of the count pin, for axis.L.jog-counts and
+            // joint.N.jog-counts.  Unlike count it is taken from the full
+            // 64-bit internal count, so it does not wrap at 2^31.
+            r = hal_pin_new_real(hm2->llio->comp_id, HAL_OUT, &(hm2->encoder.instance[i].hal.pin.count_f),
+                                 0.0, "%s.encoder.%02d.count-f", hm2->llio->name, i);
+            if (r < 0) {
+                HM2_ERR("error %d adding pin '%s.encoder.%02d.count-f', aborting\n", r, hm2->llio->name, i);
+                goto fail1;
+            }
+
             r = hal_pin_new_real(hm2->llio->comp_id, HAL_OUT, &(hm2->encoder.instance[i].hal.pin.position),
                                  0.0, "%s.encoder.%02d.position", hm2->llio->name, i);
             if (r < 0) {
@@ -734,6 +744,7 @@ void hm2_encoder_tram_init(hostmot2_t *hm2) {
         hm2->encoder.instance[i].rawlatch_64 = count;
 
         hal_set_si32(hm2->encoder.instance[i].hal.pin.count, 0);
+        hal_set_real(hm2->encoder.instance[i].hal.pin.count_f, 0.0);
         hal_set_si32(hm2->encoder.instance[i].hal.pin.count_latch, 0);
         hm2->encoder.instance[i].count_64 = 0;
         hm2->encoder.instance[i].count_latch_64 = 0;
@@ -911,6 +922,7 @@ static void hm2_encoder_instance_update_position(hostmot2_t *hm2, int instance) 
 
     hal_set_si32(e->hal.pin.count, hal_get_si32(e->hal.pin.rawcounts) - e->zero_offset);
     e->count_64 = e->rawcounts_64 - e->zero_offset_64;
+    hal_set_real(e->hal.pin.count_f, (rtapi_real)e->count_64);
     hal_set_si32(e->hal.pin.count_latch, hal_get_si32(e->hal.pin.rawlatch) - e->zero_offset);
     e->count_latch_64 = e->rawlatch_64 - e->zero_offset_64;
 

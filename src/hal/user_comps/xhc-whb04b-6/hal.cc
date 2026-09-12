@@ -455,32 +455,32 @@ void Hal::init(const MetaButtonCodes* metaButtons, const KeyCodes& keyCodes)
     newHalBit(HAL_OUT, &(memory->out.mistStop), mHalCompId, "%s.halui.mist.off", mComponentPrefix);
     newHalBit(HAL_OUT, &(memory->out.mistStart), mHalCompId, "%s.halui.mist.on", mComponentPrefix);
 
-    newHalSigned32(HAL_OUT, &(memory->out.axisXJogCounts), mHalCompId, "%s.axis.x.jog-counts", mComponentPrefix);
+    newHalFloat(HAL_OUT, &(memory->out.axisXJogCounts), mHalCompId, "%s.axis.x.jog-counts", mComponentPrefix);
     newHalBit(HAL_OUT, &(memory->out.axisXJogEnable), mHalCompId, "%s.axis.x.jog-enable", mComponentPrefix);
     newHalFloat(HAL_OUT, &(memory->out.axisXJogScale), mHalCompId, "%s.axis.x.jog-scale", mComponentPrefix);
     newHalBit(HAL_OUT, &(memory->out.axisXSetVelocityMode), mHalCompId, "%s.axis.x.jog-vel-mode", mComponentPrefix);
 
-    newHalSigned32(HAL_OUT, &(memory->out.axisYJogCounts), mHalCompId, "%s.axis.y.jog-counts", mComponentPrefix);
+    newHalFloat(HAL_OUT, &(memory->out.axisYJogCounts), mHalCompId, "%s.axis.y.jog-counts", mComponentPrefix);
     newHalBit(HAL_OUT, &(memory->out.axisYJogEnable), mHalCompId, "%s.axis.y.jog-enable", mComponentPrefix);
     newHalFloat(HAL_OUT, &(memory->out.axisYJogScale), mHalCompId, "%s.axis.y.jog-scale", mComponentPrefix);
     newHalBit(HAL_OUT, &(memory->out.axisYSetVelocityMode), mHalCompId, "%s.axis.y.jog-vel-mode", mComponentPrefix);
 
-    newHalSigned32(HAL_OUT, &(memory->out.axisZJogCounts), mHalCompId, "%s.axis.z.jog-counts", mComponentPrefix);
+    newHalFloat(HAL_OUT, &(memory->out.axisZJogCounts), mHalCompId, "%s.axis.z.jog-counts", mComponentPrefix);
     newHalBit(HAL_OUT, &(memory->out.axisZJogEnable), mHalCompId, "%s.axis.z.jog-enable", mComponentPrefix);
     newHalFloat(HAL_OUT, &(memory->out.axisZJogScale), mHalCompId, "%s.axis.z.jog-scale", mComponentPrefix);
     newHalBit(HAL_OUT, &(memory->out.axisZSetVelocityMode), mHalCompId, "%s.axis.z.jog-vel-mode", mComponentPrefix);
 
-    newHalSigned32(HAL_OUT, &(memory->out.axisAJogCounts), mHalCompId, "%s.axis.a.jog-counts", mComponentPrefix);
+    newHalFloat(HAL_OUT, &(memory->out.axisAJogCounts), mHalCompId, "%s.axis.a.jog-counts", mComponentPrefix);
     newHalBit(HAL_OUT, &(memory->out.axisAJogEnable), mHalCompId, "%s.axis.a.jog-enable", mComponentPrefix);
     newHalFloat(HAL_OUT, &(memory->out.axisAJogScale), mHalCompId, "%s.axis.a.jog-scale", mComponentPrefix);
     newHalBit(HAL_OUT, &(memory->out.axisASetVelocityMode), mHalCompId, "%s.axis.a.jog-vel-mode", mComponentPrefix);
 
-    newHalSigned32(HAL_OUT, &(memory->out.axisBJogCounts), mHalCompId, "%s.axis.b.jog-counts", mComponentPrefix);
+    newHalFloat(HAL_OUT, &(memory->out.axisBJogCounts), mHalCompId, "%s.axis.b.jog-counts", mComponentPrefix);
     newHalBit(HAL_OUT, &(memory->out.axisBJogEnable), mHalCompId, "%s.axis.b.jog-enable", mComponentPrefix);
     newHalFloat(HAL_OUT, &(memory->out.axisBJogScale), mHalCompId, "%s.axis.b.jog-scale", mComponentPrefix);
     newHalBit(HAL_OUT, &(memory->out.axisBSetVelocityMode), mHalCompId, "%s.axis.b.jog-vel-mode", mComponentPrefix);
 
-    newHalSigned32(HAL_OUT, &(memory->out.axisCJogCounts), mHalCompId, "%s.axis.c.jog-counts", mComponentPrefix);
+    newHalFloat(HAL_OUT, &(memory->out.axisCJogCounts), mHalCompId, "%s.axis.c.jog-counts", mComponentPrefix);
     newHalBit(HAL_OUT, &(memory->out.axisCJogEnable), mHalCompId, "%s.axis.c.jog-enable", mComponentPrefix);
     newHalFloat(HAL_OUT, &(memory->out.axisCJogScale), mHalCompId, "%s.axis.c.jog-scale", mComponentPrefix);
     newHalBit(HAL_OUT, &(memory->out.axisCSetVelocityMode), mHalCompId, "%s.axis.c.jog-vel-mode", mComponentPrefix);
@@ -1321,12 +1321,12 @@ void Hal::setJogCounts(const HandWheelCounters& counters)
     else if (hal_get_bool(memory->out.axisCSelect) && !hal_get_bool(memory->in.JointCisHomed)) {requestTeleopMode(true);}
     {requestManualMode(true);}
 
-    hal_set_si32(memory->out.axisXJogCounts, counters.counts(HandWheelCounters::CounterNameToIndex::AXIS_X));
-    hal_set_si32(memory->out.axisYJogCounts, counters.counts(HandWheelCounters::CounterNameToIndex::AXIS_Y));
-    hal_set_si32(memory->out.axisZJogCounts, counters.counts(HandWheelCounters::CounterNameToIndex::AXIS_Z));
-    hal_set_si32(memory->out.axisAJogCounts, counters.counts(HandWheelCounters::CounterNameToIndex::AXIS_A));
-    hal_set_si32(memory->out.axisBJogCounts, counters.counts(HandWheelCounters::CounterNameToIndex::AXIS_B));
-    hal_set_si32(memory->out.axisCJogCounts, counters.counts(HandWheelCounters::CounterNameToIndex::AXIS_C));
+    hal_set_real(memory->out.axisXJogCounts, counters.counts(HandWheelCounters::CounterNameToIndex::AXIS_X));
+    hal_set_real(memory->out.axisYJogCounts, counters.counts(HandWheelCounters::CounterNameToIndex::AXIS_Y));
+    hal_set_real(memory->out.axisZJogCounts, counters.counts(HandWheelCounters::CounterNameToIndex::AXIS_Z));
+    hal_set_real(memory->out.axisAJogCounts, counters.counts(HandWheelCounters::CounterNameToIndex::AXIS_A));
+    hal_set_real(memory->out.axisBJogCounts, counters.counts(HandWheelCounters::CounterNameToIndex::AXIS_B));
+    hal_set_real(memory->out.axisCJogCounts, counters.counts(HandWheelCounters::CounterNameToIndex::AXIS_C));
     
     requestManualMode(false);
     requestTeleopMode(false);

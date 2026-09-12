@@ -550,6 +550,9 @@ class HAL:
             if "enc" in pinname: ending = ".count"
             print(_("# ---jogwheel signals to mesa encoder - shared MPG---"), file=file)
             print(file=file)
+            # jog-counts and the halui override counts are float pins, so
+            # take the encoder's float count
+            if ending == ".count": ending = ".count-f"
             print("net axis-selected-count     <=  %s%s"% (pinname,ending), file=file)
             if 'encoder' in ending:
                 print("setp    %s.filter true" % pinname, file=file)
@@ -577,6 +580,8 @@ class HAL:
                     if "enc" in pinname: ending = ".count"
                     print(_("# ---jogwheel signals to mesa encoder - %s axis MPG---") % axletter, file=file)
                     print(file=file)
+                    # jog-counts is a float pin, so take the float count
+                    if ending == ".count": ending = ".count-f"
                     print("net %s-jog-count          <=  %s%s"% (axletter, pinname,ending), file=file)
                     if 'encoder' in ending:
                         print("setp    %s.filter true" % pinname, file=file)

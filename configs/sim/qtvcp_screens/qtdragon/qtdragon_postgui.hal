@@ -19,7 +19,7 @@ setp axis.z.eoffset-enable 1
 setp axis.z.eoffset-scale 1.0
 
 loadusr -Wn sim_panel qtvcp -a -o hide=groupBoxSelection -o hide=groupBoxControl -o rates=.001,.01,.1 sim_panel
-net MPG sim_panel.MPG-s qtdragon.mpg-in
+net MPG sim_panel.MPG-f qtdragon.mpg-in
 net MPG axis.x.jog-counts
 net MPG axis.y.jog-counts
 net MPG axis.z.jog-counts

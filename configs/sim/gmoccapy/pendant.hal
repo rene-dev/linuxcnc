@@ -1,5 +1,5 @@
 # connect encoder count, select the one you need
-net jog-counts       pendant.jog-wheel-counts
+net jog-counts       pendant.jog-wheel-counts-f
 net jog-counts       axis.x.jog-counts 
 net jog-counts       axis.y.jog-counts 
 net jog-counts       axis.z.jog-counts

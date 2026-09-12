@@ -87,6 +87,8 @@ class _HalSensitiveBase(_HalWidgetBase):
 class _HalJogWheelBase(_HalWidgetBase):
     def _hal_init(self):
         self.hal_pin = self.hal.newpin(self.hal_name, hal.HAL_S32, hal.HAL_OUT)
+        # float twin of the raw count, for axis.L.jog-counts / joint.N.jog-counts
+        self.hal_pin_f = self.hal.newpin(self.hal_name+'-f', hal.HAL_FLOAT, hal.HAL_OUT)
         try:
             self.get_scaled_value()
             self.hal_pin_scaled = self.hal.newpin(self.hal_name+'-scaled', hal.HAL_FLOAT, hal.HAL_OUT)
@@ -101,6 +103,7 @@ class _HalJogWheelBase(_HalWidgetBase):
     def hal_update(self, *a):
         data = self.get_value()
         self.hal_pin.set(int(data))
+        self.hal_pin_f.set(float(data))
         try:
             data = self.get_scaled_value()
             self.hal_pin_scaled.set(float(data))

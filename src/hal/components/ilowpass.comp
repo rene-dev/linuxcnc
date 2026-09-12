@@ -1,4 +1,5 @@
 component ilowpass "Low-pass filter with integer inputs and outputs";
+see_also "lowpass(9)";
 description """While it may find other applications, this component was written
 to create smoother motion while jogging with an MPG.
 
@@ -6,6 +7,11 @@ In a machine with high acceleration, a short jog can behave almost like a step
 function.  By putting the *ilowpass* component between the MPG
 encoder *counts* output and the axis *jog-counts* input,
 this can be smoothed.
+
+**axis**.__N__.**jog-counts** and **joint**.__N__.**jog-counts** are float
+pins nowadays, so for jog wheel smoothing use lowpass(9) instead: it filters
+in floating point, needs no *scale*, and has no range limit.  This component
+remains for integer consumers.
 
 Choose *scale* conservatively so that during a single session
 there will never be more than about 2e9 / *scale* pulses seen

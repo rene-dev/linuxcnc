@@ -323,6 +323,10 @@ following pins and parameters:
 
 count (s32 out)::
  Number of encoder counts since the previous reset. 32-bit truncation of the 64-bit internal counter; position is computed from the full-width internal value so it does not wrap.
+count-f (float out)::
+ The same count as a float, taken from the full-width internal counter so it
+ does not wrap at 2^31. Use this for *axis.__L__.jog-counts* and
+ *joint.__N__.jog-counts*, which are float pins.
 position (float out)::
  Encoder position in position units (count / scale).
 position-interpolated (float out)::

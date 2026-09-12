@@ -6,7 +6,7 @@ net jogX axisui.jog.x => joint.0.jog-enable
 net jogY axisui.jog.y => joint.1.jog-enable
 net jogZ axisui.jog.z => joint.2.jog-enable
 
-net jogcounts encoder.1.counts => joint.0.jog-counts joint.1.jog-counts joint.2.jog-counts
+net jogcounts encoder.1.counts-f => joint.0.jog-counts joint.1.jog-counts joint.2.jog-counts
 
 sets jogscale .00002
 net jogscale joint.0.jog-scale

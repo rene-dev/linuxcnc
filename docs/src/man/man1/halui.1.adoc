@@ -93,7 +93,7 @@ contact) connect the physical button to a HAL debounce filter first.
 (SO = spindle override. FO = feed override)::
 **halui.spindle.**_N_**.override.count-enable** bit in (default: *TRUE*)::
   When TRUE, modify spindle override when counts changes.
-**halui.spindle.**_N_**.override.counts** s32 in::
+**halui.spindle.**_N_**.override.counts** float in::
   counts X scale = spindle override percentage
 **halui.spindle.**_N_**.override.decrease** bit in::
   pin for decreasing the SO (-=scale)
@@ -185,7 +185,7 @@ contact) connect the physical button to a HAL debounce filter first.
 
 *halui.max-velocity.count-enable* bit in (default: *TRUE*)::
   When True, modify max velocity when halui.max-velocity.counts changes.
-*halui.max-velocity.counts* s32 in::
+*halui.max-velocity.counts* float in::
   When .count-enable is True, halui changes the max velocity in response
   to changes to this pin. It's usually connected to an MPG encoder on an
   operator's panel or jog pendant. When .count-enable is False, halui
@@ -383,7 +383,7 @@ _L_ = axis letter (xyzabcuvw)
 
 *halui.feed-override.count-enable* bit in (default: *TRUE*)::
   When TRUE, modify feed override when counts changes.
-*halui.feed-override.counts* s32 in::
+*halui.feed-override.counts* float in::
   counts X scale = feed override percentage
 *halui.feed-override.decrease* bit in::
   pin for decreasing the FO (-=scale)
@@ -402,7 +402,7 @@ _L_ = axis letter (xyzabcuvw)
 
 *halui.rapid-override.count-enable* bit in (default: *TRUE*)::
   When TRUE, modify rapid override when counts changes.
-*halui.rapid-override.counts* s32 in::
+*halui.rapid-override.counts* float in::
   counts X scale = rapid override percentage
 *halui.rapid-override.decrease* bit in::
   pin for decreasing the rapid override (-=scale)

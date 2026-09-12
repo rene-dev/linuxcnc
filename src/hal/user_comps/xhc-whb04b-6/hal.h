@@ -192,17 +192,17 @@ public:
         hal_bool_t mistStart{nullptr};
 
         //! to be connected to \ref axis.x.jog-counts
-        hal_sint_t axisXJogCounts{nullptr};
+        hal_real_t axisXJogCounts{nullptr};
         //! to be connected to \ref axis.y.jog-counts
-        hal_sint_t axisYJogCounts{nullptr};
+        hal_real_t axisYJogCounts{nullptr};
         //! to be connected to \ref axis.z.jog-counts
-        hal_sint_t axisZJogCounts{nullptr};
+        hal_real_t axisZJogCounts{nullptr};
         //! to be connected to \ref axis.a.jog-counts
-        hal_sint_t axisAJogCounts{nullptr};
+        hal_real_t axisAJogCounts{nullptr};
         //! to be connected to \ref axis.b.jog-counts
-        hal_sint_t axisBJogCounts{nullptr};
+        hal_real_t axisBJogCounts{nullptr};
         //! to be connected to \ref axis.c.jog-counts
-        hal_sint_t axisCJogCounts{nullptr};
+        hal_real_t axisCJogCounts{nullptr};
 
         //! to be connected to \ref axis.x.jog-enable
         hal_bool_t axisXJogEnable{nullptr};

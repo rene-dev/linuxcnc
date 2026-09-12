@@ -16,7 +16,7 @@ typedef struct {
     double jerk_limit;	/* upper limit of axis jerk */
     simple_tp_t teleop_tp;          /* planner for teleop mode motion */
 
-    int old_ajog_counts;            /* prior value, used for deltas */
+    double old_ajog_counts;         /* prior value, used for deltas */
     int kb_ajog_active;             /* non-zero during a keyboard jog */
     int wheel_ajog_active;          /* non-zero during a wheel jog */
     int locking_joint;              /* locking_joint number, -1 ==> notused */
@@ -34,7 +34,7 @@ typedef struct {
     hal_real_t teleop_vel_lim;    /* RPI: teleop traj planner vel limit */
     hal_bool_t teleop_tp_enable;  /* RPI: teleop traj planner is running */
 
-    hal_sint_t ajog_counts;       /* WPI: jogwheel position input */
+    hal_real_t ajog_counts;       /* WPI: jogwheel position input */
     hal_bool_t ajog_enable;       /* RPI: enable jogwheel */
     hal_real_t ajog_scale;        /* RPI: distance to jog on each count */
     hal_real_t ajog_accel_fraction;  /* RPI: to limit wheel jog accel */
@@ -102,7 +102,7 @@ static int export_axis(int mot_comp_id, char c, axis_hal_t * addr)
 
     CALL_CHECK(hal_pin_new_bool(mot_comp_id, HAL_IN, &(addr->ajog_enable), 0, "axis.%c.jog-enable", c));
     CALL_CHECK(hal_pin_new_real(mot_comp_id, HAL_IN, &(addr->ajog_scale), 0.0, "axis.%c.jog-scale", c));
-    CALL_CHECK(hal_pin_new_si32(mot_comp_id, HAL_IN, &(addr->ajog_counts), 0, "axis.%c.jog-counts", c));
+    CALL_CHECK(hal_pin_new_real(mot_comp_id, HAL_IN, &(addr->ajog_counts), 0.0, "axis.%c.jog-counts", c));
     CALL_CHECK(hal_pin_new_bool(mot_comp_id, HAL_IN, &(addr->ajog_vel_mode), 0, "axis.%c.jog-vel-mode", c));
     CALL_CHECK(hal_pin_new_bool(mot_comp_id, HAL_OUT, &(addr->kb_ajog_active), 0, "axis.%c.kb-jog-active", c));
     CALL_CHECK(hal_pin_new_bool(mot_comp_id, HAL_OUT, &(addr->wheel_ajog_active), 0, "axis.%c.wheel-jog-active", c));
@@ -370,7 +370,7 @@ void axis_handle_jogwheels(bool motion_teleop_flag, bool motion_enable_flag, boo
     int axis_num;
     emcmot_axis_t *axis;
     axis_hal_t *axis_data;
-    int new_ajog_counts, delta;
+    double new_ajog_counts, delta;
     double distance, pos, stop_dist;
     static int first_pass = 1;	/* used to set initial conditions */
 
@@ -388,7 +388,13 @@ void axis_handle_jogwheels(bool motion_teleop_flag, bool motion_enable_flag, boo
             aaccel_limit = ajog_accel_fraction * axis->acc_limit;
         }
 
-        new_ajog_counts = hal_get_si32(axis_data->ajog_counts);
+        new_ajog_counts = hal_get_real(axis_data->ajog_counts);
+        /* jog-counts is a float pin, so a HAL writer can hand us a non-finite
+           value.  Latching it would make every subsequent delta NaN as well,
+           so keep the previous value and let delta come out zero instead. */
+        if (!isfinite(new_ajog_counts)) {
+            new_ajog_counts = axis->old_ajog_counts;
+        }
         delta = new_ajog_counts - axis->old_ajog_counts;
         axis->old_ajog_counts = new_ajog_counts;
         if ( first_pass ) { continue; }
@@ -413,6 +419,7 @@ void axis_handle_jogwheels(bool motion_teleop_flag, bool motion_enable_flag, boo
         }
 
         distance = delta * hal_get_real(axis_data->ajog_scale);
+        if (!isfinite(distance)) { continue; }
         pos = axis->teleop_tp.pos_cmd + distance;
         if ( hal_get_bool(axis_data->ajog_vel_mode) ) {
             double v = axis->vel_limit;

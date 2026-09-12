@@ -125,6 +125,7 @@ typedef struct {
     rtapi_s32 index_count;	/* c:rw captured index count */
     rtapi_s32 latch_count;	/* c:rw captured index count */
     hal_sint_t count;		/* c:w captured binary count value */
+    hal_real_t count_f;		/* c:w same value as count, as a float */
     hal_sint_t count_latch;     /* c:w captured binary count value */
     hal_real_t min_speed;       /* c:r minimum velocity to estimate nonzero */
     hal_real_t pos;		/* c:w scaled position (floating point) */
@@ -279,6 +280,7 @@ int rtapi_app_main(void)
 	cntr->index_count = 0;
 	cntr->latch_count = 0;
 	hal_set_si32(cntr->count, 0);
+	hal_set_real(cntr->count_f, 0.0);
 	hal_set_real(cntr->min_speed, 1.0);
 	hal_set_real(cntr->pos, 0.0);
 	hal_set_real(cntr->pos_latch, 0.0);
@@ -528,6 +530,7 @@ static void capture(void *arg, long period)
 	hal_set_real(cntr->vel_rpm, hal_get_real(cntr->vel) * 60.0);
 	/* compute net counts */
 	hal_set_si32(cntr->count, cntr->raw_count - cntr->index_count);
+	hal_set_real(cntr->count_f, (rtapi_real)(cntr->raw_count - cntr->index_count));
         hal_set_si32(cntr->count_latch, cntr->latch_count - cntr->index_count);
 	/* scale count to make floating point position */
 	hal_set_real(cntr->pos, hal_get_si32(cntr->count) * cntr->scale);
@@ -612,6 +615,13 @@ static int export_encoder(counter_t * addr,char * prefix)
     /* export pin for counts captured by capture() */
     retval = hal_pin_new_si32(comp_id, HAL_OUT, &(addr->count), 0,
             "%s.counts", prefix);
+    if (retval != 0) {
+	return retval;
+    }
+    /* export float twin of the counts pin, for axis.L.jog-counts and
+       joint.N.jog-counts, which are float pins */
+    retval = hal_pin_new_real(comp_id, HAL_OUT, &(addr->count_f), 0.0,
+            "%s.counts-f", prefix);
     if (retval != 0) {
 	return retval;
     }

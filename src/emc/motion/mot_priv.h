@@ -109,7 +109,7 @@ typedef struct {
     hal_bool_t unlock;          /* WPI: command that axis should unlock for rotation */
     hal_bool_t is_unlocked;     /* RPI: axis is currently unlocked */
 
-    hal_sint_t jjog_counts;	/* WPI: jogwheel position input */
+    hal_real_t jjog_counts;	/* WPI: jogwheel position input */
     hal_bool_t jjog_enable;	/* RPI: enable jogwheel */
     hal_real_t jjog_scale;	/* RPI: distance to jog on each count */
     hal_real_t jjog_accel_fraction;	/* RPI: to limit wheel jog accel */

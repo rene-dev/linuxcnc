@@ -348,7 +348,7 @@ net limitActive boss_plc.0.limit-active-out => motenc.0.out-18
 # Connect rapid/feed overrides.
 net adaptiveFeed boss_plc.0.adaptive-feed-out => motion.adaptive-feed
 setp halui.feed-override.scale 0.01
-net feedOverride motenc.0.enc-04-count => halui.feed-override.counts
+net feedOverride motenc.0.enc-04-count-f => halui.feed-override.counts
 #net rapidOverride motenc.0.enc-06-count => halui.rapid-override.counts
 
 # Set the jog mode so motion stops as soon as the wheel stops.
@@ -367,7 +367,7 @@ net yJog => boss_plc.0.y-jog-en-in
 net zJog => boss_plc.0.z-jog-en-in
 
 # Connect jog wheel encoder.
-net jogCounts motenc.0.enc-05-count => joint.0.jog-counts joint.1.jog-counts joint.2.jog-counts joint.3.jog-counts
+net jogCounts motenc.0.enc-05-count-f => joint.0.jog-counts joint.1.jog-counts joint.2.jog-counts joint.3.jog-counts
 
 # Connect jog scale selects to PLC.
 setp boss_plc.0.jog-scale-0 0.000001

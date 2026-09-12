@@ -168,7 +168,7 @@ typedef hal_uint_t hal_ui32_t;
     FIELD(real,jjog_deadband) /* pin for setting the jog analog deadband (where not to move) */ \
     FIELD(real,ajog_deadband) /* pin for setting the jog analog deadband (where not to move) */ \
 \
-    FIELD(sint,mv_counts) /* pin for the Max Velocity counting */ \
+    FIELD(real,mv_counts) /* pin for the Max Velocity counting */ \
     FIELD(bool,mv_count_enable) /* pin for the Max Velocity counting enable */ \
     FIELD(bool,mv_direct_value) /* pin for enabling direct value option instead of counts */ \
     FIELD(real,mv_scale) /* scale for the Max Velocity counting */ \
@@ -176,7 +176,7 @@ typedef hal_uint_t hal_ui32_t;
     FIELD(bool,mv_increase) /* pin for increasing the MV (+=scale) */ \
     FIELD(bool,mv_decrease) /* pin for decreasing the MV (-=scale) */ \
 \
-    FIELD(sint,fo_counts) /* pin for the Feed Override counting */ \
+    FIELD(real,fo_counts) /* pin for the Feed Override counting */ \
     FIELD(bool,fo_count_enable) /* pin for the Feed Override counting enable */ \
     FIELD(bool,fo_direct_value) /* pin for enabling direct value option instead of counts  */ \
     FIELD(real,fo_scale) /* scale for the Feed Override counting */ \
@@ -185,7 +185,7 @@ typedef hal_uint_t hal_ui32_t;
     FIELD(bool,fo_decrease) /* pin for decreasing the FO (-=scale) */ \
     FIELD(bool,fo_reset) /* pin for resetting Feed Override */ \
 \
-    FIELD(sint,ro_counts) /* pin for the Feed Override counting */ \
+    FIELD(real,ro_counts) /* pin for the Feed Override counting */ \
     FIELD(bool,ro_count_enable) /* pin for the Feed Override counting enable */ \
     FIELD(bool,ro_direct_value) /* pin for enabling direct value option instead of counts  */ \
     FIELD(real,ro_scale) /* scale for the Feed Override counting */ \
@@ -194,7 +194,7 @@ typedef hal_uint_t hal_ui32_t;
     FIELD(bool,ro_decrease) /* pin for decreasing the FO (-=scale) */ \
     FIELD(bool,ro_reset) /* pin for resetting Feed Override */ \
 \
-    ARRAY(sint,so_counts,EMCMOT_MAX_SPINDLES+1) /* pin for the Spindle Speed Override counting */ \
+    ARRAY(real,so_counts,EMCMOT_MAX_SPINDLES+1) /* pin for the Spindle Speed Override counting */ \
     ARRAY(bool,so_count_enable,EMCMOT_MAX_SPINDLES+1) /* pin for the Spindle Speed Override counting enable */ \
     ARRAY(bool,so_direct_value,EMCMOT_MAX_SPINDLES+1) /* pin for enabling direct value option instead of counts */ \
     ARRAY(real,so_scale,EMCMOT_MAX_SPINDLES+1) /* scale for the Spindle Speed Override counting */ \
@@ -608,7 +608,7 @@ int halui_hal_init(void)
         CHK(hal_pin_new_bool(comp_id, HAL_IN, &(halui_data->spindle_brake_on[spindle]), 0, "halui.spindle.%i.brake-on", spindle));
         CHK(hal_pin_new_bool(comp_id, HAL_IN, &(halui_data->spindle_brake_off[spindle]), 0, "halui.spindle.%i.brake-off", spindle));
         CHK(hal_pin_new_real(comp_id, HAL_OUT, &(halui_data->so_value[spindle]), 0.0, "halui.spindle.%i.override.value", spindle));
-        CHK(hal_pin_new_si32(comp_id, HAL_IN, &(halui_data->so_counts[spindle]), 0, "halui.spindle.%i.override.counts", spindle));
+        CHK(hal_pin_new_real(comp_id, HAL_IN, &(halui_data->so_counts[spindle]), 0.0, "halui.spindle.%i.override.counts", spindle));
         CHK(hal_pin_new_bool(comp_id, HAL_IN, &(halui_data->so_count_enable[spindle]), 1, "halui.spindle.%i.override.count-enable", spindle));
         CHK(hal_pin_new_bool(comp_id, HAL_IN, &(halui_data->so_direct_value[spindle]), 0, "halui.spindle.%i.override.direct-value", spindle));
         CHK(hal_pin_new_real(comp_id, HAL_IN, &(halui_data->so_scale[spindle]), 0.0, "halui.spindle.%i.override.scale", spindle));
@@ -694,7 +694,7 @@ int halui_hal_init(void)
     CHK(halui_export_pin_IN_bit(&(halui_data->program_bd_on), "halui.program.block-delete.on"));
     CHK(halui_export_pin_IN_bit(&(halui_data->program_bd_off), "halui.program.block-delete.off"));
 
-    CHK(halui_export_pin_IN_s32(&(halui_data->mv_counts), "halui.max-velocity.counts"));
+    CHK(halui_export_pin_IN_float(&(halui_data->mv_counts), "halui.max-velocity.counts"));
     CHK(halui_export_pin_IN_bit(&(halui_data->mv_count_enable), "halui.max-velocity.count-enable"));
     hal_set_bool(halui_data->mv_count_enable, 1);
     CHK(halui_export_pin_IN_bit(&(halui_data->mv_direct_value), "halui.max-velocity.direct-value"));
@@ -702,7 +702,7 @@ int halui_hal_init(void)
     CHK(halui_export_pin_IN_bit(&(halui_data->mv_increase), "halui.max-velocity.increase"));
     CHK(halui_export_pin_IN_bit(&(halui_data->mv_decrease), "halui.max-velocity.decrease"));
 
-    CHK(halui_export_pin_IN_s32(&(halui_data->fo_counts), "halui.feed-override.counts"));
+    CHK(halui_export_pin_IN_float(&(halui_data->fo_counts), "halui.feed-override.counts"));
     CHK(halui_export_pin_IN_bit(&(halui_data->fo_count_enable), "halui.feed-override.count-enable"));
     hal_set_bool(halui_data->fo_count_enable, 1);
     CHK(halui_export_pin_IN_bit(&(halui_data->fo_direct_value), "halui.feed-override.direct-value"));
@@ -711,7 +711,7 @@ int halui_hal_init(void)
     CHK(halui_export_pin_IN_bit(&(halui_data->fo_decrease), "halui.feed-override.decrease"));
     CHK(halui_export_pin_IN_bit(&(halui_data->fo_reset), "halui.feed-override.reset"));
 
-    CHK(halui_export_pin_IN_s32(&(halui_data->ro_counts), "halui.rapid-override.counts"));
+    CHK(halui_export_pin_IN_float(&(halui_data->ro_counts), "halui.rapid-override.counts"));
     CHK(halui_export_pin_IN_bit(&(halui_data->ro_count_enable), "halui.rapid-override.count-enable"));
     hal_set_bool(halui_data->ro_count_enable, 1);
     CHK(halui_export_pin_IN_bit(&(halui_data->ro_direct_value), "halui.rapid-override.direct-value"));
@@ -1465,7 +1465,7 @@ static bool jogging_selected_axis(local_halui_str &hal) {
 // and sends appropriate messages if so
 static void check_hal_changes()
 {
-    rtapi_s32 counts;
+    rtapi_real counts;
     int jselect_changed, joint;
     int aselect_changed, axis_num;
     rtapi_bool bit;

@@ -48,7 +48,9 @@ motion controller to control wheel jogging:
 
 - In addition to being connected to 'touchy.wheel-counts', the wheel counts
   should also be connected to 'axis._N_.jog-counts' for
-  each axis _N_.  If you use HAL component 'ilowpass' to smooth wheel jogging, be
+  each axis _N_.  Both are float pins, so a jog wheel widget's float output
+  (for instance a gladevcp dial's '-f' pin) is what you want here.
+  If you use HAL component 'lowpass' to smooth wheel jogging, be
   sure to smooth only 'axis._N_.jog-counts' and not 'touchy.wheel-counts'.
 
 .Required controls

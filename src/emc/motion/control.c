@@ -1043,7 +1043,7 @@ static void handle_jjogwheels(void)
     int joint_num;
     emcmot_joint_t *joint;
     joint_hal_t *joint_data;
-    int new_jjog_counts, delta;
+    double new_jjog_counts, delta;
     double distance, pos, stop_dist;
     static int first_pass = 1;	/* used to set initial conditions */
 
@@ -1066,7 +1066,13 @@ static void handle_jjogwheels(void)
             jaccel_limit = jjog_accel_fraction * joint->acc_limit;
         }
 	/* get counts from jogwheel */
-	new_jjog_counts = hal_get_si32(joint_data->jjog_counts);
+	new_jjog_counts = hal_get_real(joint_data->jjog_counts);
+	/* jog-counts is a float pin, so a HAL writer can hand us a non-finite
+	   value.  Latching it would make every subsequent delta NaN as well,
+	   so keep the previous value and let delta come out zero instead. */
+	if (!isfinite(new_jjog_counts)) {
+	    new_jjog_counts = joint->old_jjog_counts;
+	}
 	delta = new_jjog_counts - joint->old_jjog_counts;
 	/* save value for next time */
 	joint->old_jjog_counts = new_jjog_counts;
@@ -1125,6 +1131,9 @@ static void handle_jjogwheels(void)
         }
 	/* calculate distance to jog */
 	distance = delta * hal_get_real(joint_data->jjog_scale);
+	if (!isfinite(distance)) {
+	    continue;
+	}
 	/* check for joint already on hard limit */
 	if (distance > 0.0 && GET_JOINT_PHL_FLAG(joint)) {
 	    continue;

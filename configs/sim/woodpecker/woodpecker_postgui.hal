@@ -43,7 +43,7 @@ net eoffset_count    woodpecker.eoffset-count => axis.z.eoffset-counts
 net eoffset          woodpecker.eoffset-value <= axis.z.eoffset
 setp axis.z.eoffset-scale 1.0
 
-net mpg-sig           axis.x.jog-counts       axis.y.jog-counts  axis.z.jog-counts   axis.a.jog-counts  woodpecker.mpg-in  woodpecker.MPG-s  
+net mpg-sig           axis.x.jog-counts       axis.y.jog-counts  axis.z.jog-counts   axis.a.jog-counts  woodpecker.mpg-in  woodpecker.MPG-f  
 
 net jogSelectx        axis.x.jog-enable      woodpecker.jog.wheel.x
 net jogSelecty        axis.y.jog-enable      woodpecker.jog.wheel.y

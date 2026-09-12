@@ -333,7 +333,7 @@ These pins represent the *commanded geometric intent* from the interpreter and a
 **axis.**_L_**.jog-accel-fraction** IN FLOAT::
   Sets acceleration for wheel jogging to a fraction of the INI max_acceleration for the axis.
   Values greater than 1 or less than zero are ignored.
-**axis.**_L_**.jog-counts** IN S32::
+**axis.**_L_**.jog-counts** IN FLOAT::
   Connect to the "counts" pin of an external encoder to use a physical jog wheel.
 **axis.**_L_**.jog-enable** IN BIT::
   When TRUE (and in manual mode), any change to "jog-counts" will result in motion.
@@ -414,7 +414,7 @@ Note: Pins marked *(DEBUG)* serve as debugging aids and are subject to change or
 **joint.**_N_**.jog-accel-fraction** IN FLOAT::
   Sets acceleration for wheel jogging to a fraction of the INI max_acceleration for the joint.
   Values greater than 1 or less than zero are ignored.
-**joint.**_N_**.jog-counts** IN S32::
+**joint.**_N_**.jog-counts** IN FLOAT::
   Connect to the "counts" pin of an external encoder to use a physical jog wheel.
 **joint.**_N_**.jog-enable** IN BIT::
   When TRUE (and in manual mode), any change to "jog-counts" will result in motion.

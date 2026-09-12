@@ -48,8 +48,8 @@ pin in  real accel_fraction_in = 1 "acceleration fraction input";
 pin out bool enable_out "to: axis.M.jog-enable AND axis.N.jog-enable";
 pin out real current_scale "effective scale (informational)";
 pin out real current_scale_out "to: axis.M.jog-scale AND axis.N.jog-scale";
-pin out si32 coscounts  "to: axis.M.jog-counts (cosine counts)";
-pin out si32 sincounts  "to: axis.N.jog-counts (sine   counts)";
+pin out real coscounts  "to: axis.M.jog-counts (cosine counts)";
+pin out real sincounts  "to: axis.N.jog-counts (sine   counts)";
 pin out real cos_accel_fraction "to: axis.M.jog-accel-fraction";
 pin out real sin_accel_fraction "to: axis.N.jog-accel-fraction";
 

@@ -42,7 +42,7 @@ net eoffset          woodpecker.eoffset-value <= axis.z.eoffset
 #net limited          woodpecker.led-eoffset-limit <= motion.eoffset-limited
 setp axis.z.eoffset-scale 1.0
 
-net mpg-sig           axis.x.jog-counts       axis.y.jog-counts  axis.z.jog-counts  woodpecker.mpg-in  woodpecker.MPG-s  
+net mpg-sig           axis.x.jog-counts       axis.y.jog-counts  axis.z.jog-counts  woodpecker.mpg-in  woodpecker.MPG-f  
 
 net jogSelectx        axis.x.jog-enable      woodpecker.jog.wheel.x
 net jogSelecty        axis.y.jog-enable      woodpecker.jog.wheel.y

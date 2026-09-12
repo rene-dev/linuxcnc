@@ -67,6 +67,10 @@ The *encoder*.__N__. format is shown in the following descriptions.
   When false (the default), it counts in quadrature mode.
 **encoder**.__N__.**counts** s32 out::
   Position in encoder counts.
+**encoder**.__N__.**counts-f** float out::
+  The same value as *counts*, as a float. Use this for
+  **axis**.__L__.**jog-counts** and **joint**.__N__.**jog-counts**,
+  which are float pins.
 **encoder**.__N__.**index-enable** bit i/o::
   When true, *counts* and *position* are reset to zero on the next
   rising edge of *Phase-Z*. At the same time, *index-enable* is reset to

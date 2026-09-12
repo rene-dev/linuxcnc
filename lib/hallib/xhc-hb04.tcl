@@ -177,11 +177,9 @@ proc wheel_setup {jogmode} {
   #   divide the xhc-hb04.jog.scale by $kvalue
   #   and
   #   multiply the pendant_util.scale$idx by $kvalue
-  # to manipulate the integer (s32) joint.N.jog-counts
+  # to manipulate joint.N.jog-counts
 
   set kvalue 100.0; # allow fractional scales (.1, .01)
-                    # Note: larger values not advised as the
-                    #        jog-counts are type s32 (~ +/-2e9)
   setp pendant_util.k $kvalue
 
   makenet pendant:jog-prescale    <= xhc-hb04.jog.scale

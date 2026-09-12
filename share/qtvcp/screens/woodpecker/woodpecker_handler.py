@@ -261,7 +261,7 @@ class HandlerClass:
         QHAL.newpin("eoffset-count", QHAL.HAL_S32, QHAL.HAL_OUT)
         pin = QHAL.newpin("eoffset-value", QHAL.HAL_FLOAT, QHAL.HAL_IN)
 
-        self.pin_mpg_in = self.h.newpin('mpg-in',hal.HAL_S32, hal.HAL_IN)
+        self.pin_mpg_in = self.h.newpin('mpg-in',hal.HAL_FLOAT, hal.HAL_IN)
         self.pin_mpg_in.value_changed.connect(lambda s: self.external_mpg(s))
         self.wheel_x = self.h.newpin('jog.wheel.x',hal.HAL_BIT, hal.HAL_OUT)
         self.wheel_y = self.h.newpin('jog.wheel.y',hal.HAL_BIT, hal.HAL_OUT)

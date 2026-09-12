@@ -37,7 +37,7 @@ setp hm2_5i20.0.gpio.064.is_output TRUE
 setp hm2_5i20.0.gpio.064.invert_output TRUE
 net mpg-led hm2_5i20.0.gpio.064.out hm2_5i20.0.gpio.062.in
 
-net pend-counts axis.0.jog-counts <= encoder.0.counts
+net pend-counts axis.0.jog-counts <= encoder.0.counts-f
 net pend-counts axis.1.jog-counts
 net pend-counts axis.2.jog-counts
 #net pend-counts axis.3.jog-counts

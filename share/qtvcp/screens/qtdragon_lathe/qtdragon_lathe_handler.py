@@ -356,7 +356,7 @@ class HandlerClass:
         # total external offset
         pin = QHAL.newPin("eoffset-value", QHAL.HAL_FLOAT, QHAL.HAL_IN)
 
-        self.pin_mpg_in = QHAL.newPin('mpg-in',QHAL.HAL_S32, QHAL.HAL_IN)
+        self.pin_mpg_in = QHAL.newPin('mpg-in',QHAL.HAL_FLOAT, QHAL.HAL_IN)
         self.pin_mpg_in.pinValueChanged.connect(lambda p,v: self.external_mpg(v))
 
         # dialog answer pins

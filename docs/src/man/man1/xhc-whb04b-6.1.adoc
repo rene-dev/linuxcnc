@@ -121,7 +121,7 @@ _<N>_  ... denotes the axis number, which is of {x, y, z, a, b, c}.
  Pin for requesting all axis to home.  See also `whb.button.m-home`.
 `whb.halui.axis._<N>_.select` (bit,out)::
  connect to `halui.axis._<N>_.select`.  Pin to select axis.
-`whb.axis._<N>_.jog-counts` (s32,out)::
+`whb.axis._<N>_.jog-counts` (float,out)::
  connect to `axis._<N>_.jog-counts`.  The count pin of the jogwheel.
 `whb.axis._<N>_.jog-enable` (bit,out)::
  connect to `axis._<N>_.jog-enable`.

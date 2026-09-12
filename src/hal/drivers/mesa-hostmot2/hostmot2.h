@@ -285,6 +285,7 @@ typedef struct {
             hal_sint_t rawlatch;        // raw encoder of latch (truncated view)
             hal_sint_t count;           // (rawcounts - zero_offset), truncated view
             hal_sint_t count_latch;     // (rawlatch - zero_offset), truncated view
+            hal_real_t count_f;         // count as a float, from the full 64-bit value
             hal_real_t position;
             hal_real_t position_latch;
             hal_real_t position_interpolated;

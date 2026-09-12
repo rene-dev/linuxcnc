@@ -180,10 +180,14 @@ xhc-hb04.stepsize (s32 out)::
 == Output Pins (for jogging using axis.N.jog-counts)
 
 xhc-hb04.jog.counts (s32 out)::
-  Number of counts of the wheel since start-up (50 counts per wheel revolution)
-  (typically connect to `axis.N.jog-counts` (lowpass filtering may be helpful)).
+  Number of counts of the wheel since start-up (50 counts per wheel revolution).
 xhc-hb04.jog.counts-neg (s32 out)::
   The value of the `xhc-hb04.jog.counts` multiplied by -1.
+xhc-hb04.jog.counts-f (float out)::
+  The value of `xhc-hb04.jog.counts` as a float (typically connect to
+  `axis.N.jog-counts`, which is a float pin; lowpass filtering may be helpful).
+xhc-hb04.jog.counts-neg-f (float out)::
+  The value of `xhc-hb04.jog.counts-f` multiplied by -1.
 xhc-hb04.jog.scale (float out)::
   Value is the current stepsize multiplied by 0.001 (typically connect to `axis.N.jog-scale`).
 

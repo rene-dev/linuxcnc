@@ -32,7 +32,8 @@ net mpg-scale => axis.z.jog-scale
 net mpg-scale => axis.a.jog-scale
 
 # The encoder output counts to the axis. Only the selected axis will move.
-#net encoder-counts  <= hm2_7i96.0.encoder.00.count-latched
+# axis.L.jog-counts is a float pin, so use the encoder's float count pin.
+#net encoder-counts  <= hm2_7i96.0.encoder.00.count-f
 net encoder-counts => axis.x.jog-counts
 net encoder-counts => axis.y.jog-counts
 net encoder-counts => axis.z.jog-counts

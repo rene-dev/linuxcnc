@@ -121,6 +121,8 @@ typedef struct {
 	hal_real_t jog_scale;
 	hal_sint_t jog_counts;
 	hal_sint_t jog_counts_neg;
+	hal_real_t jog_counts_f;
+	hal_real_t jog_counts_neg_f;
 
 	hal_real_t jog_velocity;
 	hal_real_t jog_max_velocity;
@@ -436,6 +438,9 @@ void cb_response_in(struct libusb_transfer *transfer)
 
 		hal_set_si32(xhc.hal->jog_counts, hal_get_si32(xhc.hal->jog_counts) + ((signed char)in_buf[4]));
 		hal_set_si32(xhc.hal->jog_counts_neg, - hal_get_si32(xhc.hal->jog_counts));
+		/* float twins, for the (float) axis.L.jog-counts pins */
+		hal_set_real(xhc.hal->jog_counts_f, (rtapi_real)hal_get_si32(xhc.hal->jog_counts));
+		hal_set_real(xhc.hal->jog_counts_neg_f, (rtapi_real)hal_get_si32(xhc.hal->jog_counts_neg));
 		hal_set_bool(xhc.hal->jog_enable_off,      xhc.axis == axis_off);
 		hal_set_bool(xhc.hal->jog_enable_x,        xhc.axis == axis_x);
 		hal_set_bool(xhc.hal->jog_enable_y,        xhc.axis == axis_y);
@@ -655,6 +660,8 @@ static int hal_setup()
     r |= _hal_pin_float_newf(HAL_OUT, &(xhc.hal->jog_scale), hal_comp_id, "%s.jog.scale", modname);
     r |= _hal_pin_s32_newf(HAL_OUT, &(xhc.hal->jog_counts), hal_comp_id, "%s.jog.counts", modname);
     r |= _hal_pin_s32_newf(HAL_OUT, &(xhc.hal->jog_counts_neg), hal_comp_id, "%s.jog.counts-neg", modname);
+    r |= _hal_pin_float_newf(HAL_OUT, &(xhc.hal->jog_counts_f), hal_comp_id, "%s.jog.counts-f", modname);
+    r |= _hal_pin_float_newf(HAL_OUT, &(xhc.hal->jog_counts_neg_f), hal_comp_id, "%s.jog.counts-neg-f", modname);
 
     r |= _hal_pin_float_newf(HAL_OUT, &(xhc.hal->jog_velocity), hal_comp_id, "%s.jog.velocity", modname);
     r |= _hal_pin_float_newf(HAL_IN, &(xhc.hal->jog_max_velocity), hal_comp_id, "%s.jog.max-velocity", modname);

@@ -764,7 +764,9 @@ class GcodeDisplay(EditorBase, _HalWidgetBase):
 
     def jump_line(self, jump):
         line, col = self.getCursorPosition()
-        line = line + jump
+        # jump can arrive as a float (MPG counts are float pins now) and
+        # setCursorPosition() only takes ints
+        line = int(line + jump)
         LOG.verbose(line)
         if line <0:
             line = 0

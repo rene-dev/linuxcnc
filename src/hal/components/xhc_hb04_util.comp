@@ -21,10 +21,10 @@ pin in si32 in0;
 pin in si32 in1;
 pin in si32 in2;
 pin in si32 in3;
-pin out si32 out0;
-pin out si32 out1;
-pin out si32 out2;
-pin out si32 out3;
+pin out real out0;
+pin out real out1;
+pin out real out2;
+pin out real out3;
 pin in real scale0 = 1.0;
 pin in real scale1 = 1.0;
 pin in real scale2 = 1.0;
@@ -68,10 +68,10 @@ FUNCTION(_) {
     value2 += (in2 - value2) * (fabs(coef2) < 1 ? fabs(coef2) : 1);
     value3 += (in3 - value3) * (fabs(coef3) < 1 ? fabs(coef3) : 1);
 
-    out0_set(ceil(value0 * scale0 - .5));
-    out1_set(ceil(value1 * scale1 - .5));
-    out2_set(ceil(value2 * scale2 - .5));
-    out3_set(ceil(value3 * scale3 - .5));
+    out0_set(value0 * scale0);
+    out1_set(value1 * scale1);
+    out2_set(value2 * scale2);
+    out3_set(value3 * scale3);
 
     if (data.old_start_or_pause == start_or_pause) return;
     data.old_start_or_pause = start_or_pause;

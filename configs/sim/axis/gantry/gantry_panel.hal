@@ -36,7 +36,7 @@ setp jjog_counts_mux.in0    0
 setp jjog_counts_mux.in1    0.0000001
 # non-zero value needed to pulse the
 # pyvcp.scale.0.param_pin is ok since
-# the truncated s32 pin pyvcp.jj_counts-i
+# the truncated s32 pin pyvcp.jj_counts-f
 # is used for joint.N.jog-counts pins
 
 setp pulse_on_jjdisable.rising        0
@@ -71,7 +71,7 @@ net hsequence_select => motion.homing-inhibit
 net hsequence_select => pulse_on_jjdisable.in
 
 # counts for synchronized realtime MPG joint jogging:
-net j13counts <= pyvcp.jj_counts-i
+net j13counts <= pyvcp.jj_counts-f
 net j13counts => joint.1.jog-counts joint.3.jog-counts
 
 # MPG scaling:

@@ -25,6 +25,7 @@
  *
  *   Pins:
  *	s32	motenc.<boardId>.enc-<channel>-count
+ *	float	motenc.<boardId>.enc-<channel>-count-f
  *	float	motenc.<boardId>.enc-<channel>-position
  *	bit	motenc.<boardId>.enc-<channel>-index
  *	bit	motenc.<boardId>.enc-<channel>-index-enable
@@ -147,6 +148,7 @@ MODULE_LICENSE("GPL");
 typedef struct {
     // Pins.
     hal_sint_t				pCount;	// Captured binary count value.
+    hal_real_t				pCountF;	// Same value as a float, for float count inputs.
     hal_real_t				pPosition;	// Scaled position (floating point).
     hal_bool_t				pIndex;	// Current state of index.
     hal_bool_t				pIndexEnable;	// Setting this pin causes the count
@@ -494,6 +496,10 @@ Device_ExportEncoderPinsParametersFunctions(Device *this, int componentId, int b
 	  0, "motenc.%d.enc-%02d-count", boardId, channel)) != 0)
 	    break;
 
+	if((halError = hal_pin_new_real(componentId, HAL_OUT, &(this->encoder[channel].pCountF),
+	  0.0, "motenc.%d.enc-%02d-count-f", boardId, channel)) != 0)
+	    break;
+
 	if((halError = hal_pin_new_real(componentId, HAL_OUT, &(this->encoder[channel].pPosition),
 	  0.0, "motenc.%d.enc-%02d-position", boardId, channel)) != 0)
 	    break;
@@ -762,6 +768,7 @@ Device_EncoderRead(void *arg, long period)
 
 	    // Read encoder counts.
 	    hal_set_si32(pEncoder->pCount, pCard->fpga[i].encoderCount[j]);
+	    hal_set_real(pEncoder->pCountF, (rtapi_real)pCard->fpga[i].encoderCount[j]);
 
 	    // Check for change in scale value.
 	    if ( hal_get_real(pEncoder->scale) != pEncoder->oldScale ) {

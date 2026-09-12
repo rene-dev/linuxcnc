@@ -24,7 +24,7 @@ net     select-z    joint.1.jog-enable  axis.z.jog-enable
 
 # connect pins for axis MPG jogging scale
 # note that z axis is scaled inversely so the turning direction is opposite
-net     mpg-counts  gladevcp.mpg
+net     mpg-counts  gladevcp.mpg-f
 net     mpg-counts  joint.0.jog-counts    joint.1.jog-counts
 net     mpg-counts  axis.x.jog-counts     axis.z.jog-counts
 net     mpg-scale-x  panelui.mpg_scale            joint.0.jog-scale axis.x.jog-scale
