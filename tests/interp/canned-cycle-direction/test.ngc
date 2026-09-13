@@ -1,0 +1,42 @@
+; Canned cycles with R below the position on the cycle axis cut in the
+; positive direction along that axis, e.g. for horizontal drilling.
+; See issue #4528.
+
+g20 g90 f10
+
+(1: G19 G98 G81 in +X, old X on the retract side of R)
+g19 g98
+g0 x-2 y0 z0
+g81 y1 z1 x1 r-1
+g80
+
+(2: G19 G98 G81 in +X, old X on the hole side of R)
+g0 x0 y0 z0
+g81 y2 z1 x1 r-1
+g80
+
+(3: G19 G99 G83 in +X, peck drilling)
+g99
+g0 x-2 y0 z0
+g83 y3 z1 x1 r-1 q0.75 d0.1
+g80
+
+(4: G19 G98 G73 in +X, chip breaking, incremental with repeats)
+g98
+g0 x-2 y0 z0
+g91 g73 y1 x2 r1 q0.75 d0.1 l2
+g90 g80
+
+(5: G18 G98 G81 in +Y)
+g18
+g0 x0 y-2 z0
+g81 x1 z1 y1 r-1
+g80
+
+(6: G17 G98 G83 in -Z, the usual direction)
+g17
+g0 x0 y0 z2
+g83 x1 y1 z-1 r1 q0.75 d0.1
+g80
+
+m2

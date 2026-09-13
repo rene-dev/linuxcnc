@@ -2236,6 +2236,23 @@ repeats. The L number is not sticky. In absolute distance mode,
 L>1 means 'do the same cycle in the same place several
 times', Omitting the L word is equivalent to specifying L=1.
 
+[[gcode:canned-cycle-direction]]
+=== Cycle Direction
+
+The hole goes from the R position towards the Z position. Usually R is
+above Z, and the cycle works in the negative Z direction. If R is below
+Z, the cycle works in the positive Z direction, and all retract moves go
+in the negative Z direction. This can be used for example for
+horizontal drilling in the 'G18' or 'G19' plane, when the spindle
+points in the positive direction of the axis perpendicular to the plane.
+
+In the descriptions of the canned cycles, 'up', 'above', 'higher' and
+'out' mean away from the hole towards the R position, and 'down',
+'below', 'lower' and 'deep' mean towards the Z position.
+
+CAUTION: If R and Z are swapped by mistake, the cycle does not stop with
+an error, it rapids to R and cuts in the opposite direction.
+
 === Retract Mode
 
 The height of the retract move at the end of each repeat (called
@@ -2258,11 +2275,8 @@ It is an error if:
 * or cutter compensation is active during a canned cycle.
 
 If the XY plane is active, the Z number is sticky, and it is an error
-if:
-
-* the Z number is missing and the same canned cycle was not already
-  active,
-* or the R number is less than the Z number.
+if the Z number is missing and the same canned cycle was not already
+active.
 
 If other planes are active, the error conditions are analogous to the
 XY conditions above.

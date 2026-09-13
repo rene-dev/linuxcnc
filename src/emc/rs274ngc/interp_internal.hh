@@ -1001,12 +1001,15 @@ static inline void rs274ngc_strlcpy(char *dst, const char *src, size_t dstsize) 
 // The traverse (in the active plane) to the location of the canned cycle
 // is different on the first repeat vs on all the following repeats.
 //
-// The first traverse happens in the CURRENT_CC plane (which was raised to
-// the R plane earlier, if needed), followed by a traverse down to the R
+// The first traverse happens in the CURRENT_CC plane (which was retracted
+// to the R plane earlier, if needed), followed by a traverse to the R
 // plane.
 //
 // All later positioning moves happen in the CLEAR_CC plane, which is
 // either the R plane or the OLD_CC plane depending on G98/G99.
+//
+// The cycle may go in either direction along the CC axis, retract_sign is
+// the direction from the hole back out to the R plane.
 //
 
 #define CYCLE_MACRO(call) for (repeat = block->l_number; \
@@ -1031,13 +1034,13 @@ static inline void rs274ngc_strlcpy(char *dst, const char *src, size_t dstsize) 
            aa = radius * cos(theta); \
            bb = radius * sin(theta); \
        } \
-       if ((repeat == block->l_number) && (current_cc > r)) { \
+       if ((repeat == block->l_number) && (retract_sign * current_cc > retract_sign * r)) { \
          cycle_traverse(block, plane, aa, bb, current_cc); \
          cycle_traverse(block, plane, aa, bb, r); \
        } else { \
          /* we must be at CLEAR_CC already */ \
          cycle_traverse(block, plane, aa, bb, clear_cc); \
-         if (clear_cc > r) { \
+         if (retract_sign * clear_cc > retract_sign * r) { \
            cycle_traverse(block, plane, aa, bb, r); \
          } \
        } \

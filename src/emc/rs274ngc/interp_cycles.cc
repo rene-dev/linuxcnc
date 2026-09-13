@@ -156,11 +156,14 @@ int Interp::convert_cycle_g83(block_pointer block,
 
   rapid_delta = block->d_flag?block->d_number_float:_setup.parameter_g83_peck_clearance;
 
-  for (current_depth = (r - delta);
-       current_depth > bottom_z; current_depth = (current_depth - delta)) {
+  // the hole may go in either direction along the cycle axis
+  double retract_sign = (bottom_z > r) ? -1.0 : 1.0;
+  for (current_depth = (r - retract_sign * delta);
+       retract_sign * current_depth > retract_sign * bottom_z;
+       current_depth = (current_depth - retract_sign * delta)) {
     cycle_feed(block, plane, x, y, current_depth);
     cycle_traverse(block, plane, x, y, r);
-    cycle_traverse(block, plane, x, y, current_depth + rapid_delta);
+    cycle_traverse(block, plane, x, y, current_depth + retract_sign * rapid_delta);
   }
   cycle_feed(block, plane, x, y, bottom_z);
   cycle_traverse(block, plane, x, y, clear_z);
@@ -217,10 +220,13 @@ int Interp::convert_cycle_g73(block_pointer block,
 
   rapid_delta = block->d_flag?block->d_number_float:_setup.parameter_g73_peck_clearance;
 
-  for (current_depth = (r - delta);
-    current_depth > bottom_z; current_depth = (current_depth - delta)) {
+  // the hole may go in either direction along the cycle axis
+  double retract_sign = (bottom_z > r) ? -1.0 : 1.0;
+  for (current_depth = (r - retract_sign * delta);
+    retract_sign * current_depth > retract_sign * bottom_z;
+    current_depth = (current_depth - retract_sign * delta)) {
     cycle_feed(block, plane, x, y, current_depth);
-    cycle_traverse(block, plane, x, y, current_depth + rapid_delta);
+    cycle_traverse(block, plane, x, y, current_depth + retract_sign * rapid_delta);
   }
   cycle_feed(block, plane, x, y, bottom_z);
   cycle_traverse(block, plane, x, y, clear_z);
@@ -796,24 +802,22 @@ Returned Value: int
    1. The z-value is not given the first time this code is called after
       some other motion mode has been in effect:
       NCE_Z_VALUE_UNSPECIFIED_IN_XY_PLANE_CANNED_CYCLE
-   2. The r clearance plane is below the bottom_z:
-      NCE_R_LESS_THAN_Z_IN_CYCLE_IN_XY_PLANE
-   3. the distance mode is neither absolute or incremental:
+   2. the distance mode is neither absolute or incremental:
       NCE_BUG_DISTANCE_MODE_NOT_G90_OR_G91
-   4. G82, G86, G88, or G89 is called when it is not already in effect,
+   3. G82, G86, G88, or G89 is called when it is not already in effect,
       and no p number is in the block:
       NCE_DWELL_TIME_P_WORD_MISSING_WITH_G82
       NCE_DWELL_TIME_P_WORD_MISSING_WITH_G86
       NCE_DWELL_TIME_P_WORD_MISSING_WITH_G88
       NCE_DWELL_TIME_P_WORD_MISSING_WITH_G89
-   5. G83 is called when it is not already in effect,
+   4. G83 is called when it is not already in effect,
       and no q number is in the block: NCE_Q_WORD_MISSING_WITH_G83_OR_M66
-   6. G87 is called when it is not already in effect,
+   5. G87 is called when it is not already in effect,
       and any of the i number, j number, or k number is missing:
       NCE_I_WORD_MISSING_WITH_G87
       NCE_J_WORD_MISSING_WITH_G87
       NCE_K_WORD_MISSING_WITH_G87
-   7. the G-code is not between G_81 and G_89.
+   6. the G-code is not between G_81 and G_89.
       NCE_BUG_FUNCTION_SHOULD_NOT_HAVE_BEEN_CALLED
 
 Side effects:
@@ -840,7 +844,12 @@ implied in [NCMS, page 98], but k (z-value of top of counterbore) will
 be an absolute z-value in absolute distance mode, and an increment
 (from bottom z) in incremental distance mode.
 
-If the r position of a cycle is above the current_z position, this
+The hole goes from r towards z. Usually r is above z and the hole is
+drilled in the negative z direction, but r below z drills in the
+positive z direction. In the text below, "above" means further out
+along the retract direction (from z towards r).
+
+If the current_z position is on the hole side of the r position, this
 retracts the z-axis to the r position before moving parallel to the
 XY plane.
 
@@ -957,11 +966,13 @@ int Interp::convert_cycle_xy(int motion, //!< a G-code between G_81 and G_89, a 
     bb = settings->current_y;
   } else
     ERS(NCE_BUG_DISTANCE_MODE_NOT_G90_OR_G91);
-  CHKS((r < cc), NCE_R_LESS_THAN_Z_IN_CYCLE_IN_XY_PLANE);
+  // The hole goes from r towards cc, in either direction along the cycle
+  // axis. retract_sign is the direction from the hole back out to r.
+  double retract_sign = (r < cc) ? -1.0 : 1.0;
 
-  // First motion of a canned cycle (maybe): if we're below the R plane,
-  // rapid straight up to the R plane.
-  if (old_cc < r) {
+  // First motion of a canned cycle (maybe): if we're on the hole side of
+  // the R plane, rapid straight out to the R plane.
+  if (retract_sign * old_cc < retract_sign * r) {
     STRAIGHT_TRAVERSE(block->line_number, settings->current_x, settings->current_y, r,
                       settings->AA_current, settings->BB_current, settings->CC_current,
                       settings->u_current, settings->v_current, settings->w_current);
@@ -1150,9 +1161,11 @@ int Interp::convert_cycle_uv(int motion, //!< a G-code between G_81 and G_89, a 
     bb = settings->v_current;
   } else
     ERS(NCE_BUG_DISTANCE_MODE_NOT_G90_OR_G91);
-  CHKS((r < cc), NCE_R_LESS_THAN_W_IN_CYCLE_IN_UV_PLANE);
+  // The hole goes from r towards cc, in either direction along the cycle
+  // axis. retract_sign is the direction from the hole back out to r.
+  double retract_sign = (r < cc) ? -1.0 : 1.0;
 
-  if (old_cc < r) {
+  if (retract_sign * old_cc < retract_sign * r) {
     STRAIGHT_TRAVERSE(block->line_number, settings->current_x, settings->current_y, settings->current_z,
                       settings->AA_current, settings->BB_current, settings->CC_current,
                       settings->u_current, settings->v_current, r);
@@ -1295,24 +1308,22 @@ Returned Value: int
    1. The x-value is not given the first time this code is called after
       some other motion mode has been in effect:
       NCE_X_VALUE_UNSPECIFIED_IN_YZ_PLANE_CANNED_CYCLE
-   2. The r clearance plane is below the bottom_x:
-      NCE_R_LESS_THAN_X_IN_CYCLE_IN_YZ_PLANE
-   3. the distance mode is neither absolute or incremental:
+   2. the distance mode is neither absolute or incremental:
       NCE_BUG_DISTANCE_MODE_NOT_G90_OR_G91
-   4. G82, G86, G88, or G89 is called when it is not already in effect,
+   3. G82, G86, G88, or G89 is called when it is not already in effect,
       and no p number is in the block:
       NCE_DWELL_TIME_P_WORD_MISSING_WITH_G82
       NCE_DWELL_TIME_P_WORD_MISSING_WITH_G86
       NCE_DWELL_TIME_P_WORD_MISSING_WITH_G88
       NCE_DWELL_TIME_P_WORD_MISSING_WITH_G89
-   5. G83 is called when it is not already in effect,
+   4. G83 is called when it is not already in effect,
       and no q number is in the block: NCE_Q_WORD_MISSING_WITH_G83
-   6. G87 is called when it is not already in effect,
+   5. G87 is called when it is not already in effect,
       and any of the i number, j number, or k number is missing:
       NCE_I_WORD_MISSING_WITH_G87
       NCE_J_WORD_MISSING_WITH_G87
       NCE_K_WORD_MISSING_WITH_G87
-   7. the G-code is not between G_81 and G_89.
+   6. the G-code is not between G_81 and G_89.
       NCE_BUG_FUNCTION_SHOULD_NOT_HAVE_BEEN_CALLED
 
 Side effects:
@@ -1387,9 +1398,11 @@ int Interp::convert_cycle_yz(int motion, //!< a G-code between G_81 and G_89, a 
     bb = settings->current_z;
   } else
     ERS(NCE_BUG_DISTANCE_MODE_NOT_G90_OR_G91);
-  CHKS((r < cc), NCE_R_LESS_THAN_X_IN_CYCLE_IN_YZ_PLANE);
+  // The hole goes from r towards cc, in either direction along the cycle
+  // axis. retract_sign is the direction from the hole back out to r.
+  double retract_sign = (r < cc) ? -1.0 : 1.0;
 
-  if (old_cc < r) {
+  if (retract_sign * old_cc < retract_sign * r) {
     STRAIGHT_TRAVERSE(block->line_number, r, settings->current_y, settings->current_z,
                       settings->AA_current, settings->BB_current, settings->CC_current,
                       settings->u_current, settings->v_current, settings->w_current);
@@ -1575,9 +1588,11 @@ int Interp::convert_cycle_vw(int motion, //!< a G-code between G_81 and G_89, a 
     bb = settings->w_current;
   } else
     ERS(NCE_BUG_DISTANCE_MODE_NOT_G90_OR_G91);
-  CHKS((r < cc), NCE_R_LESS_THAN_U_IN_CYCLE_IN_VW_PLANE);
+  // The hole goes from r towards cc, in either direction along the cycle
+  // axis. retract_sign is the direction from the hole back out to r.
+  double retract_sign = (r < cc) ? -1.0 : 1.0;
 
-  if (old_cc < r) {
+  if (retract_sign * old_cc < retract_sign * r) {
     STRAIGHT_TRAVERSE(block->line_number, settings->current_x, settings->current_y, settings->current_z,
                       settings->AA_current, settings->BB_current, settings->CC_current,
                       r, settings->v_current, settings->w_current);
@@ -1721,24 +1736,22 @@ Returned Value: int
    1. The y-value is not given the first time this code is called after
       some other motion mode has been in effect:
       NCE_Y_VALUE_UNSPECIFIED_IN_XZ_PLANE_CANNED_CYCLE
-   2. The r clearance plane is below the bottom_y:
-      NCE_R_LESS_THAN_Y_IN_CYCLE_IN_XZ_PLANE
-   3. the distance mode is neither absolute or incremental:
+   2. the distance mode is neither absolute or incremental:
       NCE_BUG_DISTANCE_MODE_NOT_G90_OR_G91
-   4. G82, G86, G88, or G89 is called when it is not already in effect,
+   3. G82, G86, G88, or G89 is called when it is not already in effect,
       and no p number is in the block:
       NCE_DWELL_TIME_P_WORD_MISSING_WITH_G82
       NCE_DWELL_TIME_P_WORD_MISSING_WITH_G86
       NCE_DWELL_TIME_P_WORD_MISSING_WITH_G88
       NCE_DWELL_TIME_P_WORD_MISSING_WITH_G89
-   5. G83 is called when it is not already in effect,
+   4. G83 is called when it is not already in effect,
       and no q number is in the block: NCE_Q_WORD_MISSING_WITH_G83
-   6. G87 is called when it is not already in effect,
+   5. G87 is called when it is not already in effect,
       and any of the i number, j number, or k number is missing:
       NCE_I_WORD_MISSING_WITH_G87
       NCE_J_WORD_MISSING_WITH_G87
       NCE_K_WORD_MISSING_WITH_G87
-   7. the G-code is not between G_81 and G_89.
+   6. the G-code is not between G_81 and G_89.
       NCE_BUG_FUNCTION_SHOULD_NOT_HAVE_BEEN_CALLED
 
 Side effects:
@@ -1820,9 +1833,11 @@ int Interp::convert_cycle_zx(int motion, //!< a G-code between G_81 and G_89, a 
     bb = settings->current_x;
   } else
     ERS(NCE_BUG_DISTANCE_MODE_NOT_G90_OR_G91);
-  CHKS((r < cc), NCE_R_LESS_THAN_Y_IN_CYCLE_IN_XZ_PLANE);
+  // The hole goes from r towards cc, in either direction along the cycle
+  // axis. retract_sign is the direction from the hole back out to r.
+  double retract_sign = (r < cc) ? -1.0 : 1.0;
 
-  if (old_cc < r) {
+  if (retract_sign * old_cc < retract_sign * r) {
     STRAIGHT_TRAVERSE(block->line_number, settings->current_x, r, settings->current_z,
                       settings->AA_current, settings->BB_current, settings->CC_current,
                       settings->u_current, settings->v_current, settings->w_current);
@@ -2007,9 +2022,11 @@ int Interp::convert_cycle_wu(int motion, //!< a G-code between G_81 and G_89, a 
     bb = settings->u_current;
   } else
     ERS(NCE_BUG_DISTANCE_MODE_NOT_G90_OR_G91);
-  CHKS((r < cc), NCE_R_LESS_THAN_V_IN_CYCLE_IN_UW_PLANE);
+  // The hole goes from r towards cc, in either direction along the cycle
+  // axis. retract_sign is the direction from the hole back out to r.
+  double retract_sign = (r < cc) ? -1.0 : 1.0;
 
-  if (old_cc < r) {
+  if (retract_sign * old_cc < retract_sign * r) {
     STRAIGHT_TRAVERSE(block->line_number, settings->current_x, settings->current_y, settings->current_z,
                       settings->AA_current, settings->BB_current, settings->CC_current,
                       settings->u_current, r, settings->w_current);

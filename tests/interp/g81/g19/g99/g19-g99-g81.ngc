@@ -10,8 +10,9 @@ f10
 g0 y0 z0 x2
 
 ;
-; There are six possible orderings of X, OLD_X, and R, but the three that
-; have R < X are rejected by LinuxCNC.
+; There are six possible orderings of X, OLD_X, and R. The three
+; that have R < X cut in the positive X direction, see
+; tests/interp/canned-cycle-direction.
 ;
 
 (number 1: X[-1] < R[1] < OLD_X[2])

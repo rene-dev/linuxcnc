@@ -133,9 +133,6 @@
 #define NCE_QUEUE_IS_NOT_EMPTY_AFTER_PROBING _("Queue is not empty after probing")
 #define NCE_R_CLEARANCE_PLANE_UNSPECIFIED_IN_CYCLE _("R clearance plane unspecified in cycle")
 #define NCE_R_I_J_K_WORDS_ALL_MISSING_FOR_ARC _("R i j k words all missing for arc")
-#define NCE_R_LESS_THAN_X_IN_CYCLE_IN_YZ_PLANE _("R less than x in cycle in yz plane")
-#define NCE_R_LESS_THAN_Y_IN_CYCLE_IN_XZ_PLANE _("R less than y in cycle in xz plane")
-#define NCE_R_LESS_THAN_Z_IN_CYCLE_IN_XY_PLANE _("R less than z in cycle in xy plane")
 #define NCE_R_WORD_WITH_NO_G_CODE_THAT_USES_IT _("R word with no g code that uses it")
 #define NCE_SLASH_MISSING_AFTER_FIRST_ATAN_ARGUMENT _("Slash missing after first atan argument")
 #define NCE_SPINDLE_NOT_TURNING_CLOCKWISE_IN_G84 _("Spindle not turning clockwise in g84")
@@ -218,7 +215,4 @@
 #define NCE_W_VALUE_UNSPECIFIED_IN_UV_PLANE_CANNED_CYCLE _("W value unspecified in UV plane canned cycle")
 #define NCE_U_VALUE_UNSPECIFIED_IN_VW_PLANE_CANNED_CYCLE _("U value unspecified in VW plane canned cycle")
 #define NCE_V_VALUE_UNSPECIFIED_IN_UW_PLANE_CANNED_CYCLE _("V value unspecified in UW plane canned cycle")
-#define NCE_R_LESS_THAN_W_IN_CYCLE_IN_UV_PLANE _("R less than W in cycle in UV plane")
-#define NCE_R_LESS_THAN_U_IN_CYCLE_IN_VW_PLANE _("R less than U in cycle in VW plane")
-#define NCE_R_LESS_THAN_V_IN_CYCLE_IN_UW_PLANE _("R less than V in cycle in UW plane")
 #endif
