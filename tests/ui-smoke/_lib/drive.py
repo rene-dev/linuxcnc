@@ -17,7 +17,20 @@ import os
 import sys
 import time
 
-CONNECT_TIMEOUT_S = 60.0
+
+def scaled(seconds):
+    """Stretch a wall clock timeout by LINUXCNC_TEST_TIMEOUT_SCALE, which
+    runtests sets to its job count. Every wait here is sized for a GUI with
+    the machine to itself; with N sessions starting, homing and shutting
+    down together each one is slower. Never shortens a timeout."""
+    try:
+        scale = float(os.environ.get('LINUXCNC_TEST_TIMEOUT_SCALE', 1.0))
+    except ValueError:
+        scale = 1.0
+    return seconds * max(scale, 1.0)
+
+
+CONNECT_TIMEOUT_S = scaled(60.0)
 SETTLE_S = 3.0
 SETTLE_POLLS = 5
 POLL_INTERVAL_S = 0.01
@@ -25,7 +38,7 @@ POLL_INTERVAL_S = 0.01
 # normally lands well under 1s; profiling showed nothing benefits from
 # more than 3s here, and shorter timeouts trim wall time when a retry
 # is needed (notably gmoccapy reverting task_mode AUTO -> MANUAL).
-ENSURE_ATTEMPT_TIMEOUT_S = 3.0
+ENSURE_ATTEMPT_TIMEOUT_S = scaled(3.0)
 # After the desired task_state / task_mode is reached, re-check after
 # this long. Some GUIs (notably gmoccapy and qtdragon) run their own
 # startup commands that can revert a state we just set; the post-reach
@@ -152,7 +165,7 @@ def wait_until(stat, predicate, timeout, label):
 HOME_RETRY_BUDGET = 3
 # The sims home in a second or two; cap the per-attempt wait so a
 # reverted attempt does not sit out the full caller timeout.
-HOME_ATTEMPT_TIMEOUT_S = 15.0
+HOME_ATTEMPT_TIMEOUT_S = scaled(15.0)
 
 
 def home_all(cmd, stat, timeout):
@@ -404,7 +417,7 @@ def main():
     ap.add_argument("--tol", type=float, default=1e-4,
                     help="position tolerance per axis in machine units "
                          "(default: 1e-4)")
-    ap.add_argument("--run-timeout", type=float, default=60.0,
+    ap.add_argument("--run-timeout", type=float, default=scaled(60.0),
                     help="program-completion timeout in seconds (default: 60)")
     args = ap.parse_args()
 

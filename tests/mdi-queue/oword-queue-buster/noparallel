@@ -1,0 +1,7 @@
+This test races the MDI queue on purpose: the subroutine does a tool change
+and then reads #5400, so the expected output only holds when the change has
+finished and the interpreter has resynced before the parameter is read.  That
+outcome depends on real timing, and a second session on the same machine
+changes it: run alongside anything it reports the previous tool at a couple
+of the switch points.  It has the machine to itself so it keeps testing the
+queue and not the load.

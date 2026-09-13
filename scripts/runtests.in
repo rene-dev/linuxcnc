@@ -49,6 +49,7 @@ XFAIL=0
 SHMERR=0
 SKIP=0
 VERBOSE=0
+JOBS=1
 
 clean () {
     find "$*" \( -name "stderr" -or -name "result" \
@@ -154,47 +155,80 @@ run_test() {
     esac
 }
 
-SHMEM_KEY=( "0x00000064" "0x48414c32" "0x48484c34" "0x90280a48" "0x130cf406" "0x434c522b" )
+# Base keys of the shared memory segments one LinuxCNC session owns.  A
+# session started with LINUXCNC_INSTANCE=n uses these plus n*16, so parallel
+# sessions never meet; see src/rtapi/rtapi_instance.h.
+SHMEM_BASE_KEY=( 0x00000064 0x48414c32 0x48484c34 0x90280a48 0x130cf406 0x434c522b )
 SHMEM_USE=( "Emc motion" "Hal"        "UUID"       "Rtapi"      "Hal scope"  "Classicladder" )
+
+# Instance numbers the workers of this run use.  A single job keeps the
+# historical instance 0, so an ordinary 'runtests' still notices a LinuxCNC
+# left running on the machine.  Several jobs move off instance 0 and are
+# therefore undisturbed by one.
+WORKER_INSTANCES=( 0 )
+
+shmem_key() {
+    # $1 base key, $2 instance
+    printf '0x%08x' $(( $1 + 16 * $2 ))
+}
+
+# Every key this run can touch, one "<key> <description>" per line.
+shmem_keys_in_use() {
+    local inst i
+    for inst in "${WORKER_INSTANCES[@]}"; do
+        for i in "${!SHMEM_BASE_KEY[@]}"; do
+            if [ "$inst" -eq 0 ]; then
+                echo "$(shmem_key "${SHMEM_BASE_KEY[$i]}" "$inst") ${SHMEM_USE[$i]}"
+            else
+                echo "$(shmem_key "${SHMEM_BASE_KEY[$i]}" "$inst") ${SHMEM_USE[$i]} of instance $inst"
+            fi
+        done
+    done
+}
+
 test_shmem() {
     # Test if there are any shared memory segments left. These will
     # interfere with performing tests as we cannot be assured of a clean
     # start for each test if a segment exists.
-    mapfile -t keys < <(ipcs -m | grep -Ei "^\\s*($(IFS='|'; echo "${SHMEM_KEY[*]}"))" | awk '{print $1}')
-    if [ "${#keys[@]}" -gt 0 ]; then
-        echo "There are one or more shared memory segments currently allocated."
-        echo "This indicates that there is a LinuxCNC instance running or it"
-        echo "did not cleanup before exit."
-        echo "You should run 'ipcs -m' and look for the following keys to cleanup:"
-        for i in "${!SHMEM_KEY[@]}"; do
-            for j in "${keys[@]}"; do
-                if [ "$j" = "${SHMEM_KEY[$i]}" ]; then
-                    echo "${SHMEM_KEY[$i]} - ${SHMEM_USE[$i]} key"
-                    break
-                fi
-            done
-        done
+    local found=0 key use segments
+    segments=$(LC_ALL=C ipcs -m | awk '{print tolower($1)}')
+    while read -r key use; do
+        if echo "$segments" | grep -qx "$key"; then
+            if [ $found -eq 0 ]; then
+                echo "There are one or more shared memory segments currently allocated."
+                echo "This indicates that there is a LinuxCNC instance running or it"
+                echo "did not cleanup before exit."
+                echo "You should run 'ipcs -m' and look for the following keys to cleanup:"
+                found=1
+            fi
+            echo "$key - $use key"
+        fi
+    done < <(shmem_keys_in_use)
+    if [ $found -ne 0 ]; then
         echo
         echo "You should remove the key(s) with 'ipcrm -M <key>' if LinuxCNC is"
         echo "not running and no processes are attached to the segment(s)."
         return 1
-    else
-        return 0
     fi
+    return 0
 }
 
+# Clean up after one worker.  Only that worker's own keys are touched, so a
+# worker cannot tidy away the segments another one is still using.
 test_and_remove_shmem() {
-    ret=0
-    for i in "${!SHMEM_KEY[@]}"; do
+    local inst=$1
+    local ret=0 i key
+    for i in "${!SHMEM_BASE_KEY[@]}"; do
+        key=$(shmem_key "${SHMEM_BASE_KEY[$i]}" "$inst")
         # ipcs returns the following columns:
         #   key shmid owner perms bytes nattch status
-        read -r -a SHM < <(ipcs -m | grep -Ei "^\\s*${SHMEM_KEY[$i]}")
+        read -r -a SHM < <(LC_ALL=C ipcs -m | grep -Ei "^\\s*$key\\s")
         if [ "${#SHM[@]}" -ge 6 ]; then
-            echo "*** SHMERR: Shared memory segment ${SHMEM_KEY[$i]} (${SHMEM_USE[$i]} key) was not removed. Removing..."
-            ipcrm -M "${SHMEM_KEY[$i]}"
+            echo "*** SHMERR: Shared memory segment $key (${SHMEM_USE[$i]} key) was not removed. Removing..."
+            ipcrm -M "$key"
             # Check number of attached processes. It should be zero.
             if [ "${SHM[5]}" -ne 0 ]; then
-                echo "*** SHMERR: Shared memory segment ${SHMEM_KEY[$i]} has at least one attached process."
+                echo "*** SHMERR: Shared memory segment $key has at least one attached process."
                 echo "*** SHMERR: Manual intervention is required to solve the situation."
                 return 2
             fi
@@ -207,14 +241,160 @@ test_and_remove_shmem() {
 TMPDIR=$(mktemp -d /tmp/runtest.XXXXXX)
 trap 'rm -rf "$TMPDIR"' 0 1 2 3 15
 
+# Everything one test has to say is collected before any of it is printed, so
+# that the reports of tests running side by side do not get shuffled into each
+# other.  The outcome goes to $TMPDIR/status, which is tallied at the end.
+execute_test() {
+    local testname=$1 inst=$2
+    local testdir exitcode reason diffout size omit
+    testdir=$(dirname "$testname")
+
+    if [ "$inst" -eq 0 ]; then
+        unset LINUXCNC_INSTANCE
+    else
+        export LINUXCNC_INSTANCE=$inst
+    fi
+    TEST_DIR=$(readlink -f "$testdir")
+    export TEST_DIR
+    echo "Running test: $testdir" 1>&2
+    if test -n "$SYSTEM_BUILD"; then
+        # Tell `halcompile` where to install comps
+        USER_MODULE_DIR=$(readlink -f "$testdir") \
+            PATH=$(readlink -f "$testdir"):$PATH \
+            run_test "$testname"
+    else
+        run_test "$testname"
+    fi
+    exitcode=$?
+    if [ "$exitcode" -ne 0 ]; then
+	reason="test run exited with $exitcode"
+    else
+	if [ -e "$testdir/checkresult" ]; then
+	    "$testdir/checkresult" "$testdir/result"
+	    exitcode=$?
+	    reason="checkresult exited with $exitcode"
+	elif [ -f "$testdir/expected" ]; then
+	    cmp -s "$testdir/expected" "$testdir/result"
+	    exitcode=$?
+	    reason="result differed from expected"
+	    if [ "$exitcode" -ne 0 ]; then
+		diffout="$TMPDIR/diff.$inst"
+		diff -u "$testdir/expected" "$testdir/result" > "$diffout"
+		size=$(wc -l < "$diffout")
+		if [ "$size" -lt 40 ]; then
+		    cat "$diffout"
+		else
+		    omit=$((size-40))
+		    head -40 "$diffout"
+		    echo "($omit more lines omitted)"
+		fi
+	    fi
+	else
+	    exitcode=1
+	    reason="Neither expected nor checkresult existed"
+	fi
+    fi
+    if [ "$exitcode" -ne 0 ]; then
+	echo "*** $testdir: XFAIL: $reason"
+        if test $PRINT = 1; then
+            echo "************** result:"
+            tail -500 "$testdir/result" | sed 's/^/        /'
+            echo "************** stderr:"
+            tail -500 "$testdir/stderr" | sed 's/^/        /'
+            echo "**************"
+        fi
+	if [ -f "$testdir/xfail" ]; then
+	    echo "XFAIL $testdir" >> "$TMPDIR/status"
+	    if [ $NOCLEAN -eq 0 ]; then
+		rm -f "$testdir/stderr" "$testdir/result" \
+		    "$testdir"/*.var "$testdir"/*.var.bak
+	    fi
+	else
+	    echo "FAIL $testdir" >> "$TMPDIR/status"
+	fi
+        if test $STOP = 1; then
+	    touch "$TMPDIR/stop"
+	fi
+    else
+	if [ -f "$testdir/xfail" ]; then
+	    echo "*** $testdir: XPASS: Passed, but was expected to fail"
+	    echo "XPASS $testdir" >> "$TMPDIR/status"
+	else
+	    echo "PASS $testdir" >> "$TMPDIR/status"
+	    if [ $NOCLEAN -eq 0 ]; then
+		rm -f "$testdir/stderr" "$testdir/result" \
+		    "$testdir"/*.var "$testdir"/*.var.bak
+	    fi
+	fi
+    fi
+
+    # $? has to be read before anything else runs; the old 'if ! ...' form
+    # around this could never see the 2.
+    test_and_remove_shmem "$inst"
+    case $? in
+        2)  # Cannot remove attached segments. Fail hard.
+            echo "HARDFAIL $testdir" >> "$TMPDIR/status"
+            return 2
+            ;;
+        0)  ;;
+        *)  echo "SHMERR $testdir" >> "$TMPDIR/status" ;;
+    esac
+    return 0
+}
+
+# One worker: take tests off the shared queue until it runs dry.  The queue is
+# a plain file guarded by flock, so the workers stay balanced even when the
+# tests differ wildly in length.
+worker() {
+    local inst=$1 queue=$2 testname rc
+    while true; do
+        if [ -e "$TMPDIR/stop" ]; then break; fi
+        testname=$(flock "$TMPDIR/queue.lock" \
+            sh -c 'head -n 1 "$1"; sed -i 1d "$1"' _ "$queue")
+        if [ -z "$testname" ]; then break; fi
+        execute_test "$testname" "$inst" > "$TMPDIR/block.$inst"
+        rc=$?
+        flock "$TMPDIR/print.lock" cat "$TMPDIR/block.$inst"
+        # A shared memory segment that could not be freed leaves the machine
+        # in a state the next test cannot rely on, so this worker stops
+        # taking new work.  What it did not get to is reported at the end.
+        if [ $rc -eq 2 ]; then break; fi
+    done
+}
 
 run_tests () {
+    local i testname testdir prereq
+
+    if [ $VERBOSE -eq 1 ] && [ "$JOBS" -gt 1 ]; then
+        # Verbose output is written straight to the terminal as it appears,
+        # which only reads sensibly with one test at a time.
+        echo "Ignoring -j with -v: verbose runs are serial." 1>&2
+        JOBS=1
+    fi
+
+    WORKER_INSTANCES=()
+    if [ "$JOBS" -eq 1 ]; then
+        WORKER_INSTANCES=( 0 )
+    else
+        for ((i = 1; i <= JOBS; i++)); do
+            WORKER_INSTANCES+=( "$i" )
+        done
+    fi
+
+    # Sessions running side by side are slower than one alone, so let the
+    # wall clock timeouts in lib/python/linuxcnc_util.py stretch to match.
+    export LINUXCNC_TEST_TIMEOUT_SCALE=$JOBS
+
     if ! test_shmem; then
         exit 1;
     fi
 
     find "$@" -name test.hal -or -name test.sh -or -name test \
 	| sort > "$TMPDIR/alltests"
+
+    : > "$TMPDIR/queue"
+    : > "$TMPDIR/serial"
+    : > "$TMPDIR/status"
 
     while read -r testname; do
 	testdir=$(dirname "$testname")
@@ -225,7 +405,7 @@ run_tests () {
                 if ! grep --quiet --regexp "^#define HAVE_$prereq.*" "$TOPDIR/src/config.h" ; then
                     echo "Skipping test for missing prerequisite \"$prereq\": $testdir" 1>&2
                     SKIP=$((SKIP + 1))
-                    continue 3
+                    continue 2
                 fi
             done < "$testdir/musthave"
         fi
@@ -245,92 +425,50 @@ run_tests () {
 		continue
 	    fi
 	fi
-	NUM=$((NUM + 1))
-	TEST_DIR=$(readlink -f "$testdir")
-	export TEST_DIR
-	echo "Running test: $testdir" 1>&2
-        if test -n "$SYSTEM_BUILD"; then
-            # Tell `halcompile` where to install comps
-            USER_MODULE_DIR=$(readlink -f "$testdir") \
-                PATH=$(readlink -f "$testdir"):$PATH \
-                run_test "$testname"
+        # A "noparallel" file means the test cannot share the machine with
+        # another test, whatever the instance numbering does: it drives a
+        # display, watches the clock closely, or reaches for something that
+        # is not per-instance.  Those run on their own at the end.
+        if [ -e "$testdir/noparallel" ]; then
+            echo "$testname" >> "$TMPDIR/serial"
         else
-            run_test "$testname"
-        fi
-	exitcode=$?
-	if [ "$exitcode" -ne 0 ]; then
-	    reason="test run exited with $exitcode"
-	else
-	    if [ -e "$testdir/checkresult" ]; then
-		"$testdir/checkresult" "$testdir/result"
-		exitcode=$?
-		reason="checkresult exited with $exitcode"
-	    elif [ -f "$testdir/expected" ]; then
-		cmp -s "$testdir/expected" "$testdir/result"
-		exitcode=$?
-		reason="result differed from expected"
-		if [ "$exitcode" -ne 0 ]; then
-		    diff -u "$testdir/expected" "$testdir/result" > "$TMPDIR/diff"
-		    SIZE=$(wc -l < "$TMPDIR/diff")
-		    if [ "$SIZE" -lt 40 ]; then
-			cat "$TMPDIR/diff"
-		    else
-			OMIT=$((SIZE-40))
-			head -40 "$TMPDIR/diff"
-			echo "($OMIT more lines omitted)"
-		    fi
-		fi
-	    else
-		exitcode=1
-		reason="Neither expected nor checkresult existed"
-	    fi
-	fi
-	if [ "$exitcode" -ne 0 ]; then
-	    echo "*** $testdir: XFAIL: $reason"
-            if test $PRINT = 1; then
-                echo "************** result:"
-                tail -500 "$testdir/result" | sed 's/^/        /'
-                echo "************** stderr:"
-                tail -500 "$testdir/stderr" | sed 's/^/        /'
-                echo "**************"
-            fi
-	    if [ -f "$testdir/xfail" ]; then
-		XFAIL=$((XFAIL + 1))
-		if [ $NOCLEAN -eq 0 ]; then
-		    rm -f "$testdir/stderr" "$testdir/result" \
-			"$testdir"/*.var "$testdir"/*.var.bak
-		fi
-	    else
-		FAIL=$((FAIL + 1))
-		FAIL_NAMES="$FAIL_NAMES"$'\n'"$testdir"
-	    fi
-            if test $STOP = 1; then
-	        break
-	    fi
-	else
-	    if [ -f "$testdir/xfail" ]; then
-		echo "*** $testdir: XPASS: Passed, but was expected to fail"
-	    else
-		if [ $NOCLEAN -eq 0 ]; then
-		    rm -f "$testdir/stderr" "$testdir/result" \
-			"$testdir"/*.var "$testdir"/*.var.bak
-		fi
-	    fi
-	fi
-
-        if ! test_and_remove_shmem; then
-            if [ $? -eq 2 ]; then
-                # Cannot remove attached segments. Fail hard.
-                exit 1
-            fi
-            SHMERR=$((SHMERR + 1))
+            echo "$testname" >> "$TMPDIR/queue"
         fi
     done < "$TMPDIR/alltests"
 
+    for ((i = 0; i < JOBS; i++)); do
+        worker "${WORKER_INSTANCES[$i]}" "$TMPDIR/queue" &
+    done
+    wait
+
+    # The tests that insist on having the machine to themselves.
+    if [ ! -e "$TMPDIR/stop" ]; then
+        worker "${WORKER_INSTANCES[0]}" "$TMPDIR/serial"
+    fi
+
+    NUM=$(grep -c -E '^(PASS|FAIL|XFAIL|XPASS) ' "$TMPDIR/status")
+    FAIL=$(grep -c '^FAIL ' "$TMPDIR/status")
+    XFAIL=$(grep -c '^XFAIL ' "$TMPDIR/status")
+    SHMERR=$(grep -c -E '^(SHMERR|HARDFAIL) ' "$TMPDIR/status")
+    HARDFAIL=$(grep -c '^HARDFAIL ' "$TMPDIR/status")
+    FAIL_NAMES=$(awk '/^FAIL /{print "\n" $2}' "$TMPDIR/status")
+    NOTRUN=$(( $(wc -l < "$TMPDIR/queue") + $(wc -l < "$TMPDIR/serial") ))
+
     SUCC=$((NUM-FAIL-XFAIL))
     echo "Runtest: $NUM tests run, $SUCC successful, $FAIL failed + $XFAIL expected, $SKIP skipped, $SHMERR shmem errors"
+    if [ "$NOTRUN" -ne 0 ]; then
+        # Either -s stopped the run or a worker gave up on an unremovable
+        # shared memory segment.  Say so rather than let the tests quietly
+        # go missing from the tally.
+        echo "Not run: $NOTRUN tests"
+        sed 's/^/    /' "$TMPDIR/queue" "$TMPDIR/serial"
+    fi
     if [ "$FAIL" -ne 0 ]; then
 	echo "Failed: $FAIL_NAMES"
+	exit 1;
+    elif [ "$HARDFAIL" -ne 0 ]; then
+	# A segment nobody could detach from: the run is not trustworthy even
+	# though every test that did run passed.
 	exit 1;
     else
 	exit 0;
@@ -356,7 +494,14 @@ Usage:
         requiring root or sudo.
 
     $P -v
-        Show stdout and stderr (normally it's hidden).
+        Show stdout and stderr (normally it's hidden).  Implies -j1.
+
+    $P -j N
+        Run N tests at a time.  Each worker gets its own LINUXCNC_INSTANCE,
+        so the sessions do not share shared memory, sockets or ports; see
+        src/rtapi/rtapi_instance.h.  Tests with a 'noparallel' file run on
+        their own afterwards.  The default, -j1, behaves exactly as before
+        and stays on instance 0.
 
     $P -d
         Enable crash dumps: on a crashing test, print a gdb backtrace of
@@ -370,7 +515,7 @@ NOCLEAN=0
 NOSUDO=false
 STOP=0
 PRINT=0
-while getopts cnuvsphd opt; do
+while getopts cnuvsphdj: opt; do
     case "$opt" in
     c) CLEAN_ONLY=1 ;;
     n) NOCLEAN=1 ;;
@@ -379,6 +524,11 @@ while getopts cnuvsphd opt; do
     s) STOP=1 ;;
     p) PRINT=1 ;;
     d) export ENABLE_CRASHDUMPS=1 ;;
+    j) JOBS=$OPTARG
+       case "$JOBS" in
+       ''|*[!0-9]*|0) echo "$0: -j needs a positive number of jobs" 1>&2; exit 1 ;;
+       esac
+       ;;
     h|?) usage; exit 0 ;;
     *) usage; exit 1 ;;
     esac

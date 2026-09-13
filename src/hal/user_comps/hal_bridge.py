@@ -8,6 +8,7 @@ import json
 import signal
 
 import hal
+import linuxcnc_instance
 from qtpy import QtCore
 from qtvcp.qt_halobjects import Qhal
 from common.iniinfo import _IStat as IStatParent
@@ -40,15 +41,19 @@ class Info(IStatParent):
 
 
 class Bridge(object):
-    def __init__(self, readAddress = "tcp://127.0.0.1:5690",
-                     writeAddress = "tcp://127.0.0.1:5691"):
+    def __init__(self, readAddress = None, writeAddress = None):
         super(Bridge, self).__init__()
         self.INFO = Info()
 
-        self.readAddress = readAddress
-        self.writeAddress = writeAddress
-        LOG.debug('read port: {}'.format(readAddress))
-        LOG.debug('write port: {}'.format(writeAddress))
+        # Default to this session's port pair, so a bridge started inside a
+        # session with LINUXCNC_INSTANCE set finds that session and not the
+        # one next to it; see lib/python/linuxcnc_instance.py.
+        self.readAddress = readAddress or \
+            "tcp://127.0.0.1:%d" % linuxcnc_instance.port(5690)
+        self.writeAddress = writeAddress or \
+            "tcp://127.0.0.1:%d" % linuxcnc_instance.port(5691)
+        LOG.debug('read port: {}'.format(self.readAddress))
+        LOG.debug('write port: {}'.format(self.writeAddress))
 
         self.readTopic = ""
         self.writeTopic = "STATUSREQUEST"
@@ -267,8 +272,10 @@ if __name__ == "__main__":
     # extraparms are extra arguments passed after all option/keywords are assigned
     # opts is a list containing the pair "option"/"value"
 
-    readport = "tcp://127.0.0.1:5690"
-    writeport = "tcp://127.0.0.1:5691"
+    # The ports move with LINUXCNC_INSTANCE so the bridge talks to the
+    # session it was started in; see lib/python/linuxcnc_instance.py.
+    readport = "tcp://127.0.0.1:%d" % linuxcnc_instance.port(5690)
+    writeport = "tcp://127.0.0.1:%d" % linuxcnc_instance.port(5691)
 
     for o,p in opts:
         if o in ['-d']:

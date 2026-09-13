@@ -22,6 +22,11 @@ export LANG=C
 GREP=@GREP@
 PS=@PS@
 
+# Shared memory keys and the rtapi_app socket are shifted by this much when
+# LINUXCNC_INSTANCE is set, so that parallel sessions stay apart.  Keep the
+# stride in step with RTAPI_INSTANCE_STRIDE in src/rtapi/rtapi_instance.h.
+INSTANCE_OFFSET=$(( 16 * ${LINUXCNC_INSTANCE:-0} ))
+
 CheckKernel() {
     # Shellcheck doesn't know about substitution
     # shellcheck disable=SC2194
@@ -130,7 +135,10 @@ CheckStatus(){
                 echo rtapi_app is running
                 return 0
             elif [ -n "$($PS -o stat= -o comm= -C rtapi_app | $GREP -v '^Z')" ]; then
-                echo rtapi_app is running but not reachable
+                # Another instance's rtapi_app also shows up here, so say
+                # which instance went unanswered rather than claiming this
+                # process is ours.
+                echo "rtapi_app is running but instance ${LINUXCNC_INSTANCE:-0} is not reachable"
                 return 1
             else
                 echo rtapi_app is not running
@@ -218,24 +226,26 @@ Unload(){
         uspace)
             rtapi_app exit
 
-            # wait 5 seconds for rtapi_app to die and be reaped by its parent
+            # Wait 5 seconds for rtapi_app to die.  'rtapi_app ping' talks to
+            # the socket this instance owns and fails once nothing answers,
+            # so a sibling instance's rtapi_app is not mistaken for our own
+            # the way counting processes by name would.
             START=$SECONDS
-            local NPROCS
+            local GONE=no
             while [ 5 -gt $((SECONDS-START)) ]; do
-                NPROCS=$(ps -C rtapi_app -o stat= -o comm= | $GREP -v '^Z' | wc -l)
-                if [ "$NPROCS" -eq 0 ]; then
+                if ! rtapi_app ping >/dev/null 2>&1; then
+                    GONE=yes
                     break
                 fi
                 sleep 0.1
             done
-            NPROCS=$(ps -C rtapi_app -o stat= -o comm= | $GREP -v '^Z' | wc -l)
-            if [ "$NPROCS" -gt 0 ]; then
+            if [ $GONE = no ]; then
                 echo "ERROR: rtapi_app failed to die" 1>&2
             fi
 
-            ipcrm -M 0x48414c32 2>/dev/null ;# HAL_KEY
-            ipcrm -M 0x90280A48 2>/dev/null ;# RTAPI_KEY
-            ipcrm -M 0x48484c34 2>/dev/null ;# UUID_KEY
+            ipcrm -M $((0x48414c32 + INSTANCE_OFFSET)) 2>/dev/null ;# HAL_KEY
+            ipcrm -M $((0x90280A48 + INSTANCE_OFFSET)) 2>/dev/null ;# RTAPI_KEY
+            ipcrm -M $((0x48484c34 + INSTANCE_OFFSET)) 2>/dev/null ;# UUID_KEY
             ;;
     esac
 

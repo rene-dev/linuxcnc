@@ -26,6 +26,7 @@
 #include "config.h"
 #include <rtapi_mutex.h>
 #include "tooldata.hh"
+#include "rtapi/rtapi_instance.h"	// rtapi_instance_number()
 
 #define UNEXPECTED_MSG fprintf(stderr,"UNEXPECTED %s %d\n",__FILE__,__LINE__);
 
@@ -92,7 +93,15 @@ static char* tool_mmap_fname(void) {
     if (*filename) {return filename;}
     char* hdir = secure_getenv("HOME");
     if (!hdir) { hdir = (char *) EMC2_TMP_DIR; }
-    snprintf(filename,sizeof(filename),"%s/%s",hdir,TOOL_MMAP_FILENAME);
+    // The tool table lives in one file per session.  Sessions are told apart
+    // by LINUXCNC_INSTANCE the same way their shared memory is, otherwise two
+    // of them running at once would each load tools over the other's.
+    if (rtapi_instance_number() != 0) {
+        snprintf(filename,sizeof(filename),"%s/%s-%d",
+                 hdir,TOOL_MMAP_FILENAME,rtapi_instance_number());
+    } else {
+        snprintf(filename,sizeof(filename),"%s/%s",hdir,TOOL_MMAP_FILENAME);
+    }
     return(filename);
 }
 

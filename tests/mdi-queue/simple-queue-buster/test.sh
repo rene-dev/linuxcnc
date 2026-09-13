@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# linuxcncrsh shifts its default port with LINUXCNC_INSTANCE, so that
+# parallel test runs do not fight over one socket.
+RSHPORT=$((5007 + 16 * ${LINUXCNC_INSTANCE:-0}))
+
 rm -f gcode-output
 
 if ! command -v nc ; then
@@ -12,8 +16,8 @@ if ! command -v linuxcnc ; then
     exit 1
 fi
 
-if nc -z localhost 5007; then
-    echo "E: Process already listening on port 5007. Exiting"
+if nc -z localhost $RSHPORT; then
+    echo "E: Process already listening on port $RSHPORT. Exiting"
     exit 1
 fi
 
@@ -24,7 +28,7 @@ linuxcnc -r linuxcncrsh-test.ini &
 TOGO=80
 while [  $TOGO -gt 0 ]; do
     echo "I: trying to connect to linuxcncrsh TOGO=$TOGO"
-    if nc -z localhost 5007; then
+    if nc -z localhost $RSHPORT; then
         break
     fi
     sleep 0.25
@@ -86,7 +90,7 @@ echo "P is -2.000000" >> expected-gcode-output
     echo "set wait done"
 
     echo "shutdown"
-) | nc localhost 5007
+) | nc localhost $RSHPORT
 
 
 # wait for linuxcnc to finish

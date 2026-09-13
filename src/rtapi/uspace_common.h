@@ -32,6 +32,7 @@
 
 #include <rtapi_errno.h>
 #include <rtapi_mutex.h>
+#include "rtapi/rtapi_instance.h"
 static msg_level_t msg_level = RTAPI_MSG_ERR;	/* message printing level */
 
 #include <sys/ipc.h>		/* IPC_* */
@@ -69,6 +70,11 @@ int rtapi_shmem_new(int key, int module_id, unsigned long int size)
   rtapi_shmem_handle *shmem;
   int i;
 
+  /* Every caller reaches the OS through here, so shifting the key once in
+     this spot covers HAL, the motion controller, halscope, classicladder
+     and the sampler/streamer fifos alike. */
+  key += rtapi_instance_offset();
+
   for (i=0,shmem=NULL ; i < MAX_SHM; i++) {
     if(shmem_array[i].magic == SHMEM_MAGIC) {
       if (shmem_array[i].key == key) {
@@ -95,7 +101,8 @@ shmget_again:
           sched_yield();
           goto shmget_again;
       }
-    rtapi_print_msg(RTAPI_MSG_ERR, "rtapi_shmem_new failed due to shmget(key=0x%08x): %s\n", key, strerror(errno));
+    rtapi_print_msg(RTAPI_MSG_ERR, "rtapi_shmem_new failed due to shmget(key=0x%08x, instance=%d): %s\n",
+                    key, rtapi_instance_number(), strerror(errno));
     return -errno;
   }
 

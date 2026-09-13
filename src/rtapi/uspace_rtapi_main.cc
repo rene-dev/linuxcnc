@@ -1120,6 +1120,14 @@ static std::string get_fifo_path() {
         rtapi_print_msg(
             RTAPI_MSG_ERR, "rtapi_app: RTAPI_FIFO_PATH and HOME are unset.  rtapi fifo creation is unsafe.\n"
         );
+        return s;
+    }
+    // One rtapi_app per instance: the socket name carries the instance
+    // number, the way the shared memory keys carry the matching offset.
+    // RTAPI_FIFO_PATH set by hand still gets the suffix, so the two ways
+    // of naming the socket cannot drift apart.
+    if (rtapi_instance_number() != 0) {
+        s += "-" + std::to_string(rtapi_instance_number());
     }
     return s;
 }

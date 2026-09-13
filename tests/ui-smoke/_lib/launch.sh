@@ -29,11 +29,15 @@ rm -f ui-smoke.out ui-smoke.err linuxcnc.pid
 # memory still attached. Run the shared cleanup once before we start.
 bash "$LIB_DIR/cleanup-runtime.sh"
 
+# Waiting long enough when the machine is shared with other tests, and
+# finding our own GUI rather than another test's. See parallel.sh.
+. "$LIB_DIR/parallel.sh"
+
 # Launch linuxcnc inside xvfb-run. The outer timeout is a safety net
 # so a wedged GUI cannot hang CI. Driver timeout covers connect (60s)
 # + GUI settle (3s) + optional Phase 2 run (estop/home/program ~90s).
-LINUXCNC_TIMEOUT=300
-DRIVER_TIMEOUT=180
+LINUXCNC_TIMEOUT=$(scaled_seconds 300)
+DRIVER_TIMEOUT=$(scaled_seconds 180)
 
 # Shared headless environment (software GL + audio silencing), kept in
 # launch-env.sh so launch.sh and quit-launch.sh cannot drift apart.

@@ -4,9 +4,23 @@ LinuxCNC User Interface helper functions
 
 import linuxcnc
 
+import os
 import sys
 import time
 import math
+
+
+# The waits below are wall clock timeouts, generous for one machine on an idle
+# box.  When several sessions run side by side (runtests -j) every one of them
+# gets slower, so the harness passes its job count in
+# LINUXCNC_TEST_TIMEOUT_SCALE and the waits stretch to match.  The scale never
+# shortens a timeout.
+def scaled_timeout(seconds):
+    try:
+        scale = float(os.environ.get('LINUXCNC_TEST_TIMEOUT_SCALE', 1.0))
+    except ValueError:
+        scale = 1.0
+    return seconds * max(scale, 1.0)
 
 
 class LinuxCNC_Exception(Exception):
@@ -39,6 +53,8 @@ class LinuxCNC:
         """Poll the Status buffer waiting for it to look initialized,
         rather than just allocated (all-zero).  Returns on success, throws
         RuntimeError on failure."""
+
+        timeout = scaled_timeout(timeout)
 
         start_time = time.time()
         while time.time() - start_time < timeout:
@@ -93,6 +109,8 @@ class LinuxCNC:
         Returns if all the specified joints homed before the timeout,
         raises LinuxCNC_Exception if the timeout expired first."""
 
+        timeout = scaled_timeout(timeout)
+
         start_time = time.time()
         while (time.time() - start_time) < timeout:
             if self.all_joints_homed(joints):
@@ -114,6 +132,8 @@ class LinuxCNC:
         expires.  Raises LinuxCNC_Exception if the timeout expires before
         the axis stops.
         """
+
+        timeout = scaled_timeout(timeout)
 
         axis_letter = axis_letter.lower()
         axis_index = 'xyzabcuvw'.index(axis_letter)
@@ -153,6 +173,8 @@ class LinuxCNC:
         If the axis does not reach the target before the timeout, or if
         any other axis moved, raises LinuxCNC_Exeption.
         """
+
+        timeout = scaled_timeout(timeout)
 
         self.status.poll()
         axis_letter = axis_letter.lower()
@@ -215,6 +237,8 @@ class LinuxCNC:
         timeout, the function raises LinuxCNC_Exception.
         """
 
+        timeout = scaled_timeout(timeout)
+
         axis_letter = axis_letter.lower()
         axis_index = 'xyzabcuvw'.index(axis_letter)
 
@@ -249,6 +273,8 @@ class LinuxCNC:
         LinuxCNC_Exception.
         """
 
+        timeout = scaled_timeout(timeout)
+
         start_time = time.time()
         while (time.time() - start_time) < timeout:
             self.status.poll()
@@ -273,6 +299,8 @@ class LinuxCNC:
         specified tool to appear in the spindle.  If the timeout expires
         before the tool appears, it raises LinuxCNC_Exception.
         """
+
+        timeout = scaled_timeout(timeout)
 
         start_time = time.time()
         while (time.time() - start_time) < timeout:

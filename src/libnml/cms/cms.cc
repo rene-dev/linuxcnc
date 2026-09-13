@@ -36,6 +36,7 @@
 #include "cmsdiag.hh"
 #include "libnml/linklist/linklist.hh"          /* LinkedList */
 #include "libnml/buffer/physmem.hh"
+#include "rtapi/rtapi_instance.h"	/* rtapi_instance_offset() */
 
 LinkedList *cmsHostAliases = NULL;
 CMS_CONNECTION_MODE cms_connection_mode = CMS_NORMAL_CONNECTION_MODE;
@@ -368,21 +369,28 @@ CMS::CMS(const char *bufline_in, const char *procline_in, int set_to_server)
 	    continue;
 	}
 
+	/* The port numbers come from the NML file, which every instance reads
+	   the same copy of.  Shifting them here covers both ends: the server
+	   in tcp_srv.cc and the client in tcpmem.cc read them back from the
+	   CMS object, so they cannot end up disagreeing. */
 	char *port_string;
 	if (NULL != (port_string = strstr(word[i], "STCP="))) {
 	    remote_port_type = CMS_STCP_REMOTE_PORT_TYPE;
 	    stcp_port_number =
-		(int) strtol(port_string + 5, (char **) NULL, 0);
+		(int) strtol(port_string + 5, (char **) NULL, 0)
+		+ rtapi_instance_offset();
 	    continue;
 	} else if (NULL != (port_string = strstr(word[i], "TCP="))) {
 	    remote_port_type = CMS_TCP_REMOTE_PORT_TYPE;
 	    tcp_port_number =
-		(int) strtol(port_string + 4, (char **) NULL, 0);
+		(int) strtol(port_string + 4, (char **) NULL, 0)
+		+ rtapi_instance_offset();
 	    continue;
 	} else if (NULL != (port_string = strstr(word[i], "UDP="))) {
 	    remote_port_type = CMS_UDP_REMOTE_PORT_TYPE;
 	    udp_port_number =
-		(int) strtol(port_string + 4, (char **) NULL, 0);
+		(int) strtol(port_string + 4, (char **) NULL, 0)
+		+ rtapi_instance_offset();
 	    continue;
 	}
 

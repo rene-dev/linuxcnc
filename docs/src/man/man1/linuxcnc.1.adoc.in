@@ -75,6 +75,32 @@ directories. The config chooser is currently set to search the path:
 @LINUXCNC_CONFIG_PATH@
 ....
 
+== ENVIRONMENT
+
+*LINUXCNC_INSTANCE*::
+  Selects which of several LinuxCNC sessions this one is, so that more
+  than one can run on the same machine at the same time. A whole number
+  from 0 to 1023; unset means 0, the ordinary single session.
++
+Every name a session owns outside its own directory carries the instance
+with it: the shared memory keys and the SysV semaphores made from them,
+the *rtapi_app* socket, the NML buffers and their TCP ports, the ports of
+*linuxcncrsh*(1), *halrmt*(1) and *schedrmt*(1), the tool table in
+`~/.tool.mmap`, the lock file in `/tmp` and the logs in `~`. Keys and
+ports move by 16 per instance. Instance 0 keeps the names it has always
+had, so a machine with one session sees no change.
++
+Sessions started with different values do not see each other's data and
+do not shut each other down. They do share the hardware the machine has:
+two sessions pointed at the same physical device, or at the same
+configuration, will fight over it. Partition the hardware between them,
+or use this only for simulated configurations.
++
+....
+LINUXCNC_INSTANCE=1 linuxcnc configs/sim/axis/axis.ini &
+LINUXCNC_INSTANCE=2 linuxcnc configs/sim/axis/axis.ini &
+....
+
 == EXAMPLES
 
 *linuxcnc*
@@ -85,7 +111,7 @@ directories. The config chooser is currently set to search the path:
 
 == SEE ALSO
 
-*halcmd(1)*
+*halcmd(1)*, *linuxcncrsh(1)*
 
 Much more information about LinuxCNC and HAL is available in the
 LinuxCNC and HAL User Manuals, found at /usr/share/doc/linuxcnc/.

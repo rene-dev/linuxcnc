@@ -32,6 +32,7 @@
 #include "libnml/os_intf/shm.hh"		/* class RCS_SHAREDMEM */
 //#include "sem.hh"             /* class RCS_SEMAPHORE */
 #include "memsem.hh"		/* mem_get_access(), mem_release_access() */
+#include "rtapi/rtapi_instance.h"	/* rtapi_instance_offset() */
 #include "libnml/os_intf/timer.hh"		/* etime(), esleep() */
 /* Common Definitions. */
 //#include "autokey.h"
@@ -48,7 +49,7 @@ static inline bool not_zero(double x)
 /* Constructor for hard coded tests. */
 SHMEM::SHMEM(const char * /*n*/, long s, int /*nt*/, key_t k, int m)
   : CMS(s),
-    key(k),
+    key(k + rtapi_instance_offset()),
     bsem_key(-1),
     second_read(0),
     shm(NULL),
@@ -97,6 +98,11 @@ SHMEM::SHMEM(const char *bufline, const char *procline, int set_to_server, int s
 	return;
     }
 
+    /* The buffer keys come from the NML file, which every instance reads
+       the same copy of, so they get the instance offset here.  The mutex
+       semaphore is created from this same key below, so it follows along. */
+    key += rtapi_instance_offset();
+
     master = is_local_master;
     if (1 == set_to_master) {
 	master = 1;
@@ -112,6 +118,7 @@ SHMEM::SHMEM(const char *bufline, const char *procline, int set_to_server, int s
 
     if (NULL != (semdelay_equation = strstr(buflineupper, "BSEM="))) {
 	bsem_key = strtol(semdelay_equation + 5, (char **) NULL, 0);
+	bsem_key += rtapi_instance_offset();
     }
 
     if (NULL != strstr(buflineupper, "MUTEX=NONE")) {

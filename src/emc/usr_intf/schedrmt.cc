@@ -42,6 +42,7 @@
 #include "libnml/os_intf/timer.hh"             // etime()
 #include "shcom.hh"             // NML Messaging functions
 #include "emcsched.hh"
+#include "rtapi/rtapi_instance.h"	/* rtapi_instance_offset() */
 
 /*
   Using schedrmt:
@@ -1254,6 +1255,10 @@ int main(int argc, char *argv[])
     int res;
 
     initMain();
+    /* This server owns a well known port, so it moves with the instance
+       the way the NML ports do (see src/rtapi/rtapi_instance.h).  An
+       explicit -p is taken as given and is not shifted. */
+    port += rtapi_instance_offset();
     // process local command line args
     while((opt = getopt_long(argc, argv, "e:n:p:s:w:", longopts, NULL)) != -1) {
       switch(opt) {

@@ -28,12 +28,17 @@ rm -f ui-smoke.out ui-smoke.err linuxcnc.pid
 
 bash "$LIB_DIR/cleanup-runtime.sh"
 
-LINUXCNC_TIMEOUT=240
-DRIVER_TIMEOUT=90
+# Finding our own GUI rather than another test's, and waiting long enough
+# when the machine is shared. See parallel.sh.
+. "$LIB_DIR/parallel.sh"
+
+LINUXCNC_TIMEOUT=$(scaled_seconds 240)
+DRIVER_TIMEOUT=$(scaled_seconds 90)
 # Seconds to wait for the GUI to exit after SIGTERM before declaring it
 # stuck. A GUI honouring SIGTERM exits in well under a second; the
-# margin covers Cleanup of task/motion on slow CI.
-QUIT_GRACE=15
+# margin covers Cleanup of task/motion on slow CI, and the scale covers
+# a machine busy with other tests.
+QUIT_GRACE=$(scaled_seconds 15)
 
 # Shared headless environment (software GL + audio silencing), kept in
 # launch-env.sh so launch.sh and quit-launch.sh cannot drift apart.
@@ -67,26 +72,25 @@ xvfb-run -a --server-args="-screen 0 $UI_SMOKE_XVFB_SCREEN" \
             exit 1
         fi
 
-        # Identify the GUI process. pgrep -f matches against the whole
-        # command line, so wrapper processes (the linuxcnc launcher, the
-        # xvfb-run shell, this bash -c) also match because the GUI name
-        # appears in the config path or the embedded script text. Every
-        # such wrapper has a shell or xvfb-run as argv[0]; the real GUI
-        # is a python interpreter. Pick the first match whose argv[0]
-        # basename is a python binary.
-        GUI_PID=""
-        for p in $(pgrep -f "$GUI_MATCH"); do
-            arg0=$(tr "\0" "\n" <"/proc/$p/cmdline" 2>/dev/null | head -1)
-            case "$(basename "$arg0" 2>/dev/null)" in
-                python*) GUI_PID="$p"; break ;;
-            esac
-        done
+        # Identify the GUI process of this instance, not one belonging to
+        # a second test running the same GUI: that one would otherwise be
+        # the process we SIGTERM, failing it and telling us nothing about
+        # the GUI we launched. Single quotes are the outer script string,
+        # so no apostrophes below this line.
+        . "$LIB_DIR/parallel.sh"
+        GUI_PID=$(instance_gui_pid "$GUI_MATCH")
         if [ -z "$GUI_PID" ]; then
             echo "UI_SMOKE_QUIT_FAIL: GUI process matching \"$GUI_MATCH\" not found"
             kill -KILL -- -"$LINUXCNC_PID" 2>/dev/null || true
             bash "$LIB_DIR/cleanup-runtime.sh"
             exit 1
         fi
+
+        # Let the GUI finish starting before testing how it shuts down.
+        # Until it reaches its event loop it is running whatever handler it
+        # arms for startup, so a signal sent earlier tests the wrong thing
+        # and can be lost outright.
+        wait_for_gui_ready "$GUI_PID"
 
         # Send SIGTERM to the GUI alone and time how long it takes to go.
         kill -TERM "$GUI_PID" 2>/dev/null || true
@@ -99,11 +103,20 @@ xvfb-run -a --server-args="-screen 0 $UI_SMOKE_XVFB_SCREEN" \
 
         if kill -0 "$GUI_PID" 2>/dev/null; then
             echo "UI_SMOKE_QUIT_FAIL: GUI (pid $GUI_PID) still alive ${QUIT_GRACE}s after SIGTERM"
+            echo "  target: $(instance_pid_state "$GUI_PID")"
+            echo "  processes matching $GUI_MATCH:"
+            instance_pgrep_report "$GUI_MATCH"
             # A GUI that absorbs SIGTERM is usually blocked on a modal it
             # cannot dismiss headless. Photograph it before teardown so the
             # offending dialog is visible. The GUI is still up here.
             . "$LIB_DIR/screenshot.sh"
             screenshot_grab screenshot.png
+            # PYTHONFAULTHANDLER is armed (launch-env.sh), so SIGABRT makes
+            # the GUI print every thread stack to linuxcnc.err on its way
+            # out. That names the line it is stuck on, which the process
+            # state alone cannot. The GUI is killed either way below.
+            kill -ABRT "$GUI_PID" 2>/dev/null || true
+            sleep 2
             RC=1
         else
             echo "UI_SMOKE_QUIT_OK: GUI exited ${waited}s after SIGTERM"

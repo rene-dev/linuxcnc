@@ -20,6 +20,7 @@ from qtpy.QtWidgets import (QGraphicsBlurEffect,
                 QGraphicsColorizeEffect)
 
 import linuxcnc
+import linuxcnc_instance
 
 from qtvcp.widgets.widget_baseclass import _HalWidgetBase
 from qtvcp.widgets.xembed import XEmbeddable
@@ -156,8 +157,10 @@ class ScreenOptions(QtWidgets.QWidget, _HalWidgetBase):
         self._User9Color = QtGui.QColor(100, 0, 0, 150)
         self._User10Color = QtGui.QColor(100, 0, 0, 150)
         self._zmq_sub_subscribe_name = b""
-        self._zmq_sub_socket_address = "tcp://127.0.0.1:5690"
-        self._zmq_pub_socket_address = "tcp://127.0.0.1:5690"
+        # Moves with LINUXCNC_INSTANCE so parallel sessions get their own
+        # pair; see lib/python/linuxcnc_instance.py.
+        self._zmq_sub_socket_address = "tcp://127.0.0.1:%d" % linuxcnc_instance.port(5690)
+        self._zmq_pub_socket_address = "tcp://127.0.0.1:%d" % linuxcnc_instance.port(5690)
         self._halBaseName = ''
         self.__blurList = []
         self.__tintList = []

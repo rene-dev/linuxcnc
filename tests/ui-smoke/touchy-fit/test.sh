@@ -6,4 +6,10 @@
 LIB_DIR="$(cd "$(dirname "$0")/../_lib" && pwd)"
 export UI_SMOKE_XVFB_SCREEN=1024x600x24
 export UI_SMOKE_FIT_CLASS='("touchy" "Touchy")'
-exec "$LIB_DIR/run-gui.sh" touchy/touchy.ini
+# Private copy of the config; see mirror-config.sh.
+. "$LIB_DIR/mirror-config.sh"
+mirror_sim_config touchy/touchy.ini
+"$LIB_DIR/run-gui.sh" "$MIRROR_INI"
+rc=$?
+mirror_cleanup
+exit $rc

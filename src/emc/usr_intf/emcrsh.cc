@@ -42,6 +42,7 @@
 #include "nml_intf/emcglb.h"
 #include <inifile.hh>
 #include "libnml/os_intf/timer.hh"
+#include "rtapi/rtapi_instance.h"	/* rtapi_instance_offset() */
 
 using namespace linuxcnc;
 
@@ -3784,6 +3785,11 @@ int main(int argc, char *argv[])
 	char *eptr;
 	size_t pos;
 	std::string s;
+
+	/* This server owns a well known port, so it moves with the instance
+	   the way the NML ports do (see src/rtapi/rtapi_instance.h).  An
+	   explicit -p is taken as given and is not shifted. */
+	port += rtapi_instance_offset();
 
 	// initialize default values
 	emcWaitType = EMC_WAIT_NEVER;	// Handled in the poll loop

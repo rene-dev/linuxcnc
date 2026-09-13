@@ -3,6 +3,7 @@
 
 import _hal, hal
 import linuxcnc
+import linuxcnc_instance
 import os
 import math
 
@@ -314,8 +315,12 @@ class _GStat(GObject.GObject):
         self.stat = stat or linuxcnc.stat()
         self.cmd = linuxcnc.command()
 
-        self.readAddress = "tcp://127.0.0.1:5691"
-        self.writeAddress = "tcp://127.0.0.1:5690"
+        # The two well known ports move with LINUXCNC_INSTANCE, so that a
+        # second session on the same machine gets its own pair instead of
+        # failing to bind and then listening to the first session's
+        # messages -- onReadMsg calls the function a message names.
+        self.readAddress = "tcp://127.0.0.1:%d" % linuxcnc_instance.port(5691)
+        self.writeAddress = "tcp://127.0.0.1:%d" % linuxcnc_instance.port(5690)
         self.write_available = False
         # if zmq is imported, create sockets
         # for communication with a 3rd party

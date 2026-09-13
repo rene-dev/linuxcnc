@@ -1,4 +1,9 @@
 #!/bin/bash
-exec "$(dirname "$0")/../_lib/quit-launch.sh" \
-    "$(cd "$(dirname "$0")/../../../configs/sim" && pwd)/touchy/touchy.ini" \
-    "bin/touchy"
+LIB_DIR="$(cd "$(dirname "$0")/../_lib" && pwd)"
+# Private copy of the config; see mirror-config.sh.
+. "$LIB_DIR/mirror-config.sh"
+mirror_sim_config touchy/touchy.ini
+"$LIB_DIR/quit-launch.sh" "$MIRROR_INI" "bin/touchy"
+rc=$?
+mirror_cleanup
+exit $rc

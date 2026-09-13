@@ -48,6 +48,19 @@ AWK=@AWK@
 GREP=@GREP@
 KILL=@KILL@
 
+# Several LinuxCNC sessions can run at once, told apart by LINUXCNC_INSTANCE
+# (see src/rtapi/rtapi_instance.h).  Anything this script puts in a shared
+# place - the lock file, the logs in $HOME, the NML shared memory segments -
+# has to carry the instance with it, and anything it kills has to be narrowed
+# to the instance's own processes.  Unset means instance 0 and the plain,
+# historical names.
+if [ "${LINUXCNC_INSTANCE:-0}" -eq 0 ] 2>/dev/null ; then
+    INSTANCE_SUFFIX=""
+else
+    INSTANCE_SUFFIX="-$LINUXCNC_INSTANCE"
+fi
+INSTANCE_OFFSET=$(( 16 * ${LINUXCNC_INSTANCE:-0} ))
+
 LINUXCNC_HOME=@EMC2_HOME@; export LINUXCNC_HOME
 
 LINUXCNC_BIN_DIR=@EMC2_BIN_DIR@
@@ -253,24 +266,24 @@ function ErrorCheck () {
     if [ "$result" -ne 0 ]; then
         if tty -s || [ -z "$DISPLAY" ] ; then
             if [ -f "$DEBUG_FILE" ]; then
-                cp "$DEBUG_FILE" "$HOME/linuxcnc_debug.txt"
+                cp "$DEBUG_FILE" "$HOME/linuxcnc_debug$INSTANCE_SUFFIX.txt"
             else
                 echo "(debug information was sent to stderr)" \
-                    > "$HOME/linuxcnc_debug.txt"
+                    > "$HOME/linuxcnc_debug$INSTANCE_SUFFIX.txt"
             fi
 
             if [ -f "$PRINT_FILE" ]; then
-                cp "$PRINT_FILE" "$HOME/linuxcnc_print.txt"
+                cp "$PRINT_FILE" "$HOME/linuxcnc_print$INSTANCE_SUFFIX.txt"
             else
                 echo "(print information was sent to stdout)" \
-                    > "$HOME/linuxcnc_print.txt"
+                    > "$HOME/linuxcnc_print$INSTANCE_SUFFIX.txt"
             fi
 
             echo "\
 LinuxCNC terminated with an error.  You can find more information in the log:
-    $HOME/linuxcnc_debug.txt
+    $HOME/linuxcnc_debug$INSTANCE_SUFFIX.txt
 and
-    $HOME/linuxcnc_print.txt
+    $HOME/linuxcnc_print$INSTANCE_SUFFIX.txt
 as well as in the output of the shell command 'dmesg' and in the terminal"
         else
             @WISH@ "$LINUXCNC_TCL_DIR/show_errors.tcl" "$DEBUG_FILE" "$PRINT_FILE"
@@ -573,12 +586,36 @@ KILL_TASK=
 KILL_TIMEOUT=20
 
 ################################################################################
+# 3.0. pidof, narrowed to the processes of this instance
+#
+# The task names below are the same for every session on the machine, so a
+# plain pidof would hand a session cleaning up after itself the pids of every
+# other session's tasks as well.  A process belongs to us when its
+# LINUXCNC_INSTANCE matches ours; a process that has none counts as instance 0.
+################################################################################
+function InstancePidof() {
+    local pid pids inst
+    pids=""
+    for pid in $($PIDOF "$@") ; do
+	inst=$(tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null \
+	    | sed -n 's/^LINUXCNC_INSTANCE=//p')
+	if [ "${inst:-0}" = "${LINUXCNC_INSTANCE:-0}" ] ; then
+	    pids="$pids $pid"
+	fi
+    done
+    if [ -z "$pids" ] ; then
+	return 1
+    fi
+    echo "${pids# }"
+}
+
+################################################################################
 # 3.1. Kills a list of tasks with timeout
 # if it doesn't work, kill -9 is used
 ################################################################################
 function KillTaskWithTimeout() {
     if [ -z "$KILL_PIDS" ] ; then
-	KILL_PIDS=$($PIDOF $KILL_TASK)
+	KILL_PIDS=$(InstancePidof $KILL_TASK)
     fi
     if [ -z "$KILL_PIDS" ] ; then
 	echo "Could not find pid(s) for task $KILL_TASK"
@@ -643,7 +680,7 @@ function Cleanup() {
     # Kill displays first - that should cause an orderly
     #   shutdown of the rest of linuxcnc
     for KILL_TASK in linuxcncpanel iosh linuxcncsh linuxcncrsh linuxcnctop mdi debuglevel gmoccapy gscreen; do
-	if $PIDOF $KILL_TASK >> "$DEBUG_FILE" ; then
+	if InstancePidof $KILL_TASK >> "$DEBUG_FILE" ; then
 	    KillTaskWithTimeout
 	fi
     done
@@ -676,7 +713,7 @@ function Cleanup() {
 
     # now kill all the other user space components
     for KILL_TASK in linuxcncsvr milltask motion-logger; do
-	if $PIDOF $KILL_TASK >> "$DEBUG_FILE" ; then
+	if InstancePidof $KILL_TASK >> "$DEBUG_FILE" ; then
 	    KillTaskWithTimeout
 	fi
     done
@@ -702,7 +739,7 @@ function Cleanup() {
     # shellcheck disable=SC2034
     while read -r b x t x x x x x x m x; do
         case "$b$t" in
-            BSHMEM) ipcrm -M "$m" 2>/dev/null;;
+            BSHMEM) ipcrm -M "$((m + INSTANCE_OFFSET))" 2>/dev/null;;
         esac
     done < "$NMLFILE"
 
@@ -721,7 +758,7 @@ function Cleanup() {
 
 # Name of lock file to check for that signifies that LinuxCNC is up,
 # to prevent multiple copies of controller
-LOCKFILE=/tmp/linuxcnc.lock
+LOCKFILE=/tmp/linuxcnc$INSTANCE_SUFFIX.lock
 
 # Check for lock file
 if [ -f "$LOCKFILE" ]; then

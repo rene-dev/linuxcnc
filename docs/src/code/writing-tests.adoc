@@ -33,7 +33,27 @@ The _runtests_ script accepts the following arguments, see the output from `scri
 -c  Remove temporary files from an earlier test run.
 -u  Only run tests that require normal user access.
 -v  Show stdout and stderr (normally it's hidden).
+-j  Run this many tests at a time.
 ----
+
+=== Running tests in parallel
+
+`runtests -j N` runs N tests at a time.
+Each worker gets its own `LINUXCNC_INSTANCE`, so the sessions it starts have their own shared memory, their own `rtapi_app`, their own NML buffers and ports, and their own tool table; see `LINUXCNC_INSTANCE` in *linuxcnc(1)* and `src/rtapi/rtapi_instance.h`.
+Everything a test writes stays in the test's own directory, so the tests themselves need no changes.
+
+A parallel run is undisturbed by a LinuxCNC session already running on the machine, because the workers do not use instance 0.
+A plain `runtests` does use instance 0 and so still stops with a message if it finds LinuxCNC running.
+
+Two things are worth knowing before turning the number up:
+
+* Sessions running side by side are slower than one alone.
+  The wall clock timeouts in `lib/python/linuxcnc_util.py` are multiplied by `LINUXCNC_TEST_TIMEOUT_SCALE`, which runtests sets to the number of jobs.
+  A test that waits on the machine with its own timeout should do something similar.
+* A test that watches the clock closely can come out differently when it does not have the machine to itself.
+  Such a test gets a `noparallel` file (see below) and runs on its own after the parallel batch.
+
+Tests left unrun, because `-s` stopped the run or because a worker gave up on a shared memory segment it could not remove, are listed by name at the end.
 
 == Writing tests
 
@@ -73,6 +93,14 @@ checkresult::
 
  skip::
    If this file exist, the test is skipped and not executed at all.
+
+ noparallel::
+   If this file exists, the test is not run alongside any other test.
+   Use it when a test measures something that changes under load and cannot be made to wait for it, such as a race it provokes on purpose.
+   Try the alternatives first: a test that signals or inspects another process should find it by its `LINUXCNC_INSTANCE`, and a wall clock wait should be scaled by `LINUXCNC_TEST_TIMEOUT_SCALE`; the ui-smoke tests do both (`tests/ui-smoke/_lib/parallel.sh`) and run in parallel.
+   `runtests -j N` runs these one at a time after the parallel batch, so a test marked this way costs the run its wall clock time in full.
+   Put the reason in the file; it is not read by anything, only by the next person wondering why the test is there.
+   Isolation between sessions is not a reason to use it: separate instances already have separate shared memory, sockets and tool tables.
 
  control::
    This file can be used to flag specific needs in the test.

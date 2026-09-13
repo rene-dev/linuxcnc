@@ -1,6 +1,11 @@
 #!/bin/bash
 set -x
 
+
+# linuxcncrsh shifts its default port with LINUXCNC_INSTANCE, so that
+# parallel test runs do not fight over one socket.
+RSHPORT=$((5007 + 16 * ${LINUXCNC_INSTANCE:-0}))
+
 rm -f sim.var
 
 # reset the tool table to a known starting configuration
@@ -9,8 +14,8 @@ cp tool.tbl.original tool.tbl
 
 rm -f gcode-output
 
-if nc -z localhost 5007; then
-    echo "Process already listening on port 5007. Exiting"
+if nc -z localhost $RSHPORT; then
+    echo "Process already listening on port $RSHPORT. Exiting"
     exit 1
 fi
 
@@ -21,7 +26,7 @@ linuxcnc -r sim.ini &
 TOGO=80
 while [  $TOGO -gt 0 ]; do
     echo trying to connect to linuxcncrsh TOGO=$TOGO
-    if nc -z localhost 5007; then
+    if nc -z localhost $RSHPORT; then
         break
     fi
     sleep 0.25
@@ -663,7 +668,7 @@ fi
     echo 'set wait done'
 
     echo shutdown
-) | nc localhost 5007
+) | nc localhost $RSHPORT
 
 
 # wait for linuxcnc to finish

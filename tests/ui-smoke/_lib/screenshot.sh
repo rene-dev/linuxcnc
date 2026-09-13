@@ -56,13 +56,11 @@ screenshot_grab_qt() {
     # since the offscreen GUI's cwd is the config mirror, not the test dir.
     shot="${UI_SMOKE_QT_SHOT:-ui-smoke-qt.png}"
     rm -f "$shot"
-    pid=""
-    for p in $(pgrep -f "qtvcp" 2>/dev/null); do
-        arg0=$(tr '\0' '\n' <"/proc/$p/cmdline" 2>/dev/null | head -1)
-        case "$(basename "$arg0" 2>/dev/null)" in
-            python*) pid="$p"; break ;;
-        esac
-    done
+    # Our own qtvcp, not one belonging to a second test running a qtvcp
+    # GUI at the same time: signalling that one photographs the wrong
+    # screen and leaves us waiting for a file that never appears.
+    . "$(dirname "${BASH_SOURCE[0]}")/parallel.sh"
+    pid=$(instance_gui_pid "qtvcp")
     if [ -z "$pid" ]; then
         echo "screenshot: qtvcp process not found, skipping $out"
         return 0
@@ -115,6 +113,12 @@ screenshot_grab_settled() {
     settle_prev="$settle_dir/prev.png"
     settle_cur="$settle_dir/cur.png"
     settle_thresh="${UI_SMOKE_SETTLE_AE:-400}"
+    # Deliberately not stretched when the machine is shared. These GUIs do
+    # not actually converge -- something on screen keeps changing by more
+    # than the threshold, so the loop runs its budget out every time and
+    # keeps the last frame. Scaling the budget with the job count only buys
+    # more of that: measured at -j8 it turned a 10s fallback into a 2min
+    # one, for the same picture.
     settle_tries="${UI_SMOKE_SETTLE_TRIES:-25}"
     settle_stable=0
     while [ "$settle_tries" -gt 0 ]; do

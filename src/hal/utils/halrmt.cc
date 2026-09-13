@@ -56,6 +56,7 @@
 #include <inifile.hh>
 
 #include "hal/setps_util.h"
+#include "rtapi/rtapi_instance.h"	/* rtapi_instance_offset() */
 
 using namespace linuxcnc;
 
@@ -3258,6 +3259,11 @@ int main(int argc, char **argv)
     int optc;
     int lose = 0;
     char *eptr;
+
+    /* This server owns a well known port, so it moves with the instance
+       the way the NML ports do (see src/rtapi/rtapi_instance.h).  An
+       explicit -p is taken as given and is not shifted. */
+    port += rtapi_instance_offset();
 
     /* set default level of output - 'quiet' */
     rtapi_set_msg_level(RTAPI_MSG_ERR);

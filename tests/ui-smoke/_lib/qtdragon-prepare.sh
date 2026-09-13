@@ -10,8 +10,8 @@
 # only for the runtime user, so a relative LOG_FILE like 'qtdragon.log'
 # resolves to a path qtvcp cannot create, hal_bridge then exits, and
 # linuxcnc tears down before our driver can do anything. Mirror the
-# config dir to a writable tmp location and patch LOG_FILE to be
-# rooted at $HOME so the log lands in a directory we can write to.
+# config dir to a writable tmp location and patch LOG_FILE to point
+# inside that copy, which is both writable and private to this test.
 #
 # Force the Qt offscreen platform plugin. qtvcp under xvfb + xcb on
 # Ubuntu 24.04 segfaults during widget construction (no backtrace);
@@ -40,7 +40,10 @@ SRC_DIR="$(cd "$LIB_DIR/../../../configs/sim/qtdragon/qtdragon_xyz" && pwd)"
 WORK_DIR="$(mktemp -d -t ui-smoke-qtdragon.XXXXXX)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 cp -r "$SRC_DIR/." "$WORK_DIR/"
-sed -i 's|^LOG_FILE = qtdragon\.log$|LOG_FILE = ~/qtdragon.log|' \
+# Point the log at this copy rather than at $HOME: the qtdragon and
+# qtdragon-quit tests both run this config, and side by side they would
+# write one log file from two sessions.
+sed -i "s|^LOG_FILE = qtdragon\.log\$|LOG_FILE = $WORK_DIR/qtdragon.log|" \
     "$WORK_DIR/qtdragon_metric.ini"
 
 export LINUXCNC_OPENGL_PLATFORM=offscreen
