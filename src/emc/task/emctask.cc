@@ -13,6 +13,7 @@
 * Last change:
 ********************************************************************/
 
+#include <fmt/format.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <rtapi_string.h>	// rtapi_strlcpy()
@@ -22,16 +23,15 @@
 #include <dlfcn.h>
 #include <memory>
 
-#include "libnml/rcs/rcs.hh"		// INIFILE
 #include "nml_intf/emc.hh"		// EMC NML
 #include "nml_intf/emc_nml.hh"
 #include "nml_intf/emcglb.h"		// EMC_INIFILE
-#include "nml_intf/interpl.hh"		// NML_INTERP_LIST, interp_list
+#include "nml_intf/interpl_nml.hh"		// NML_INTERP_LIST, interp_list
 #include "nml_intf/canon.hh"		// CANON_VECTOR, GET_PROGRAM_ORIGIN()
 #include "rs274ngc/rs274ngc_interp.hh"	// the interpreter
 #include "nml_intf/interp_return.hh"	// INTERP_FILE_NOT_OPEN
 #include <inifile.hh>
-#include "libnml/rcs/rcs_print.hh"
+
 #include "task.hh"		// emcTaskCommand etc
 #include "taskclass.hh"
 #include "motion/motion.h"
@@ -48,7 +48,6 @@ static EMC_TASK_MODE mdiOrAuto = EMC_TASK_MODE::AUTO;
 InterpBase *pinterp=NULL;
 #define interp (*pinterp)
 setup_pointer _is = NULL; // helper for gdb hardware watchpoints FIXME
-
 
 // Print error messages thrown by interpreter
 static char interp_error_text_buf[LINELEN];
@@ -68,22 +67,22 @@ static void print_interp_error(int retval)
     interp_error_text_buf[0] = 0;
     interp.error_text(retval, interp_error_text_buf, LINELEN);
     if (0 != interp_error_text_buf[0]) {
-	rcs_print_error("interp_error: %s\n", interp_error_text_buf);
+	fmt::print(stderr,"interp_error: {}\n", interp_error_text_buf);
     }
     emcOperatorError("%s", interp_error_text_buf);
     index = 0;
     if (emc_debug & EMC_DEBUG_INTERP) {
-	rcs_print("Interpreter stack: \t");
+	fmt::print("Interpreter stack: \t");
 	while (index < 5) {
 	    interp_stack_buf[0] = 0;
 	    interp.stack_name(index, interp_stack_buf, LINELEN);
 	    if (0 == interp_stack_buf[0]) {
 		break;
 	    }
-	    rcs_print(" - %s ", interp_stack_buf);
+	    fmt::print(" - {} ", interp_stack_buf);
 	    index++;
 	}
-	rcs_print("\n");
+	fmt::print("\n");
     }
 }
 
@@ -128,7 +127,7 @@ int emcTaskInit()
     // Identify user_defined_function directories
     if (auto inistring = inifile.findString("PROGRAM_PREFIX", "DISPLAY")) {
         if (inistring->length() >= sizeof(mdir[0])) {
-            rcs_print("[DISPLAY]PROGRAM_PREFIX too long (max len %zu)\n", sizeof(mdir[0]));
+            fmt::print("[DISPLAY]PROGRAM_PREFIX too long (max len {})\n", sizeof(mdir[0]));
             return -1;
         }
         rtapi_strlcpy(mdir[0], inistring->c_str(), sizeof(mdir[0]));
@@ -147,7 +146,7 @@ int emcTaskInit()
         for (dct=1; dct < MAX_M_DIRS; dct++) mdir[dct][0] = 0;
 
         if (inistring->length() >= sizeof(tmpdirs)) {
-            rcs_print("[RS274NGC]USER_M_PATH too long (max len %zu)\n", sizeof(tmpdirs));
+            fmt::print("[RS274NGC]USER_M_PATH too long (max len {})\n", sizeof(tmpdirs));
             return -1;
         }
         rtapi_strlcpy(tmpdirs, inistring->c_str(), sizeof(tmpdirs));
@@ -158,7 +157,7 @@ int emcTaskInit()
         while (dct < MAX_M_DIRS) {
             if (nextdir == NULL) break; // no more tokens
             if (strlen(nextdir) >= sizeof(mdir[dct])) {
-                rcs_print("[RS274NGC]USER_M_PATH component (%s) too long (max len %zu)\n",
+                fmt::print("[RS274NGC]USER_M_PATH component ({}) too long (max len {})\n",
                           nextdir, sizeof(mdir[dct]));
                 return -1;
             }
@@ -176,7 +175,7 @@ int emcTaskInit()
 	    std::string expanddir;
 	    if (!mdir[dct][0]) continue;
             if (inifile.TildeExpansion(mdir[dct],expanddir)) {
-		rcs_print("emcTaskInit: TildeExpansion failed for %s, ignoring\n",
+		fmt::print("emcTaskInit: TildeExpansion failed for {}, ignoring\n",
 			 mdir[dct]);
             }
 	    size_t ret = snprintf(path, sizeof(path), "%s/M1%02d",expanddir.c_str(),num);
@@ -192,7 +191,7 @@ int emcTaskInit()
 		    } else {
 		    USER_DEFINED_FUNCTION_ADD(user_defined_add_m_code,num);
 		    if (emc_debug & EMC_DEBUG_CONFIG) {
-		        rcs_print("emcTaskInit: adding user-defined function %s\n",
+		        fmt::print("emcTaskInit: adding user-defined function {}\n",
 			     path);
 		    }
 	            user_defined_function_dirindex[num] = dct;
@@ -200,7 +199,7 @@ int emcTaskInit()
 		    }
 	        } else {
 		    if (emc_debug & EMC_DEBUG_CONFIG) {
-		        rcs_print("emcTaskInit: user-defined function %s found, but not executable, so ignoring\n",
+		        fmt::print("emcTaskInit: user-defined function {} found, but not executable, so ignoring\n",
 			     path);
 		    }
 	        }
@@ -263,7 +262,7 @@ int emcTaskAbort()
 	emcTaskPlanClose();
         emcTaskPlanReset();  // Flush any unflushed segments
 	if (emc_debug & EMC_DEBUG_INTERP && was_open) {
-	    rcs_print("emcTaskPlanClose() called at %s:%d\n", __FILE__,
+	    fmt::print("emcTaskPlanClose() called at {}:{}\n", __FILE__,
 		      __LINE__);
 	}
     }
@@ -276,7 +275,7 @@ int emcTaskSetMode(EMC_TASK_MODE mode)
     int retval = 0;
 
     if (jogging_is_active()) {
-        rcs_print("Ignoring task mode change while jogging");
+        fmt::print("Ignoring task mode change while jogging");
         return 0;
     }
 
@@ -474,7 +473,7 @@ int emcTaskPlanInit()
     }
 
     if (emc_debug & EMC_DEBUG_INTERP) {
-        rcs_print("emcTaskPlanInit() returned %d\n", retval);
+        fmt::print("emcTaskPlanInit() returned {}\n", retval);
     }
 
     return retval;
@@ -485,7 +484,7 @@ int emcTaskPlanSetWait()
     waitFlag = 1;
 
     if (emc_debug & EMC_DEBUG_INTERP) {
-        rcs_print("emcTaskPlanSetWait() called\n");
+        fmt::print("emcTaskPlanSetWait() called\n");
     }
 
     return 0;
@@ -501,7 +500,7 @@ int emcTaskPlanClearWait()
     waitFlag = 0;
 
     if (emc_debug & EMC_DEBUG_INTERP) {
-        rcs_print("emcTaskPlanClearWait() called\n");
+        fmt::print("emcTaskPlanClearWait() called\n");
     }
 
     return 0;
@@ -519,7 +518,6 @@ int emcTaskPlanSetBlockDelete(bool state)
     return 0;
 }
 
-
 int emcTaskPlanSynch()
 {
     int retval = interp.synch();
@@ -528,7 +526,7 @@ int emcTaskPlanSynch()
     }
 
     if (emc_debug & EMC_DEBUG_INTERP) {
-        rcs_print("emcTaskPlanSynch() returned %d\n", retval);
+        fmt::print("emcTaskPlanSynch() returned {}\n", retval);
     }
 
     return retval;
@@ -557,12 +555,11 @@ int emcTaskPlanOpen(const char *file)
     taskplanopen = 1;
 
     if (emc_debug & EMC_DEBUG_INTERP) {
-        rcs_print("emcTaskPlanOpen(%s) returned %d\n", file, retval);
+        fmt::print("emcTaskPlanOpen({}) returned {}\n", file ? file : "(null)", retval);
     }
 
     return retval;
 }
-
 
 int emcTaskPlanRead()
 {
@@ -581,7 +578,7 @@ int emcTaskPlanRead()
     }
     
     if (emc_debug & EMC_DEBUG_INTERP) {
-        rcs_print("emcTaskPlanRead() returned %d\n", retval);
+        fmt::print("emcTaskPlanRead() returned {}\n", retval);
     }
     
     return retval;
@@ -606,7 +603,7 @@ int emcTaskPlanExecute(const char *command)
     }
 
     if (emc_debug & EMC_DEBUG_INTERP) {
-        rcs_print("emcTaskPlanExecute(0) return %d\n", retval);
+        fmt::print("emcTaskPlanExecute(0) return {}\n", retval);
     }
 
     return retval;
@@ -623,7 +620,8 @@ int emcTaskPlanExecute(const char *command, int line_number)
     }
 
     if (emc_debug & EMC_DEBUG_INTERP) {
-        rcs_print("emcTaskPlanExecute(%s) returned %d\n", command, retval);
+        fmt::print("emcTaskPlanExecute({}) returned {}\n",
+                   command ? command : "(null)", retval);
     }
 
     return retval;
@@ -655,7 +653,7 @@ int emcTaskPlanLine()
     int retval = interp.line();
     
     if (emc_debug & EMC_DEBUG_INTERP) {
-        rcs_print("emcTaskPlanLine() returned %d\n", retval);
+        fmt::print("emcTaskPlanLine() returned {}\n", retval);
     }
 
     return retval;
@@ -666,7 +664,7 @@ int emcTaskPlanLevel()
     int retval = interp.call_level();
 
     if (emc_debug & EMC_DEBUG_INTERP) {
-        rcs_print("emcTaskPlanLevel() returned %d\n", retval);
+        fmt::print("emcTaskPlanLevel() returned {}\n", retval);
     }
 
     return retval;
@@ -679,8 +677,8 @@ int emcTaskPlanCommand(char *cmd)
     strcpy(cmd, interp.command(buf, LINELEN));
 
     if (emc_debug & EMC_DEBUG_INTERP) {
-        rcs_print("emcTaskPlanCommand(%s) called. (line_number=%d)\n",
-          cmd, emcStatus->task.readLine);
+        fmt::print("emcTaskPlanCommand({}) called. (line_number={})\n",
+          cmd ? cmd : "(null)", emcStatus->task.readLine);
     }
 
     return 0;
