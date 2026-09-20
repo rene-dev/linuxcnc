@@ -555,7 +555,7 @@ int emcTaskPlanOpen(const char *file)
     taskplanopen = 1;
 
     if (emc_debug & EMC_DEBUG_INTERP) {
-        fmt::print("emcTaskPlanOpen({}) returned {}\n", file ? file : "(null)", retval);
+        fmt::print("emcTaskPlanOpen({}) returned {}\n", file, retval);
     }
 
     return retval;
@@ -678,7 +678,7 @@ int emcTaskPlanCommand(char *cmd)
 
     if (emc_debug & EMC_DEBUG_INTERP) {
         fmt::print("emcTaskPlanCommand({}) called. (line_number={})\n",
-          cmd ? cmd : "(null)", emcStatus->task.readLine);
+          cmd, emcStatus->task.readLine);
     }
 
     return 0;
