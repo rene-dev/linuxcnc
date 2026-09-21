@@ -16,7 +16,7 @@
 #define EMC_HH
 
 #include <emcmotcfg.h>		// EMC_JOINT_MAX, EMC_AXIS_MAX
-#include "libnml/nml/nml_type.hh"
+#include "nml_msg.hh"		// NMLTYPE
 #include "motion_types.h"
 #include <stdint.h>
 #include "modal_state.hh"
@@ -33,10 +33,6 @@ class EMC_SPINDLE_STAT;
 class EMC_COOLANT_STAT;
 class EMC_IO_STAT;
 class EMC_STAT;
-class CMS;
-class RCS_CMD_CHANNEL;
-class RCS_STAT_CHANNEL;
-class NML;
 struct EmcPose;
 struct PM_CARTESIAN;
 
@@ -253,10 +249,7 @@ enum class EMC_ABORT {
 // EMC VOCABULARY
 // --------------
 
-// NML formatting function
-extern int emcFormat(NMLTYPE type, void *buffer, CMS * cms);
-
-// NML Symbol Lookup Function
+// Message type -> name, for debug traces and interp-list items
 extern const char *emc_symbol_lookup(uint32_t type);
 #define emcSymbolLookup(a) emc_symbol_lookup(a)
 

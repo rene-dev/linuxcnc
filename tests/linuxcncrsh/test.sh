@@ -31,7 +31,7 @@ fi
 # - getting the key's old value before setting
 # - setting the new value
 # - getting the new value
-# - collect possible error from linuxcncsvr
+# - collect possible error from task
 function testSet() {
     # get before value
     echo "get $1"

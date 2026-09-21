@@ -1,15 +1,4 @@
 
-EMCSVRSRCS := \
-	emc/task/emcsvr.cc \
-	emc/usr_intf/mapini.cc
-
-USERSRCS += $(EMCSVRSRCS)
-
-../bin/linuxcncsvr: $(call TOOBJS, $(EMCSVRSRCS)) ../lib/liblinuxcnchal.so.0 ../lib/liblinuxcnc.a ../lib/libnml.so.0 ../lib/liblinuxcncini.so.1
-	$(ECHO) Linking $(notdir $@)
-	$(Q)$(CXX) -o $@ $^ -lfmt $(LDFLAGS)
-TARGETS += ../bin/linuxcncsvr
-
 # disabled:	emc/task/iotaskintf.cc
 MILLTASKSRCS := \
 	emc/motion/emcmotglb.c \
@@ -23,16 +12,22 @@ MILLTASKSRCS := \
 	emc/motion/stashf.c \
 	emc/task/taskclass.cc \
 	emc/task/backtrace.cc \
+	emc/task/ws_server.cc \
 	emc/task/cmd_queue.cc \
 	emc/task/halui.cc \
 	emc/usr_intf/mapini.cc
 
 USERSRCS += $(MILLTASKSRCS)
 
+# ws_server.cc includes the flatc-generated headers. The auto-generated .d
+# files cannot express this on a clean tree, because the headers do not exist
+# yet when dependencies are computed, so state it explicitly.
+$(call TOOBJS, emc/task/ws_server.cc): $(FBHEADERS)
+
 #LDFLAGS +=
 
 ../bin/milltask: $(call TOOBJS, $(MILLTASKSRCS)) ../lib/librs274.so.0 ../lib/liblinuxcnc.a \
-                 ../lib/libnml.so.0 ../lib/liblinuxcncini.so.1 ../lib/libposemath.so.0 \
+                 ../lib/liblinuxcncini.so.1 ../lib/libposemath.so.0 \
                  ../lib/liblinuxcnchal.so.0 ../lib/libpyplugin.so.0 \
                  ../lib/libtooldata.so.0
 

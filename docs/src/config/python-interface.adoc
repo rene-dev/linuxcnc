@@ -12,14 +12,15 @@ constants are located in src/emc/usr_intf/axis/extensions/emcmodule.cc
 ////
 
 == Introduction
-User interfaces control LinuxCNC activity by sending NML messages to the LinuxCNC task controller,
+User interfaces control LinuxCNC activity by sending commands to the LinuxCNC task controller,
 and monitor results by observing the LinuxCNC status structure, as well as the error reporting channel.
 
-Programmatic access to NML is through a C++ API;
-however, the most important parts of the NML interface to LinuxCNC
+They reach task over a websocket carrying FlatBuffers.
+Programmatic access is through a C++ API, `src/emc/ws_client`;
+the most important parts of it
 are also available to Python programs through the `linuxcnc` module.
 
-Beyond the NML interface to the command, status and error channels, the `linuxcnc` module also contains:
+Beyond the command, status and error interfaces, the `linuxcnc` module also contains:
 
 - support for reading values from INI files
 
@@ -28,12 +29,12 @@ FIXME
 - support for position logging  (???)
 ////
 
-== Usage Patterns for the LinuxCNC NML interface
+== Usage Patterns for the LinuxCNC interface
 
 The general pattern for `linuxcnc` usage is roughly like this:
 
 - Import the `linuxcnc` module.
-- Establish connections to the command, status and error NML channels as needed.
+- Establish connections to the command, status and error interfaces as needed.
 - Poll the status channel, either periodically or as needed.
 - Before sending a command, determine from status whether it is in fact OK to do so
   (for instance, there is no point in sending a 'Run' command if task is in the ESTOP state, or the interpreter is not idle).
@@ -68,8 +69,9 @@ for x in dir(s):
         print(x, getattr(s,x))
 ----
 
-The linuxcnc module uses the default compiled-in path to the NML configuration file unless overridden,
-see <<python:reading-ini-values,ReadingINI file values>> for an example.
+The linuxcnc module connects to task on `127.0.0.1` at the port given by
+`[TASK]WEBSOCKET_PORT` in `$INI_FILE_NAME`, default 5700. `LINUXCNC_WS_PORT`
+overrides both.
 
 === linuxcnc.stat attributes
 
@@ -824,10 +826,12 @@ c.spindle.(linuxcnc.SPINDLE_OFF, 0)
 
 To handle error messages, connect to the error channel and periodically poll() it.
 
-Note that the NML channel for error messages has a queue (other than the command and status channels),
-which means that the first consumer of an error message deletes that message from the queue;
-whether your another error message consumer (e.g. AXIS) will 'see' the message is dependent on timing.
-It is recommended to have just one error channel reader task in a setup.
+Operator messages are broadcast: every connected client is sent its own copy,
+so reading one here does not take it away from AXIS or any other UI.
+This was not true of the NML error channel, which was a single queue whose
+first reader consumed the message -- with two UIs attached, which one saw a
+given message depended on timing, and only one error reader per setup was
+recommended.
 
 [source,python]
 ----

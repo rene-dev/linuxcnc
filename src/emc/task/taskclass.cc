@@ -184,13 +184,9 @@ Task::Task(EMC_IO_STAT & emcioStatus_in) :
         }
     }
 
-#ifdef TOOL_NML //{
-    tool_nml_register( (CANON_TOOL_TABLE*)&emcStatus->io.tool.toolTable);
-#else //}{
     tool_mmap_creator((EMC_TOOL_STAT*)&(emcioStatus.tool), random_toolchanger);
     tool_mmap_user();
     // initialize database tool finder:
-#endif //}
 
     tooldata_init(random_toolchanger);
     if (db_mode == tooldb_t::DB_ACTIVE) {
@@ -454,9 +450,6 @@ int Task::emcToolPrepare(int toolno)
     int idx = 0;
     CANON_TOOL_TABLE tdata;
     idx  = tooldata_find_index_for_tool(toolno);
-#ifdef TOOL_NML
-    if (!random_toolchanger && toolno == 0) { idx = 0; }
-#endif
     if (idx == -1) {  // not found
         emcioStatus.tool.pocketPrepped = -1;
     } else {

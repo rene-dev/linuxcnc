@@ -51,7 +51,7 @@ graphical wizard to let you choose one.
 *<INIFILE>*::
   The INI file is the main piece of a LinuxCNC configuration. It is not
   the entire configuration; there are various other files that go with
-  it (NML files, HAL files, TBL files, VAR files). It is, however, the
+  it (HAL files, TBL files, VAR files). It is, however, the
   most important one, because it is the file that holds the
   configuration together. It can adjust a lot of parameters itself, but
   it also tells *linuxcnc* which other files to load and use.

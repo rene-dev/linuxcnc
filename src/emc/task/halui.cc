@@ -51,7 +51,7 @@
 #include <posemath.h>		// PM_POSE, TO_RAD
 #include "nml_intf/emc.hh"		// EMC NML
 #include "nml_intf/emc_nml.hh"
-#include "nml_intf/emcglb.h"		// EMC_NMLFILE, TRAJ_MAX_VELOCITY, etc.
+#include "nml_intf/emcglb.h"		// EMC_INIFILE, TRAJ_MAX_VELOCITY, etc.
 #include "nml_intf/emccfg.h"		// DEFAULT_TRAJ_MAX_VELOCITY
 #include <inifile.hh>
 #include "timeutil.hh"

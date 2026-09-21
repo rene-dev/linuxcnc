@@ -47,7 +47,6 @@ usr/bin/linuxcnc_var
 usr/bin/linuxcnclcd
 usr/bin/linuxcncmkdesktop
 usr/bin/linuxcncrsh
-usr/bin/linuxcncsvr
 usr/bin/linuxcnctop
 usr/bin/maho600gui
 usr/bin/max5gui
@@ -96,7 +95,6 @@ usr/bin/svd-ps_vfd
 usr/bin/teach-in
 usr/bin/thermistor
 usr/bin/tool_mmap_read
-usr/bin/tool_watch
 usr/bin/tooledit
 usr/bin/touchy
 usr/bin/update_ini
@@ -131,10 +129,8 @@ usr/share/linuxcnc/gremlin_view.ui
 usr/share/linuxcnc/gscreen2.glade
 usr/share/linuxcnc/gscreen.glade
 usr/share/linuxcnc/hallib/
-usr/share/linuxcnc/linuxcnc_big.nml
 usr/share/linuxcnc/linuxcnc.gif
 usr/share/linuxcnc/linuxcncicon.png
-usr/share/linuxcnc/linuxcnc.nml
 usr/share/linuxcnc/linuxcnc-wizard.gif
 usr/share/linuxcnc/mtconnect/
 usr/share/linuxcnc/ncfiles/

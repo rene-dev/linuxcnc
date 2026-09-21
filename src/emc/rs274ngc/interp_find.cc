@@ -715,15 +715,8 @@ double Interp::find_turn(double x1,      //!< X-coordinate of start point
 int Interp::find_tool_index(setup_pointer settings, int toolno, int *index)
 {
 
-#ifdef TOOL_NML //{
-    if(!settings->random_toolchanger && toolno == 0) {
-        *index = 0;
-        return INTERP_OK;
-    }
-#else //}{
     (void)settings;
     // special case is included in tooldata_find_index_for_tool()
-#endif //}
 
     *index = tooldata_find_index_for_tool(toolno);
 
@@ -733,15 +726,8 @@ int Interp::find_tool_index(setup_pointer settings, int toolno, int *index)
 
 int Interp::find_tool_pocket(setup_pointer settings, int toolno, int *pocket)
 {
-#ifdef TOOL_NML //{
-    if(!settings->random_toolchanger && toolno == 0) {
-        *pocket = 0;
-        return INTERP_OK;
-    }
-#else //}{
     (void)settings;
     // special case is included in tooldata_find_index_for_tool()
-#endif //}
     int idx = tooldata_find_index_for_tool(toolno);
     *pocket = 0; //not found
     CHKS((idx == -1), (_("Requested tool %d not found in the tool table")), toolno);

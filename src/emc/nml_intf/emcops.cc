@@ -163,17 +163,8 @@ EMC_TOOL_STAT::EMC_TOOL_STAT()
     pocketPrepped(0), // idx
     toolInSpindle(0), // toolno
     toolFromPocket(0) // tool_from_pocket
-#ifndef TOOL_NML // {
     , toolTableCurrent CANON_TOOL_TABLE_INIT
-#endif
 {
-#ifdef TOOL_NML //{
-    const struct CANON_TOOL_TABLE tdata = CANON_TOOL_TABLE_INIT;
-    int idx;
-    for (idx = 0; idx < CANON_POCKETS_MAX; idx++) {
-        toolTable[idx] = tdata;
-    }
-#endif //}
 }
 
 EMC_AUX_STAT::EMC_AUX_STAT()

@@ -96,7 +96,7 @@ These pins, parameters, and functions are created by the realtime 'motmod' modul
 
 * 'motion.adaptive-feed' - (float, in) When adaptive feed is enabled with 'M52 P1' , the
   commanded velocity is multiplied by this value. This effect is
-  multiplicative with the NML-level feed override value and
+  multiplicative with the task-level feed override value and
   'motion.feed-hold'. As of version 2.9 of LinuxCNC it is possible to
   use a negative adaptive feed value to run the G-code path in reverse.
 * 'motion.analog-in-00' - (float, in) These pins (00, 01, 02, 03 or more if configured) are
@@ -294,7 +294,7 @@ See the motion man page 'motion(9)' for details on the pins and parameters.
 
 == iocontrol
 
-iocontrol - accepts non-realtime I/O commands via NML, interacts with HAL.
+iocontrol - accepts non-realtime I/O commands, interacts with HAL.
 
 iocontrol's HAL pins are turned on and off in non-realtime context.  If you have strict timing requirements or simply need more I/O, consider using the realtime synchronized I/O provided by <<sec:motion,motion>> instead.
 

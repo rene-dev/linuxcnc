@@ -10,7 +10,7 @@
 
 set -u
 
-DAEMONS=(linuxcncsvr milltask halui rtapi_app)
+DAEMONS=(milltask halui rtapi_app)
 SHM_KEYS=(0x00000064 0x48414c32 0x48484c34 0x90280a48 0x130cf406 0x434c522b)
 
 for proc in "${DAEMONS[@]}"; do

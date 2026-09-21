@@ -2,7 +2,7 @@
 
 == NAME
 
-motion, axis - accepts NML motion commands, interacts with HAL in realtime
+motion, axis - accepts motion commands, interacts with HAL in realtime
 
 == SYNOPSIS
 
@@ -112,7 +112,7 @@ digital pins and two analog pins.
 *motion.adaptive-feed* IN FLOAT::
   When adaptive feed is enabled with M52 P1, the commanded velocity is
   multiplied by this value. This effect is multiplicative with the
-  NML-level feed override value and motion.feed-hold. Negative values
+  task-level feed override value and motion.feed-hold. Negative values
   are valid and will run the G-code path in reverse.
 **motion.analog-in-**_NN_ IN FLOAT::
   These pins are used by M66 Enn wait-for-input mode.

@@ -310,7 +310,7 @@ static void xperror(const char *fmt, ...)
 static void cleanup()
 {
 	// Wait until current message has been received
-	if (emcStatusBuffer) {
+	if (emcClient) {
 		// Can't use printf and friends in signal handlers.
 		// See signal-safety(7).
 		static const char errmsg[] = "linuxcncrsh: cleanup(): emcCommandWaitReceived() timed out\n";
@@ -322,35 +322,17 @@ static void cleanup()
 		}
 	}
 
-	// FIXME: The delete of the buffers calls the destructors and they may not
-	// be signal-safe.
+	// FIXME: Closing the connection runs destructors and joins a thread,
+	// and neither is signal-safe.
 	// Fortunately, we call _exit() from the signal, so we will not be seeing
 	// too much of messed up main application data and-what-not.
 	//
 	// The more correct way would be to set a flag in the signal handler, break
 	// out of the main loop and then clean up and exit. But that might not be
-	// entirely fool proof either because we may have been waiting for some NML
+	// entirely fool proof either because we may have been waiting for some
 	// communication or machine action to finish.
 
-	// clean up NML buffers
-	if (emcErrorBuffer) {
-		delete emcErrorBuffer;
-		emcErrorBuffer = NULL;
-	}
-
-	if (emcStatusBuffer) {
-		delete emcStatusBuffer;
-		emcStatusBuffer = NULL;
-		emcStatus = NULL;
-	}
-
-	if (emcCommandBuffer) {
-		delete emcCommandBuffer;
-		emcCommandBuffer = NULL;
-	}
-
-	// Valgrind report: deleting the NML buffer stuff leaves three allocated
-	// memory segments as leaked. Not sure if we should bother.
+	emcTaskDisconnect();
 }
 
 static void set_nonblock(int fd)
@@ -3438,29 +3420,17 @@ static bool setterDoneUpdate(connectionRecType &ctx)
 	}
 
 	updateStatus();
-	int serial_diff = emcStatus->echo_serial_number - ctx.serial;
 
-	if (serial_diff > 0) { // We've past beyond our command
+	switch (emcCommandState(ctx.serial)) {
+	case EMC_CMD_STATE::pending:	// task has not taken it yet
+		return false;
+
+	case EMC_CMD_STATE::received:	// still busy executing it
+		return ctx.waitmode == EMC_WAIT_RECEIVED;
+
+	case EMC_CMD_STATE::done:	// it finished
+	case EMC_CMD_STATE::error:	// it failed
 		return true;
-	}
-
-	if (!serial_diff) { // We're at our command
-		if (ctx.waitmode == EMC_WAIT_RECEIVED) {
-			return true;
-		}
-
-		switch (emcStatus->status) {
-		case RCS_STATUS::EXEC: // Still busy executing command
-			break;
-
-		case RCS_STATUS::ERROR: // The command failed
-		case RCS_STATUS::DONE:	// The command finished
-			return true;
-
-		default: // Default should never happen...
-			error("setterDoneUpdate(): unknown emcStatus->status=%d", (int)emcStatus->status);
-			return false;
-		}
 	}
 	return false;
 }
@@ -3793,9 +3763,7 @@ int main(int argc, char *argv[])
 	emcUpdateType = EMC_UPDATE_AUTO;	// Ignored
 	linearUnitConversion = LINEAR_UNITS_AUTO;
 	angularUnitConversion = ANGULAR_UNITS_AUTO;
-	emcCommandBuffer = NULL;
-	emcStatusBuffer = NULL;
-	emcErrorBuffer = NULL;
+	emcClient = NULL;
 	emcStatus = NULL;
 	error_string.clear();
 	operator_text_string.clear();
@@ -3907,16 +3875,15 @@ int main(int argc, char *argv[])
 	if (sockfd < 0) {
 		exit(EXIT_FAILURE);
 	}
-	// init NML
-	if (tryNml() != 0) {
+	// connect to task
+	if (emcTaskConnect() != 0) {
 		error("Can't connect to LinuxCNC");
 		cleanup();
 		exit(EXIT_FAILURE);
 	}
-	// get current serial number, and save it for restoring when we quit
-	// so as not to interfere with real operator interface
+	// Command serials are ours alone now, so there is no shared counter to
+	// pick up and nothing another operator interface can be thrown off by.
 	updateStatus();
-	emcCommandSerialNumber = emcStatus->echo_serial_number;
 
 	// Attach our quit function
 	signal(SIGINT, sigQuit);

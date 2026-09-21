@@ -1,0 +1,50 @@
+// Server -> client framing for the websocket transport.
+//
+// The binary /ws channel carries exactly one root type, ServerMsg, so that
+// status snapshots, per-command acknowledgements and operator messages can
+// share the one socket and still be told apart. Everything a client needs
+// to replace its NML channels is in here:
+//
+//   stat   <- the emcStatus NML buffer
+//   ack    <- the echo_serial_number/status pair a client used to poll for
+//   error  <- the emcError NML channel
+//
+// An ack goes only to the session that submitted the command, which is why
+// the client's own serial can be a plain per-connection counter instead of
+// something globally unique.
+
+include "emc_common.fbs";
+include "emc_stat.fbs";
+include "emc_error.fbs";
+include "emc_cmd.fbs";
+
+namespace EMC;
+
+enum CmdState : byte {
+  // Task never saw the command: it could not be decoded, or the queue was
+  // full. This is the one state that is reported by the server alone.
+  refused = 0,
+  // Task has taken the command off the queue and dispatched it. The NML
+  // equivalent is echo_serial_number reaching the command's serial.
+  received = 1,
+  // Task settled after dispatching it.
+  done = 2,
+  error = 3
+}
+
+table CmdAck {
+  serial: ulong;      // the client's own command serial, echoed back
+  state: CmdState;
+}
+
+union ServerPayload {
+  stat: EmcStat,
+  ack: CmdAck,
+  error: ErrorChannelMsg
+}
+
+table ServerMsg {
+  payload: ServerPayload;
+}
+
+root_type ServerMsg;

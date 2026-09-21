@@ -82,7 +82,7 @@ Configuration(n)::
     configurations are normally saved in the users home/linuxcnc/configs
     directory. These files include LinuxCNC's traditional INI file and HAL
     files. A configuration may also contain several general files that
-    describe tools, parameters, and NML connections.
+    describe tools and parameters.
 
 Configuration(v)::
      The task of setting up LinuxCNC so that it matches the hardware on a
@@ -245,10 +245,10 @@ NIST::
     An agency of the Department of Commerce in the United States.
 
 NML::
-     (((NML))) Neutral Message Language provides a mechanism for
-     handling multiple types of messages in the same buffer as well as
-     simplifying the interface for encoding and decoding buffers in neutral
-     format and the configuration mechanism.
+     (((NML))) Neutral Message Language. The message transport LinuxCNC
+     used between the UIs and task until the 2.10 development cycle,
+     carried over shared memory by libnml. Replaced by FlatBuffers over a
+     websocket; the term survives only in some class names.
 Offsets::
      (((offsets)))
     An arbitrary amount, added to the value of something to make it

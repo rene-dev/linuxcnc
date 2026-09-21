@@ -25,7 +25,6 @@ import sys, os
 import linuxcnc
 
 #if len(sys.argv) > 1:
-#    linuxcnc.nmlfile = sys.argv[1]
 #    del sys.argv[1]
 
 c = linuxcnc.command()

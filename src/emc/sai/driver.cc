@@ -563,9 +563,6 @@ int main (int argc, char ** argv)
   SET_PARAMETER_FILE_NAME(default_name);
   go_flag = 0;
 
-#ifdef TOOL_NML //{
-  tool_nml_register((CANON_TOOL_TABLE*)& _sai._tools);
-#else //}{
   const int random_toolchanger = 0;
   // sai gets its OWN mmap. tool_mmap_creator() opens the file O_TRUNC, and it
   // runs before getopt() below, so every rs274 invocation -- including --help,
@@ -596,7 +593,6 @@ int main (int argc, char ** argv)
   **   1) sai does not use toolInSpindle,pocketPrepped
   **   2) sai does not distinguish changer type
   */
-#endif //}
 
   while(1) {
       int c = getopt(argc, argv, "p:t:v:bsn:gi:l:T");

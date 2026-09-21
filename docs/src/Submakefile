@@ -135,7 +135,6 @@ ifeq ($(BUILD_DOCS),yes)
 DOC_SRCS_EN := \
 	code/code-notes.adoc \
 	code/style-guide.adoc \
-	code/nml-messages.adoc \
 	code/rs274.adoc \
 	code/adding-configs.adoc \
 	code/contributing-to-linuxcnc.adoc \

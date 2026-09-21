@@ -516,14 +516,6 @@ void USE_NO_SPINDLE_FORCE()
 void SET_TOOL_TABLE_ENTRY(int idx, int toolno, const EmcPose& offset, double diameter,
                           double frontangle, double backangle, int orientation) {
 
-#ifdef TOOL_NML //{
-    _sai._tools[idx].toolno = toolno;
-    _sai._tools[idx].offset = offset;
-    _sai._tools[idx].diameter = diameter;
-    _sai._tools[idx].frontangle = frontangle;
-    _sai._tools[idx].backangle = backangle;
-    _sai._tools[idx].orientation = orientation;
-#else //}{
     CANON_TOOL_TABLE tdata;
     if (tooldata_get(&tdata,idx) != IDX_OK) {
         UNEXPECTED_MSG; 
@@ -537,7 +529,6 @@ void SET_TOOL_TABLE_ENTRY(int idx, int toolno, const EmcPose& offset, double dia
     if (tooldata_put(tdata,idx) == IDX_FAIL) {
         fprintf(stderr,"UNEXPECTED idx %s %d\n",__FILE__,__LINE__);
     }
-#endif //}
 
     ECHO_WITH_ARGS("%d, %d, %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f, %.4f, %.4f, %d",
             idx, toolno,
@@ -556,9 +547,6 @@ void CHANGE_TOOL()
 {
   PRINT("CHANGE_TOOL()\n");
   _sai._active_slot = _sai._selected_tool;
-#ifdef TOOL_NML //{
-  _sai._tools[0] = _sai._tools[_sai._active_slot];
-#else //}{
     CANON_TOOL_TABLE tdata;
     if (tooldata_get(&tdata,_sai._selected_tool) != IDX_OK) {
         UNEXPECTED_MSG;
@@ -567,7 +555,6 @@ void CHANGE_TOOL()
     if (tooldata_put(tdata,0) == IDX_FAIL) {
         fprintf(stderr,"UNEXPECTED idx %s %d\n",__FILE__,__LINE__);
     }
-#endif //}
 }
 
 void SELECT_TOOL(int tool)//TODO: fix slot number
@@ -974,15 +961,11 @@ extern int GET_EXTERNAL_TOOL_SLOT()
    in the given pocket */
 extern CANON_TOOL_TABLE GET_EXTERNAL_TOOL_TABLE(int idx)
 {
-#ifdef TOOL_NML //{
-  return _sai._tools[idx];
-#else //}{
     CANON_TOOL_TABLE tdata;
     if (tooldata_get(&tdata,idx) != IDX_OK) {
         UNEXPECTED_MSG;
     }
   return tdata;
-#endif //}
 }
 
 /* The standalone interpreter has no machine, so no axis limits */

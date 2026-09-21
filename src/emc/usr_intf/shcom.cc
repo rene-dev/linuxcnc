@@ -1,6 +1,12 @@
 /********************************************************************
 * Description: shcom.cc
-*   Common functions for NML calls
+*   Common functions for talking to task
+*
+*   These used to be NML calls. The transport underneath is now the
+*   websocket + FlatBuffers connection in emc/ws_client, which carries
+*   commands, status and operator messages on one socket. Everything above
+*   this file -- linuxcncrsh, linuxcnclcd, schedrmt and the Tcl binding --
+*   kept its EMC_STAT field accesses and its send*() calls unchanged.
 *
 *   Derived from a work by Fred Proctor & Will Shackleford
 *   Further derived from work by jmkasunich, Alex Joni
@@ -16,20 +22,21 @@
 
 #include "strutil.hh"
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <fmt/format.h>
 
 #include <inifile.hh>
 #include "rcs_status.hh"
-#include "nml_intf/emc.hh"		// EMC NML
+#include "nml_intf/emc.hh"
 #include "nml_intf/emc_nml.hh"
 #include "nml_intf/canon.hh"		// CANON_UNITS, CANON_UNITS_INCHES,MM,CM
-#include "nml_intf/emcglb.h"		// EMC_NMLFILE, TRAJ_MAX_VELOCITY, etc.
+#include "nml_intf/emcglb.h"		// emc_debug, TRAJ_MAX_VELOCITY, etc.
 #include "nml_intf/emccfg.h"		// DEFAULT_TRAJ_MAX_VELOCITY
-#include "libnml/nml/nml_oi.hh"            // nmlErrorFormat, NML_ERROR, etc
 #include "timeutil.hh"             // esleep
+#include "ws_defaults.hh"          // WS_DEFAULT_HOST, WS_DEFAULT_PORT
 #include "mapini.hh"
-#include "shcom.hh"             // Common NML communications functions
+#include "shcom.hh"             // Common communications functions
 
 using namespace linuxcnc;
 using namespace std::chrono_literals;
@@ -41,13 +48,16 @@ static int num_joints = EMCMOT_MAX_JOINTS;
 
 int emcCommandSerialNumber;
 
-// the NML channels to the EMC task
-RCS_CMD_CHANNEL *emcCommandBuffer;
-RCS_STAT_CHANNEL *emcStatusBuffer;
+// the connection to task, and the status snapshot it hands out
+WsClient *emcClient;
 EMC_STAT *emcStatus;
 
-// the NML channel for errors
-NML *emcErrorBuffer;
+// where to look for task. The INI file's [TASK]WEBSOCKET_PORT has to agree
+// with what task reads from the same key; the environment overrides both,
+// which is how a UI reaches a task on another machine.
+static std::string wsHost = WS_DEFAULT_HOST;
+static int         wsPort = WS_DEFAULT_PORT;
+
 std::string error_string;
 std::string operator_text_string;
 std::string operator_display_string;
@@ -67,271 +77,162 @@ void strupr(char *s)
     }
 }
 
-int emcTaskNmlGet()
+int emcTaskConnect(double retry_time, double retry_interval)
 {
-    int retval = 0;
-
-    // try to connect to EMC cmd
-    if (emcCommandBuffer == nullptr) {
-	emcCommandBuffer =
-	    new RCS_CMD_CHANNEL(emcFormat, "emcCommand", "xemc",
-				emc_nmlfile);
-	if (!emcCommandBuffer->valid()) {
-	    delete emcCommandBuffer;
-	    emcCommandBuffer = nullptr;
-	    retval = -1;
-	}
-    }
-    // try to connect to EMC status
-    if (emcStatusBuffer == nullptr) {
-	emcStatusBuffer =
-	    new RCS_STAT_CHANNEL(emcFormat, "emcStatus", "xemc",
-				 emc_nmlfile);
-	if (!emcStatusBuffer->valid()
-	    || EMC_STAT_TYPE != emcStatusBuffer->peek()) {
-	    delete emcStatusBuffer;
-	    emcStatusBuffer = nullptr;
-	    emcStatus = nullptr;
-	    retval = -1;
-	} else {
-	    emcStatus = static_cast<EMC_STAT *>(emcStatusBuffer->get_address());
-	}
+    if (emcClient != nullptr) {
+        return 0;
     }
 
-    return retval;
-}
-
-int emcErrorNmlGet()
-{
-    int retval = 0;
-
-    if (emcErrorBuffer == nullptr) {
-	emcErrorBuffer =
-	    new NML(nmlErrorFormat, "emcError", "xemc", emc_nmlfile);
-	if (!emcErrorBuffer->valid()) {
-	    delete emcErrorBuffer;
-	    emcErrorBuffer = nullptr;
-	    retval = -1;
-	}
+    if (const char *env = getenv("LINUXCNC_WS_HOST")) {
+        if (*env != '\0') wsHost = env;
+    }
+    if (const char *env = getenv("LINUXCNC_WS_PORT")) {
+        if (*env != '\0') wsPort = atoi(env);
     }
 
-    return retval;
-}
+    if (wsPort <= 0) {
+        fmt::print(stderr,
+                   "shcom: the websocket transport is switched off "
+                   "([TASK]WEBSOCKET_PORT = 0), so there is nothing to "
+                   "connect to\n");
+        return -1;
+    }
 
-int tryNml(double retry_time, double retry_interval)
-{
-    double end;
-    int good;
-
-    end = retry_time;
-    good = 0;
-    do {
-        if (0 == emcTaskNmlGet()) {
-            good = 1;
+    // One connection replaces all three NML channels, so unlike tryNml()
+    // there is only one thing to wait for.
+    auto *client = new WsClient();
+    for (double end = retry_time; ; end -= retry_interval) {
+        if (0 == client->connect(wsHost, wsPort, retry_interval > 0.0 ? retry_interval : 1.0) &&
+            0 == client->waitStatus(retry_interval > 0.0 ? retry_interval : 1.0)) {
+            // emcStatus points into the client for the rest of the run, so
+            // there has to be a snapshot there before anyone reads it.
+            emcClient = client;
+            emcStatus = client->status();
+            return 0;
+        }
+        if (end <= 0.0) {
             break;
         }
         esleep(retry_interval);
-        end -= retry_interval;
-    } while (end > 0.0);
-
-    if (!good) {
-	    return -1;
     }
 
-    end = retry_time;
-    good = 0;
-    do {
-        if (0 == emcErrorNmlGet()) {
-            good = 1;
-            break;
-        }
-        esleep(retry_interval);
-        end -= retry_interval;
-    } while (end > 0.0);
+    fmt::print(stderr, "shcom: {}\n", client->lastError());
+    delete client;
+    return -1;
+}
 
-    if (!good) {
-	    return -1;
+void emcTaskDisconnect()
+{
+    if (emcClient == nullptr) {
+        return;
     }
-
-    return 0;
+    WsClient *client = emcClient;
+    emcClient = nullptr;
+    emcStatus = nullptr;
+    delete client;
 }
 
 int updateStatus()
 {
-    if (!emcStatus || !emcStatusBuffer || !emcStatusBuffer->valid()) {
+    if (emcClient == nullptr) {
         return -1;
     }
-
-    switch (emcStatusBuffer->peek()) {
-    case -1: // error on CMS channel
-    default:
-        return -1;
-
-    case 0:             // no new data
-    case EMC_STAT_TYPE: // new data
-        return 0;
-    }
-
-}
-
-// Copy a static char buffer from nml into a std::string.
-// We know the max size is the orginal buffer's size-1 (the len argument).
-// However, the content does not need to be that long and may be terminated
-// somewhere. Search the first embedded NUL to terminate early. If no embedded
-// NUL is found, then the string /might/ have been unterminated and will be
-// properly limited by the len argument. That way we don't depend on the
-// buffer's termination.
-static void cpy_str(std::string &target, const char *src, size_t len)
-{
-    target = std::string(src, len); // Copy entire buffer
-    size_t pos = target.find_first_of((char)0);  // Find first terminator (embedded NUL)
-    if(std::string::npos != pos)
-        target.erase(pos);          // Remove trailing if terminated before
+    return emcClient->update();
 }
 
 /*
   updateError() updates "errors," which are true errors and also
   operator display and text messages.
+
+  One message per call, as the NML error channel delivered them, so a
+  caller that reads a string after each call still sees every message.
 */
 int updateError()
 {
-    NMLTYPE type;
-
-    if (!emcErrorBuffer || !emcErrorBuffer->valid()) {
+    if (emcClient == nullptr) {
 	return -1;
     }
 
-    switch (type = emcErrorBuffer->read()) {
-    case -1:
-	// error reading channel
-	return -1;
+    emcClient->update();
 
-    default:
-	// if not recognized, set the error string
-	error_string = fmt::format("shcom:updateError(): unrecognized error {}", (int)type);
-	return 0;
+    OperatorMessage msg;
+    if (!emcClient->nextMessage(msg)) {
+	return 0;	// nothing new
+    }
 
-    case 0:
-	// nothing new
+    switch (msg.kind) {
+    case OperatorMessage::Kind::error:
+	error_string = msg.text;
 	break;
-
-    case EMC_OPERATOR_ERROR_TYPE:
-	cpy_str(error_string,
-		(static_cast<EMC_OPERATOR_ERROR *>((emcErrorBuffer->get_address()))->error),
-                LINELEN - 1);
+    case OperatorMessage::Kind::text:
+	operator_text_string = msg.text;
 	break;
-
-    case EMC_OPERATOR_TEXT_TYPE:
-	cpy_str(operator_text_string,
-		(static_cast<EMC_OPERATOR_TEXT *>((emcErrorBuffer->get_address()))->text),
-                LINELEN - 1);
-	break;
-
-    case EMC_OPERATOR_DISPLAY_TYPE:
-	cpy_str(operator_display_string,
-		(static_cast<EMC_OPERATOR_DISPLAY *>((emcErrorBuffer->get_address()))->display),
-		LINELEN - 1);
-	break;
-
-    case NML_ERROR_TYPE:
-        cpy_str(error_string,
-		(static_cast<NML_ERROR *>((emcErrorBuffer->get_address()))->error),
-		NML_ERROR_LEN - 1);
-	break;
-
-    case NML_TEXT_TYPE:
-	cpy_str(operator_text_string,
-		(static_cast<NML_TEXT *>((emcErrorBuffer->get_address()))->text),
-		NML_TEXT_LEN - 1);
-	break;
-
-    case NML_DISPLAY_TYPE:
-	cpy_str(operator_display_string,
-		(static_cast<NML_DISPLAY *>((emcErrorBuffer->get_address()))->display),
-		NML_DISPLAY_LEN - 1);
+    case OperatorMessage::Kind::display:
+	operator_display_string = msg.text;
 	break;
     }
 
     return 0;
 }
 
-// How long to start to sleep between checks.
-// It uses a progressive back-off strategy when it takes longer. This makes
-// fast commands faster and slow commands use fewer system resources.
-constexpr auto EMC_COMMAND_DELAY = 1ms;
-#define EMC_COMMAND_FACTOR_MAX 100
+EMC_CMD_STATE emcCommandState(int serial)
+{
+    if (emcClient == nullptr) {
+	return EMC_CMD_STATE::error;
+    }
+
+    switch (emcClient->state(static_cast<unsigned long>(serial))) {
+    case CmdState::pending:
+	// With the connection gone the command will never be answered, so
+	// report it failed rather than leave a caller polling forever.
+	return emcClient->connected() ? EMC_CMD_STATE::pending
+				      : EMC_CMD_STATE::error;
+    case CmdState::received:
+	return emcClient->connected() ? EMC_CMD_STATE::received
+				      : EMC_CMD_STATE::error;
+    case CmdState::error:
+    case CmdState::refused:
+	return EMC_CMD_STATE::error;
+    case CmdState::done:
+    case CmdState::unknown:
+	// unknown means the acknowledgement has aged out, so the command
+	// certainly finished. That is what an NML client concluded when the
+	// echo had moved past its serial.
+	return EMC_CMD_STATE::done;
+    }
+    return EMC_CMD_STATE::done;
+}
 
 int emcCommandWaitDone()
 {
-    int factor = 1;
-    for (auto end = 0ms; emcTimeout <= 0.0 || end < std::chrono::duration<double>(emcTimeout);
-	 end += EMC_COMMAND_DELAY * factor) {
-        updateStatus();
-        int serial_diff = emcStatus->echo_serial_number - emcCommandSerialNumber;
-
-        if (serial_diff > 0) { // We've past beyond our command
-            return 0;
-        }
-
-        if (!serial_diff) { // We're at our command
-            switch (emcStatus->status) {
-            case RCS_STATUS::EXEC: // Still busy executing command
-                break;
-
-            case RCS_STATUS::DONE:
-                return 0;
-
-            case RCS_STATUS::ERROR: // The command failed
-                return -1;
-
-            default: // Default should never happen...
-                fprintf(stderr, "shcom.cc: emcCommandWaitDone(): unknown emcStatus->status=%d\n", (int)emcStatus->status);
-                return -1;
-            }
-        }
-        esleep(EMC_COMMAND_DELAY * factor);
-
-        // Progressive backoff until max
-        factor *= 2;
-        if (factor > EMC_COMMAND_FACTOR_MAX) {
-            factor = EMC_COMMAND_FACTOR_MAX;
-        }
+    if (emcClient == nullptr) {
+	return -1;
     }
-
-    return -1;
+    return emcClient->waitDone(static_cast<unsigned long>(emcCommandSerialNumber),
+			       emcTimeout);
 }
 
 int emcCommandWaitReceived()
 {
-    int factor = 1;
-    for (auto end = 0ms; emcTimeout <= 0.0 || end < std::chrono::duration<double>(emcTimeout);
-	 end += EMC_COMMAND_DELAY * factor) {
-	updateStatus();
-
-	int serial_diff = emcStatus->echo_serial_number - emcCommandSerialNumber;
-	if (serial_diff >= 0) {
-	    return 0;
-	}
-
-	esleep(EMC_COMMAND_DELAY * factor);
-
-        // Progressive backoff until max
-        factor *= 2;
-        if (factor > EMC_COMMAND_FACTOR_MAX) {
-            factor = EMC_COMMAND_FACTOR_MAX;
-        }
+    if (emcClient == nullptr) {
+	return -1;
     }
-
-    return -1;
+    return emcClient->waitReceived(static_cast<unsigned long>(emcCommandSerialNumber),
+				   emcTimeout);
 }
 
 int emcCommandSend(RCS_CMD_MSG & cmd)
 {
-    // write command
-    if (emcCommandBuffer->write(&cmd)) {
+    if (emcClient == nullptr) {
         return -1;
     }
-    emcCommandSerialNumber = cmd.serial_number;
+
+    unsigned long serial = emcClient->send(cmd);
+    if (serial == 0) {
+        fmt::print(stderr, "shcom: {}\n", emcClient->lastError());
+        return -1;
+    }
+    emcCommandSerialNumber = static_cast<int>(serial);
     return 0;
 }
 
@@ -756,68 +657,20 @@ static std::string lastProgramFile;
 
 int sendProgramOpen(const char *program)
 {
-    int res = 0;
     EMC_TASK_PLAN_OPEN msg;
 
     /* save this to run again */
     lastProgramFile = program;
     /* store filename in message */
     strxcpy(msg.file, program);
-    /* clear optional fields */
+
+    /* NML could ship the file itself, in chunks, when the UI was on
+       another machine than task (remote_buffer/remote_filesize). The
+       websocket transport does not carry that yet, so the name is all task
+       gets and the file has to be readable where task runs. See notes.md. */
     msg.remote_buffersize = 0;
     msg.remote_filesize = 0;
-    /* if we are a remote process, we send file in chunks to linuxcnc via remote_buffer */
-    if(emcCommandBuffer->cms->ProcessType == CMS_REMOTE_TYPE && strcmp(emcCommandBuffer->cms->ProcessName, "emc") != 0) {
-        /* open file */
-        FILE *fd;
-        if(!(fd = fopen(program, "r"))) {
-            fmt::print(stderr,"fopen({}) error: {}\n", program, strerror(errno));
-            return -1;
-        }
-        /* get filesize */
-        if(fseek(fd, 0L, SEEK_END) != 0) {
-            fclose(fd);
-            fmt::print(stderr,"fseek({}) error: {}\n", program, strerror(errno));
-            return -1;
-        }
-        long ftpos = ftell(fd);
-        msg.remote_filesize = ftpos;
-        if(ftpos < 0) {
-            fclose(fd);
-            fmt::print(stderr,"ftell({}) error: {}\n", program, strerror(errno));
-            return -1;
-        }
-        if(fseek(fd, 0L, SEEK_SET) != 0) {
-            fclose(fd);
-            fmt::print(stderr,"fseek({}) error: {}\n", program, strerror(errno));
-            return -1;
-        }
 
-        /* send complete file content in chunks of sizeof(msg.remote_buffer) */
-        while(!(feof(fd))) {
-            size_t bytes_read = fread(&msg.remote_buffer, 1, sizeof(msg.remote_buffer), fd);
-            /* read error? */
-            if(bytes_read <= 0 && ferror(fd)) {
-                fmt::print(stderr,"fread({}) error: {}\n", program, strerror(errno));
-                res = -1;
-                break;
-            }
-            /* save amount of bytes written to buffer */
-            msg.remote_buffersize = bytes_read;
-            /* send chunk */
-            emcCommandSend(msg);
-            /* error happened? */
-            if(emcCommandWaitDone() != 0) {
-                fmt::print(stderr,"emcCommandSend() error\n");
-                res = -1;
-                break;
-            }
-        }
-        fclose(fd);
-        return res;
-    }
-
-    /* local process, just send filename */
     return emcSendCommandAndWait(msg);
 }
 
@@ -983,10 +836,10 @@ int iniLoad(const char *filename)
         );
     }
 
-    if (auto inistring = inifile.findString("NML_FILE", "EMC")) {
-	// copy to global
-	strxcpy(emc_nmlfile, inistring->c_str());
-    } // else not found, use default or previously set
+    // Where task listens. It has to match what task reads from the same
+    // key; both default to WS_DEFAULT_PORT, so a config normally says
+    // nothing at all.
+    wsPort = inifile.findSIntV("WEBSOCKET_PORT", "TASK", WS_DEFAULT_PORT);
 
     if (auto inival = mapLinearUnits(inifile, "LINEAR_UNITS", "DISPLAY")) {
         linearUnitConversion = *inival;
@@ -1005,6 +858,6 @@ int iniLoad(const char *filename)
 
 int checkStatus ()
 {
-    return emcStatus ? 1 : 0;
+    return (emcClient != nullptr && emcStatus != nullptr) ? 1 : 0;
 }
 

@@ -17,7 +17,6 @@ include::hal/general-ref.adoc[]
 
 include::code/code-notes.adoc[]
 
-include::code/nml-messages.adoc[]
 
 include::code/style-guide.adoc[]
 

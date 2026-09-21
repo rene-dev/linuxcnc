@@ -1,0 +1,24 @@
+# The websocket client library: what a user interface links against instead
+# of opening NML channels. Built as a shared object because several
+# programs use it, and the Python extension will too.
+
+LIBWSCLIENT_SRCS := emc/ws_client/ws_client.cc \
+                    emc/ws_client/emc_session.cc
+
+USERSRCS += $(LIBWSCLIENT_SRCS)
+
+$(call TOOBJSDEPS, $(LIBWSCLIENT_SRCS)) : EXTRAFLAGS = -fPIC
+
+# ws_client.cc includes the flatc-generated headers. The auto-generated .d
+# files cannot express this on a clean tree, because the headers do not
+# exist yet when dependencies are computed, so state it explicitly.
+$(call TOOBJS, $(LIBWSCLIENT_SRCS)): $(FBHEADERS)
+
+# Symbols from the EMC_STAT and command classes are left undefined here and
+# resolved from liblinuxcnc.a in each program that links this.
+../lib/libemcws.so.0: $(call TOOBJS, $(LIBWSCLIENT_SRCS))
+	$(ECHO) Linking $(notdir $@)
+	@mkdir -p ../lib
+	@rm -f $@
+	$(Q)$(CXX) $(CXXFLAGS) $(LDFLAGS) -Wl,-soname,$(notdir $@) -shared -o $@ $^
+TARGETS += ../lib/libemcws.so.0

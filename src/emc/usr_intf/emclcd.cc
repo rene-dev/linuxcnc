@@ -48,7 +48,7 @@
 #include <posemath.h>		// PM_POSE, TO_RAD
 #include "nml_intf/emc.hh"		// EMC NML
 #include "nml_intf/canon.hh"		// CANON_UNITS, CANON_UNITS_INCHES,MM,CM
-#include "nml_intf/emcglb.h"		// EMC_NMLFILE, TRAJ_MAX_VELOCITY, etc.
+#include "nml_intf/emcglb.h"		// EMC_INIFILE, TRAJ_MAX_VELOCITY, etc.
 #include "nml_intf/emccfg.h"		// DEFAULT_TRAJ_MAX_VELOCITY
 #include "config.h"		// Standard path definitions
 #include "sockets.hh"		// TCP/IP common socket functions
@@ -1604,28 +1604,12 @@ static void thisQuit()
 
     deleteScreens();
 
-    if (emcStatusBuffer != NULL) {
+    if (emcClient != NULL) {
 	// wait until current message has been received
 	emcCommandWaitReceived();
     }
 
-    // clean up NML buffers
-
-    if (emcErrorBuffer != NULL) {
-	delete emcErrorBuffer;
-	emcErrorBuffer = NULL;
-    }
-
-    if (emcStatusBuffer != NULL) {
-	delete emcStatusBuffer;
-	emcStatusBuffer = NULL;
-	emcStatus = NULL;
-    }
-
-    if (emcCommandBuffer != NULL) {
-	delete emcCommandBuffer;
-	emcCommandBuffer = NULL;
-    }
+    emcTaskDisconnect();
 
     exit(0);
 }
@@ -1681,11 +1665,9 @@ static void initMain()
     linearUnitConversion = LINEAR_UNITS_INCH;
     units = unInch; 
     angularUnitConversion = ANGULAR_UNITS_AUTO;
-    emcCommandBuffer = NULL;
-    emcStatusBuffer = NULL;
+    emcClient = NULL;
     emcStatus = NULL;
 
-    emcErrorBuffer = NULL;
     error_string.clear();
     operator_text_string.clear();
     operator_display_string.clear();
@@ -1718,16 +1700,15 @@ int main(int argc, char *argv[])
     }
     // get configuration information
     iniLoad(emc_inifile);
-    // init NML
-    if (tryNml() != 0) {
+    // connect to task
+    if (emcTaskConnect() != 0) {
 	fmt::print(stderr,"can't connect to emc\n");
 	thisQuit();
 	exit(1);
     }
-    // get current serial number, and save it for restoring when we quit
-    // so as not to interfere with real operator interface
+    // Command serials are ours alone now, so there is no shared counter to
+    // pick up and nothing another operator interface can be thrown off by.
     updateStatus();
-    emcCommandSerialNumber = emcStatus->echo_serial_number;
 
     // attach our quit function to SIGINT
     signal(SIGTERM, sigQuit);

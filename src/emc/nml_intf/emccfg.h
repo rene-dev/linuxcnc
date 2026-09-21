@@ -25,7 +25,6 @@ extern "C" {
 #define DEFAULT_EMC_INIFILE "emc.ini"
 
 /* default name of EMC NML file */
-extern const char * DEFAULT_EMC_NMLFILE;
 
 /* cycle time for emctask, in seconds */
 #define DEFAULT_EMC_TASK_CYCLE_TIME 0.100

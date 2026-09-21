@@ -1,6 +1,12 @@
 /********************************************************************
 * Description: shcom.hh
-*   Headers for common functions for NML calls
+*   Headers for the common functions that talk to task
+*
+*   These used to be NML calls. They now go over the websocket +
+*   FlatBuffers transport (emc/ws_client), which replaces all three NML
+*   channels -- command, status and error -- with one connection. The
+*   function names and the EMC_STAT a caller reads are unchanged, so the
+*   four programs built on this file did not have to be rewritten.
 *
 *   Derived from a work by Fred Proctor & Will Shackleford
 *   Further derived from work by jmkasunich, Alex Joni
@@ -23,7 +29,7 @@
 #include <linuxcnc.h>           // INCH_PER_MM
 #include <inifile.hh>
 #include "nml_intf/emc_nml.hh"
-#include "libnml/nml/nml_oi.hh"            // NML_ERROR_LEN
+#include "ws_client/ws_client.hh"
 #include "unitenum.hh"
 
 static inline bool CLOSE(double a, double b, double eps)
@@ -43,16 +49,18 @@ static inline bool CLOSE(double a, double b, double eps)
 extern LINEAR_UNIT_CONVERSION linearUnitConversion;
 extern ANGULAR_UNIT_CONVERSION angularUnitConversion;
 
-// the current command numbers, set up updateStatus(), used in main()
+// serial number of the last command sent, to wait on. Unlike NML's, this
+// one is handed out by our own connection, so it never collides with
+// another program's commands.
 extern int emcCommandSerialNumber;
 
-// the NML channels to the EMC task
-extern RCS_CMD_CHANNEL *emcCommandBuffer;
-extern RCS_STAT_CHANNEL *emcStatusBuffer;
-// EMC_STAT *emcStatus;
+// the connection to task. NULL until emcTaskConnect() succeeds.
+extern linuxcnc::WsClient *emcClient;
 
-// the NML channel for errors
-extern NML *emcErrorBuffer;
+// the status task last published, or NULL while disconnected. It points
+// into emcClient and only changes when updateStatus() is called.
+extern EMC_STAT *emcStatus;
+
 extern std::string error_string;
 extern std::string operator_text_string;
 extern std::string operator_display_string;
@@ -78,12 +86,24 @@ extern EMC_WAIT_TYPE emcWaitType;
 // sendProgramRun(int line) sent
 extern int programStartLine;
 
+// How far a command has got. Replaces comparing echo_serial_number and
+// status out of the status buffer by hand -- there is no shared echo any
+// more, and a result belongs to the connection that asked for it.
+enum class EMC_CMD_STATE {
+    pending,   // task has not taken it off its queue yet
+    received,  // task has dispatched it and is working on it
+    done,
+    error      // it failed, or task refused to carry it
+};
+
 extern void strupr(char *s);
-extern int emcTaskNmlGet();
-extern int emcErrorNmlGet();
-extern int tryNml(double retry_time=10.0, double retry_interval=1.0);
+// Connect to task. Retries for retry_time seconds, in retry_interval
+// steps, so that a UI started alongside linuxcnc does not have to race it.
+extern int emcTaskConnect(double retry_time=10.0, double retry_interval=1.0);
+extern void emcTaskDisconnect();
 extern int updateStatus();
 extern int updateError();
+extern EMC_CMD_STATE emcCommandState(int serial);
 extern int emcCommandWaitReceived();
 extern int emcCommandWaitDone();
 extern int emcCommandSend(RCS_CMD_MSG & cmd);

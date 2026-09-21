@@ -87,7 +87,6 @@ bool tool_mmap_is_random_toolchanger(void);
 
 //----------------------------------------------------------
 //nml specific
-int tool_nml_register(CANON_TOOL_TABLE *tblptr);
 
 //----------------------------------------------------------
 // database interface

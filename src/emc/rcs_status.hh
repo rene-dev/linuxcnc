@@ -3,9 +3,9 @@
  *   Execution status of a command, as reported back by task and IO.
  *
  *   This enum was originally declared in libnml's <rcs/rcs.hh>, which
- *   is otherwise nothing but forward declarations. It carries no NML
- *   machinery of its own, so it lives here; libnml includes this header
- *   for RCS_STAT_MSG::status, and goes away without taking it along.
+ *   was otherwise nothing but forward declarations. It carries no NML
+ *   machinery of its own, so it was moved here ahead of libnml's
+ *   removal, and stayed when libnml went.
  *
  * License: GPL Version 2
  * System: Linux

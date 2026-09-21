@@ -1,0 +1,170 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>LinuxCNC websocket test</title>
+<style>
+:root{--bg:#eef1f4;--fg:#11171c;--mut:#6b7885;--sur:#fff;--rule:#d3dae1;--acc:#a85b08;--ok:#276b4c;--bad:#a8342a}
+@media(prefers-color-scheme:dark){:root{--bg:#0e1317;--fg:#e6ebef;--mut:#8796a3;--sur:#161d23;--rule:#28323a;--acc:#e5a33f;--ok:#5fbf92;--bad:#e8756a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,sans-serif;padding:16px}
+h1{font-size:16px;margin:0 0 4px}
+.sub{color:var(--mut);font-size:12px;margin-bottom:14px}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}
+.card{background:var(--sur);border:1px solid var(--rule);border-radius:6px;padding:12px;flex:1 1 300px;min-width:280px}
+.card h2{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--mut);margin:0 0 8px}
+button{font:inherit;padding:5px 10px;border:1px solid var(--rule);border-radius:4px;background:var(--bg);color:var(--fg);cursor:pointer}
+button:hover{border-color:var(--acc)}
+button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+input{font:inherit;padding:5px 8px;border:1px solid var(--rule);border-radius:4px;background:var(--bg);color:var(--fg);min-width:0}
+.btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+td{padding:2px 6px 2px 0;font-size:13px}
+td.k{color:var(--mut);white-space:nowrap}
+td.v{font-family:ui-monospace,Menlo,monospace;text-align:right}
+pre{background:var(--bg);border:1px solid var(--rule);border-radius:4px;padding:8px;font-size:11px;max-height:340px;overflow:auto;margin:0}
+#conn{font-weight:600}
+.on{color:var(--ok)}.off{color:var(--bad)}
+</style></head><body>
+<h1>LinuxCNC websocket test client</h1>
+<div class="sub">status: <span id="conn" class="off">connecting…</span> ·
+ <span id="rate">0</span> frames/s · <span id="bytes">0</span> B/frame ·
+ binary protocol is FlatBuffers; this page requests the JSON rendering of the same buffer</div>
+
+<div class="row">
+ <div class="card">
+  <h2>machine</h2>
+  <div class="btns">
+   <button onclick="s('state 1')">E-stop</button>
+   <button onclick="s('state 2')">E-stop reset</button>
+   <button onclick="s('state 4')">Power on</button>
+   <button onclick="s('state 3')">Power off</button>
+  </div>
+  <div class="btns">
+   <button onclick="s('mode 1')">Manual</button>
+   <button onclick="s('mode 2')">Auto</button>
+   <button onclick="s('mode 3')">MDI</button>
+   <button onclick="s('abort')">Abort</button>
+  </div>
+  <div class="btns">
+   <button onclick="s('home -1')">Home all</button>
+   <button onclick="s('unhome -1')">Unhome all</button>
+   <button onclick="s('teleop 1')">Teleop on</button>
+   <button onclick="s('teleop 0')">Teleop off</button>
+  </div>
+  <table><tbody id="state"></tbody></table>
+ </div>
+
+ <div class="card">
+  <h2>program</h2>
+  <div class="btns">
+   <button onclick="s('run 0')">Run</button>
+   <button onclick="s('pause')">Pause</button>
+   <button onclick="s('resume')">Resume</button>
+   <button onclick="s('step')">Step</button>
+  </div>
+  <div class="btns" style="flex-wrap:nowrap">
+   <input id="mdi" placeholder="G0 X0 Y0" style="flex:1"
+     onkeydown="if(event.key==='Enter'){s('mdi '+this.value);this.value=''}">
+   <button onclick="var e=document.getElementById('mdi');s('mdi '+e.value);e.value=''">MDI</button>
+  </div>
+  <div class="btns" style="flex-wrap:nowrap">
+   <input id="file" placeholder="/path/to/file.ngc" style="flex:1">
+   <button onclick="s('open '+document.getElementById('file').value)">Open</button>
+  </div>
+  <div class="btns">
+   <label style="color:var(--mut);font-size:12px">feed
+    <input id="fo" type="range" min="0" max="200" value="100"
+      oninput="document.getElementById('fov').textContent=this.value+'%';s('feedrate '+(this.value/100))">
+    <span id="fov">100%</span></label>
+  </div>
+ </div>
+
+ <div class="card">
+  <h2>jog (axis mode)</h2>
+  <div class="btns">
+   <button onmousedown="s('jog_cont 0 '+jv()+' 0')" onmouseup="s('jog_stop 0 0')" onmouseleave="s('jog_stop 0 0')">X−</button>
+   <button onmousedown="s('jog_cont 0 -'+jv()+' 0')" onmouseup="s('jog_stop 0 0')" onmouseleave="s('jog_stop 0 0')">X+</button>
+   <button onmousedown="s('jog_cont 1 '+jv()+' 0')" onmouseup="s('jog_stop 1 0')" onmouseleave="s('jog_stop 1 0')">Y−</button>
+   <button onmousedown="s('jog_cont 1 -'+jv()+' 0')" onmouseup="s('jog_stop 1 0')" onmouseleave="s('jog_stop 1 0')">Y+</button>
+   <button onmousedown="s('jog_cont 2 '+jv()+' 0')" onmouseup="s('jog_stop 2 0')" onmouseleave="s('jog_stop 2 0')">Z−</button>
+   <button onmousedown="s('jog_cont 2 -'+jv()+' 0')" onmouseup="s('jog_stop 2 0')" onmouseleave="s('jog_stop 2 0')">Z+</button>
+  </div>
+  <div class="btns" style="flex-wrap:nowrap">
+   <label style="color:var(--mut);font-size:12px">vel <input id="jvel" value="10" size="5"></label>
+   <button onclick="s('jog_incr 0 1 '+jv()+' 0')">X +1</button>
+   <button onclick="s('jog_incr 0 -1 '+jv()+' 0')">X −1</button>
+  </div>
+  <table><tbody id="pos"></tbody></table>
+ </div>
+</div>
+
+<div class="row" style="margin-top:12px">
+ <div class="card" style="flex:1 1 100%">
+  <h2>raw status (JSON rendering of the FlatBuffer)</h2>
+  <pre id="raw">waiting…</pre>
+ </div>
+</div>
+
+<script>
+var ws, nframes=0, lastBytes=0;
+function jv(){ return document.getElementById('jvel').value || '10'; }
+function s(cmd){ if(ws && ws.readyState===1) ws.send(cmd); }
+function connect(){
+  ws = new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws?format=json');
+  ws.onopen = function(){ var c=document.getElementById('conn'); c.textContent='connected'; c.className='on'; };
+  ws.onclose = function(){ var c=document.getElementById('conn'); c.textContent='disconnected — retrying'; c.className='off'; setTimeout(connect,1000); };
+  ws.onmessage = function(ev){
+    nframes++; lastBytes = ev.data.length;
+    var st; try { st = JSON.parse(ev.data); } catch(e) { return; }
+    render(st);
+    document.getElementById('raw').textContent = JSON.stringify(st,null,1);
+  };
+}
+var MODE={1:'MANUAL',2:'AUTO',3:'MDI'};
+var STATE={1:'ESTOP',2:'ESTOP_RESET',3:'OFF',4:'ON'};
+var INTERP={1:'IDLE',2:'READING',3:'PAUSED',4:'WAITING'};
+var EXEC={1:'ERROR',2:'DONE',3:'WAITING_FOR_MOTION',4:'WAITING_FOR_MOTION_QUEUE',5:'WAITING_FOR_IO',
+          7:'WAITING_FOR_MOTION_AND_IO',8:'WAITING_FOR_DELAY',9:'WAITING_FOR_SYSTEM_CMD',
+          10:'WAITING_FOR_SPINDLE_ORIENTED',11:'WAITING_FOR_KINS_SWITCH'};
+function rows(el, pairs){
+  el.innerHTML = pairs.map(function(p){
+    return '<tr><td class="k">'+p[0]+'</td><td class="v">'+p[1]+'</td></tr>';
+  }).join('');
+}
+function render(st){
+  var t = st.task||{}, m = st.motion||{}, tr = m.traj||{}, io = st.io||{};
+  var aux = io.aux||{}, cool = io.coolant||{}, tool = io.tool||{};
+  rows(document.getElementById('state'), [
+    ['task state',  STATE[t.state]||t.state||'-'],
+    ['task mode',   MODE[t.mode]||t.mode||'-'],
+    ['interp',      INTERP[t.interp_state]||t.interp_state||'-'],
+    ['exec',        EXEC[t.exec_state]||t.exec_state||'-'],
+    ['estopped',    aux.is_estopped?'yes':'no'],
+    ['enabled',     tr.is_enabled?'yes':'no'],
+    ['in position', tr.is_in_position?'yes':'no'],
+    ['tool',        tool.tool_in_spindle||0],
+    ['coolant',     (cool.is_mist?'mist ':'')+(cool.is_flood?'flood':'')||'off'],
+    ['echo serial', st.echo_serial_number||0],
+    ['taskbeat',    t.taskbeat||0],
+    ['heartbeat',   m.heartbeat||0],
+    ['file',        (t.filename||'').split('/').pop()||'-'],
+    ['line',        (t.current_line||0)+' / read '+(t.read_line||0)]
+  ]);
+  var p = tr.actual_position||{}, c = tr.position||{}, d = tr.distance_to_go||{};
+  var ax=['x','y','z','a','b','c','u','v','w'], pr=[];
+  ax.forEach(function(k){
+    if (p[k]===undefined && c[k]===undefined) return;
+    pr.push([k.toUpperCase(), (p[k]||0).toFixed(4)+'  (cmd '+(c[k]||0).toFixed(4)+')']);
+  });
+  pr.push(['dtg', (tr.linear_distance_to_go||0).toFixed(4)]);
+  pr.push(['vel', (tr.current_vel||0).toFixed(3)]);
+  pr.push(['feed ovr', Math.round((tr.scale||0)*100)+'%']);
+  (m.joint||[]).forEach(function(j,i){
+    pr.push(['j'+i, (j.input||0).toFixed(4)+(j.is_homed?' homed':'')+(j.is_fault?' FAULT':'')]);
+  });
+  rows(document.getElementById('pos'), pr);
+}
+setInterval(function(){
+  document.getElementById('rate').textContent = nframes; nframes = 0;
+  document.getElementById('bytes').textContent = lastBytes;
+}, 1000);
+connect();
+</script></body></html>

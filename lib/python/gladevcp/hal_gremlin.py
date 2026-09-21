@@ -46,7 +46,7 @@ from gladevcp.core import Status as GStat
 def get_linuxcnc_ini_file():
     """find LinuxCNC INI file with pgrep"""
     import subprocess
-    ps   = subprocess.Popen('ps -C linuxcncsvr --no-header -o args'.split(),
+    ps   = subprocess.Popen('ps -C milltask --no-header -o args'.split(),
                              stdout=subprocess.PIPE
                            )
     p,e = ps.communicate()

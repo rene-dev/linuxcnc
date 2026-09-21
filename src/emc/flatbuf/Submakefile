@@ -1,0 +1,38 @@
+
+# FlatBuffers schemas for the task <-> UI transport.
+#
+# flatc generates the C++ headers next to the schemas. They are build
+# artifacts and are not checked in (see .gitignore).
+#
+# FLATC is not yet probed by configure; that is part of the build-system
+# phase of the migration. Override on the command line if flatc is not on
+# the PATH: make FLATC=/path/to/flatc
+FLATC ?= flatc
+
+FBSCHEMAS := \
+	emc/flatbuf/emc_common.fbs \
+	emc/flatbuf/emc_stat.fbs \
+	emc/flatbuf/emc_cmd.fbs \
+	emc/flatbuf/emc_error.fbs \
+	emc/flatbuf/emc_ws.fbs
+
+FBHEADERS := $(patsubst %.fbs,%_generated.h,$(FBSCHEMAS))
+
+# --reflect-names and --gen-name-strings emit the runtime type tables that
+# let ws_server.cc render a status buffer as named JSON for the test web UI,
+# without a FlatBuffers runtime on the browser side.
+FLATCFLAGS := --cpp --scoped-enums --reflect-names --gen-name-strings
+
+# Every schema depends on every other one: emc_stat.fbs and emc_cmd.fbs both
+# include emc_common.fbs, so a change there has to regenerate all of them.
+$(FBHEADERS): %_generated.h: %.fbs $(FBSCHEMAS)
+	$(ECHO) Generating $(notdir $@)
+	$(Q)$(FLATC) $(FLATCFLAGS) -o $(dir $@) -I emc/flatbuf $<
+
+.PHONY: flatbuffers-headers
+flatbuffers-headers: $(FBHEADERS)
+
+clean: flatbuffersclean
+.PHONY: flatbuffersclean
+flatbuffersclean:
+	rm -f $(FBHEADERS)

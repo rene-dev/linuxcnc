@@ -28,7 +28,7 @@
 #include "nml_intf/emc.hh"		// EMC NML
 #include "nml_intf/emc_nml.hh"		// EMC NML
 #include "nml_intf/canon.hh"		// CANON_UNITS, CANON_UNITS_INCHES,MM,CM
-#include "nml_intf/emcglb.h"		// EMC_NMLFILE, TRAJ_MAX_VELOCITY, etc.
+#include "nml_intf/emcglb.h"		// EMC_INIFILE, TRAJ_MAX_VELOCITY, etc.
 #include "nml_intf/emccfg.h"		// DEFAULT_TRAJ_MAX_VELOCITY
 #include <inifile.hh>
 #include "timeutil.hh"
@@ -344,28 +344,12 @@ static void thisQuit(ClientData /*clientData*/)
 {
     EMC_NULL emc_null_msg;
 
-    if (nullptr != emcStatusBuffer) {
+    if (nullptr != emcClient) {
 	// wait until current message has been received
 	emcCommandWaitReceived();
     }
 
-    // clean up NML buffers
-
-    if (emcErrorBuffer != nullptr) {
-	delete emcErrorBuffer;
-	emcErrorBuffer = nullptr;
-    }
-
-    if (emcStatusBuffer != nullptr) {
-	delete emcStatusBuffer;
-	emcStatusBuffer = nullptr;
-	emcStatus = nullptr;
-    }
-
-    if (emcCommandBuffer != nullptr) {
-	delete emcCommandBuffer;
-	emcCommandBuffer = nullptr;
-    }
+    emcTaskDisconnect();
 
     return;
 }
@@ -3633,11 +3617,9 @@ static void initMain()
     emcUpdateType = EMC_UPDATE_AUTO;
     linearUnitConversion = LINEAR_UNITS_AUTO;
     angularUnitConversion = ANGULAR_UNITS_AUTO;
-    emcCommandBuffer = NULL;
-    emcStatusBuffer = NULL;
+    emcClient = NULL;
     emcStatus = NULL;
 
-    emcErrorBuffer = NULL;
     error_string.clear();
     operator_text_string.clear();
     operator_display_string.clear();
@@ -3667,16 +3649,15 @@ int emc_init(ClientData /*cd*/, Tcl_Interp *interp, int argc, const char **argv)
     // update tcl's idea of the inifile name
     Tcl_SetVar(interp, "EMC_INIFILE", emc_inifile, TCL_GLOBAL_ONLY);
 
-    // init NML
-    if (0 != tryNml(quick ? 0.0 : 10.0, quick ? 0.0 : 1.0)) {
+    // connect to task
+    if (0 != emcTaskConnect(quick ? 0.0 : 10.0, quick ? 0.0 : 1.0)) {
         setresult(interp,"no emc connection");
         thisQuit(NULL);
         return TCL_ERROR;
     }
-    // get current serial number, and save it for restoring when we quit
-    // so as not to interfere with real operator interface
+    // Command serials are ours alone now, so there is no shared counter to
+    // pick up and nothing another operator interface can be thrown off by.
     updateStatus();
-    emcCommandSerialNumber = emcStatus->echo_serial_number;
 
     // attach our quit function to exit
     Tcl_CreateExitHandler(thisQuit, (ClientData) NULL);

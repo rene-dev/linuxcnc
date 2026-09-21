@@ -1,0 +1,200 @@
+include "emc_common.fbs";
+
+namespace EMC;
+
+table AxisStat {
+  axis: int;
+  min_position_limit: double;
+  max_position_limit: double;
+  velocity: double;
+}
+
+enum JointType : byte {
+  linear = 0, angular = 1
+}
+
+table JointStat {
+  joint: int;
+  joint_type: JointType;
+  units: double;
+  backlash: double;
+  min_position_limit: double;
+  max_position_limit: double;
+  max_ferror: double;
+  min_ferror: double;
+  ferror_current: double;
+  ferror_high_mark: double;
+  output: double;
+  input: double;
+  velocity: double;
+  is_in_position: bool;
+  is_homing: bool;
+  is_homed: bool;
+  is_fault: bool;
+  is_enabled: bool;
+  is_min_soft_limit_exceeded: bool;
+  is_max_soft_limit_exceeded: bool;
+  is_min_hard_limit_exceeded: bool;
+  is_max_hard_limit_exceeded: bool;
+  is_override_limits: bool;
+}
+
+// The values are EMC_TRAJ_MODE's, so the wire carries the mode itself
+// rather than a mapping that can lose one -- teleop went missing here once.
+enum TrajMode : byte {
+  free = 1, coord = 2, teleop = 3
+}
+
+table TrajStat {
+  linear_units: double;
+  angular_units: double;
+  cycle_time: double;
+  joints: int;
+  spindles: int;
+  axis_mask: int;
+  mode: TrajMode = free;
+  is_enabled: bool;
+  is_in_position: bool;
+  queue: int;
+  active_queue: int;
+  is_queue_full: bool;
+  id: int;
+  is_paused: bool;
+  scale: double;
+  rapid_scale: double;
+  position: Pose;
+  actual_position: Pose;
+  velocity: double;
+  acceleration: double;
+  max_velocity: double;
+  max_acceleration: double;
+  probed_position: Pose;
+  is_probe_tripped: bool;
+  is_probing: bool;
+  probeval: int;
+  kinematics_type: int;
+  motion_type: int;
+  linear_distance_to_go: double;
+  distance_to_go: Pose;
+  current_vel: double;
+  is_feed_override_enabled: bool;
+  is_adaptive_feed_enabled: bool;
+  is_feed_hold_enabled: bool;
+  is_single_stepping: bool;
+  // state tag
+}
+
+table SpindleStat {
+  speed: double;
+  spindle_scale: double;
+  css_maximum: double;
+  css_factor: double;
+  state: int;
+  direction: int;
+  is_brake_engaged: bool;
+  is_increasing: bool;
+  is_decreasing: bool;
+  is_enabled: bool;
+  orient_state: int;
+  orient_fault: int;
+  is_spindle_override_enabled: bool;
+  is_homed: bool;
+}
+
+table MotionStat {
+  traj: TrajStat;
+  joint: [JointStat];
+  axis: [AxisStat];
+  spindle: [SpindleStat];
+  synch_di: [bool];
+  synch_do: [bool];
+  analog_input: [double];
+  analog_output: [double];
+  misc_error: [int];
+  debug: int;
+  is_on_soft_limit: bool;
+  is_external_offsets_applied: bool;
+  eoffset_pose: Pose;
+  num_extra_joints: int;
+  is_jogging_active: bool;
+  heartbeat: ulong;
+  // RCS_STAT_MSG base fields; see IOStat.
+  echo_serial_number: int;
+  command_type: uint;
+  status: int;
+}
+
+table TaskStat {
+  mode: int;
+  state: int;
+  exec_state: int;
+  interp_state: int;
+  call_level: int;
+  motion_line: int;
+  current_line: int;
+  read_line: int;
+  is_optional_stop_state: bool;
+  is_block_delete_state: bool;
+  is_input_timeout: bool;
+  filename: string;
+  command: string;
+  ini_filename: string;
+  g5x_offset: Pose;
+  g5x_index: int;
+  g92_offset: Pose;
+  rotation_xy: double;
+  tool_offset: Pose;
+  active_g_codes: [int];
+  active_m_codes: [int];
+  active_settings: [double];
+  interpreter_error_code: int;
+  is_task_paused: bool;
+  delay_left: double;
+  queued_mdi_commands: int;
+  program_units: int;
+  taskbeat: ulong;
+}
+
+table ToolStat {
+  pocket_prepped: int;
+  tool_in_spindle: int;
+  tool_from_pocket: int;
+}
+
+table CoolantStat {
+  is_mist: bool;
+  is_flood: bool;
+}
+
+table AuxStat {
+  is_estopped: bool;
+}
+
+table IOStat {
+  debug: int;
+  reason: int;
+  fault: int;
+  tool: ToolStat;
+  coolant: CoolantStat;
+  aux: AuxStat;
+  // RCS_STAT_MSG base fields, as on EmcStat below. The Tcl binding
+  // (emc_io_status and friends) exposes these separately from the
+  // top-level ones, so they cannot be folded into them.
+  echo_serial_number: int;
+  command_type: uint;
+  status: int;
+}
+
+table EmcStat {
+  task: TaskStat;
+  motion: MotionStat;
+  io: IOStat;
+  // Carried on the RCS_STAT_MSG base class in NML, so easy to miss:
+  // echo_serial_number is what a client waits on to know its command landed.
+  echo_serial_number: int;
+  command_type: uint;
+  status: int;            // RCS_STATUS: 1=done, 2=exec, 3=error
+  debug: int;
+}
+
+root_type EmcStat;

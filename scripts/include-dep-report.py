@@ -108,8 +108,8 @@ def folded_dirs():
 
     A directory whose sources are listed by its parent's Submakefile compiles and
     links as part of the parent, so an include crossing that boundary crosses
-    nothing.  libnml is the case in the tree: libnml/Submakefile lists every
-    source under its six subdirectories and links them into one libnml.so.
+    nothing.  emc/usr_intf/axis/extensions is the case in the tree: the
+    axis Submakefile lists its sources and links them into the same modules.
     Reporting those as separate nodes invents a cycle out of a directory layout.
     Subdirectories the top-level Makefile builds on their own, emc/tp into tpmod
     for one, are not folded.
@@ -139,7 +139,7 @@ def module_of(rel):
     parts = rel.split("/")
     if len(parts) == 1:
         return "src"
-    if parts[0] in ("emc", "hal", "libnml", "rtapi") and len(parts) > 2:
+    if parts[0] in ("emc", "hal", "rtapi") and len(parts) > 2:
         mod = "/".join(parts[:2])
     else:
         return parts[0]

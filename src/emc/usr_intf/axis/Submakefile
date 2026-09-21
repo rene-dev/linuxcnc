@@ -1,5 +1,6 @@
 
-EMCMODULESRCS := emc/usr_intf/axis/extensions/emcmodule.cc
+EMCMODULESRCS := emc/usr_intf/axis/extensions/linuxcnc_py.cc \
+                 emc/usr_intf/axis/extensions/emcmodule.cc
 TOGLMODULESRCS := emc/usr_intf/axis/extensions/_toglmodule.c
 TKDARMODULESRCS := emc/usr_intf/axis/extensions/tkdarmodule.c
 PYSRCS += $(EMCMODULESRCS) $(TOGLMODULESRCS) $(TKDARMODULESRCS)
@@ -11,10 +12,11 @@ TKDARMODULE := ../lib/python/tkdar.so
 $(call TOOBJSDEPS, $(TOGLMODULESRCS)) : EXTRAFLAGS = $(ULFLAGS) $(TCL_CFLAGS)
 
 $(call TOOBJSDEPS, $(EMCMODULESRCS)) : Makefile.inc
+$(call TOOBJSDEPS, $(EMCMODULESRCS)) : EXTRAFLAGS = -fPIC
 
 $(call TOOBJSDEPS, $(TKDARMODULESRCS)) : EXTRAFLAGS = $(TCL_CFLAGS)
 
-$(EMCMODULE): $(call TOOBJS, $(EMCMODULESRCS)) ../lib/liblinuxcnc.a ../lib/libnml.so.0 \
+$(EMCMODULE): $(call TOOBJS, $(EMCMODULESRCS)) ../lib/libemcws.so.0 ../lib/liblinuxcnc.a \
               ../lib/liblinuxcncini.so ../lib/libtooldata.so.0
 	$(ECHO) Linking python module $(notdir $@)
 	$(Q)$(CXX) $(LDFLAGS) -shared -o $@ $^ -L/usr/X11R6/lib -lm

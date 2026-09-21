@@ -45,7 +45,6 @@ usr/share/man/man1/linuxcnclcd.1
 usr/share/man/man1/linuxcncmkdesktop.1
 usr/share/man/man1/linuxcnc_module_helper.1
 usr/share/man/man1/linuxcncrsh.1
-usr/share/man/man1/linuxcncsvr.1
 usr/share/man/man1/linuxcnctop.1
 usr/share/man/man1/linuxcnc_var.1
 usr/share/man/man1/maho600gui.1
@@ -97,7 +96,6 @@ usr/share/man/man1/teach-in.1
 usr/share/man/man1/thermistor.1
 usr/share/man/man1/tooledit.1
 usr/share/man/man1/tool_mmap_read.1
-usr/share/man/man1/tool_watch.1
 usr/share/man/man1/touchy.1
 usr/share/man/man1/update_ini.1
 usr/share/man/man1/vfdb_vfd.1

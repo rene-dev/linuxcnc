@@ -625,10 +625,10 @@ So the overall approach for our first example will be:
 
 `iocontrol` provides two HAL interaction sequences we might or might not use:
 
-- When the NML message queued by a SELECT_TOOL() canon command is executed,
+- When the message queued by a SELECT_TOOL() canon command is executed,
   this triggers the "raise tool-prepare and wait for tool-prepared to become high" HAL sequence in `iocontrol`,
   besides setting the _XXXX_ pins
-- When the NML message queued by the CHANGE_TOOL() canon command is executed,
+- When the message queued by the CHANGE_TOOL() canon command is executed,
   this triggers the  "raise tool-change and wait for tool-changed to become high" HAL sequence in `iocontrol`,
   besides setting the _XXXX_ pins
 
@@ -2209,7 +2209,7 @@ When the interpreter sees an M6, it:
 .. generate rapid move to the G30 position
 . execute a CHANGE_TOOL canon command, with the selected pocket as a parameter. CHANGE_TOOL will:
 .. generate a rapid move to TOOL_CHANGE_POSITION if so set in INI
-.. enqueue an EMC_TOOL_LOAD NML message to `task`.
+.. enqueue an EMC_TOOL_LOAD message to `task`.
 . set the numberer parameters 5400-5413 according to the new tool
 . signal to `task` to stop calling the interpreter for readahead by returning INTERP_EXECUTE_FINISH since M6 is a queue buster.
 
@@ -2275,8 +2275,6 @@ DEBUG = 0x00008000 # py only
 DEBUG = 0x0000E000 # py + remap + Oword
 DEBUG = 0x0000C002 # py + remap + config
 DEBUG = 0x0000C100 # py + remap + Interpreter
-DEBUG = 0x0000C140 # py + remap + Interpreter + NML msgs
-DEBUG = 0x0000C040 # py + remap + NML
 DEBUG = 0x0003E100 # py + remap + Interpreter + oword + signals + namedparams
 DEBUG = 0x10000000 # EMC_DEBUG_USER1 - trace statements
 DEBUG = 0x20000000 # EMC_DEBUG_USER2 - trap into Python debugger

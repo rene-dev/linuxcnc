@@ -1,0 +1,19 @@
+namespace EMC;
+
+struct Pose {
+  x: double;
+  y: double;
+  z: double;
+  a: double;
+  b: double;
+  c: double;
+  u: double;
+  v: double;
+  w: double;
+}
+
+struct Cartesian {
+  x: double;
+  y: double;
+  z: double;
+}

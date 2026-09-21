@@ -523,11 +523,6 @@ EMCTASK=$retval
 
 if [ "$EMCTASK" = emctask ]; then EMCTASK=linuxcnctask; fi
 
-# 2.6. we hardcode the server name, change if needed
-# linuxcncsvr now holds/creates all the NML channels,
-# so it needs to start by default, as the first process
-EMCSERVER=linuxcncsvr
-
 # 2.7.1 get halbridge info from INI
 GetFromIniQuiet HALBRIDGE HAL
 HALBRIDGE=$retval
@@ -545,11 +540,6 @@ unset __emcdisplay
 case $EMCDISPLAY in
     tkemc) EMCDISPLAY=tklinuxcnc ;;
 esac
-
-# 2.9. get NML config information
-GetFromIniEx NML_FILE LINUXCNC NML_FILE EMC @DEFAULT_NMLFILE@
-NMLFILE=$retval
-export NMLFILE
 
 # 2.10. INI information that may be needed by other apps in process tree
 GetFromIni COORDINATES TRAJ
@@ -671,7 +661,7 @@ function Cleanup() {
     fi
 
     # now kill all the other user space components
-    for KILL_TASK in linuxcncsvr milltask motion-logger; do
+    for KILL_TASK in milltask motion-logger; do
 	if $PIDOF $KILL_TASK >> "$DEBUG_FILE" ; then
 	    KillTaskWithTimeout
 	fi
@@ -692,16 +682,6 @@ function Cleanup() {
 
     echo "Removing HAL_LIB, RTAPI, and Real Time OS modules" >> "$PRINT_FILE"
     $REALTIME stop
-
-    echo "Removing NML shared memory segments" >> "$PRINT_FILE"
-    # Most field are unused, ignore warning
-    # shellcheck disable=SC2034
-    while read -r b x t x x x x x x m x; do
-        case "$b$t" in
-            BSHMEM) ipcrm -M "$m" 2>/dev/null;;
-        esac
-    done < "$NMLFILE"
-
 
     # remove lock file
     if [ -f "$LOCKFILE" ] ; then
@@ -788,15 +768,10 @@ fi
 # 4.2. Now we can finally start loading LinuxCNC
 ################################################################################
 
-# 4.3.1. Run linuxcncserver in background, always (it owns/creates the NML buffers)
-echo "Starting LinuxCNC server program: $EMCSERVER" >> "$PRINT_FILE"
-if ! program_available "$EMCSERVER"; then
-    echo "Can't execute server program $EMCSERVER"
-    Cleanup
-    exit 1
-fi
+# 4.3.1. linuxcncsvr used to start here, first of all, because it owned and
+# created the NML buffers. There are none: task serves the websocket
+# transport itself, and it is started in 4.3.7 like any other process.
 INI_FILE_NAME="$INIFILE"; export INI_FILE_NAME
-$EMCSERVER -ini "$INIFILE"
 
 # 4.3.2. Start REALTIME
 echo "Loading Real Time OS, RTAPI, and HAL_LIB modules" >> "$PRINT_FILE"

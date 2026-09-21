@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Usage:
-    python teach.py nmlfile outputfile
+    python teach.py outputfile
 If outputfile is not specified, writes to standard output.
 
 You must ". scripts/rip-environment" before running this script, if you use
@@ -29,10 +29,7 @@ import tkinter
 linenumber = 1;
 
 if len(sys.argv) > 1:
-    linuxcnc.nmlfile = sys.argv[1]
-
-if len(sys.argv) > 2:
-    outfile = sys.argv[2]
+    outfile = sys.argv[1]
     sys.stdout = open(outfile, 'w')
 
 s = linuxcnc.stat()

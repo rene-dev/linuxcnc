@@ -56,3 +56,6 @@ position.txt
 .vscode/settings.json
 # autoreconf cache from debian/configure
 /autom4te.cache/
+
+# flatc-generated headers (src/emc/flatbuf)
+*_generated.h

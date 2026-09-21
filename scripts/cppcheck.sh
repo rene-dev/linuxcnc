@@ -72,40 +72,32 @@ docheck() {
 result=0
 
 # *** HAL files ***
-echo "I (1/4): checking HAL folders with both C and C++ code"
+echo "I (1/3): checking HAL folders with both C and C++ code"
 while IFS= read -r -d '' d
 do
     # Don't care about examples
     case "$d" in hal/user_comps/mb2hal/examples*) continue;; esac
 
-    echo "I (1/4): checking $d"
+    echo "I (1/3): checking $d"
     docheck "$d" || result=1
 done < <(find hal/ -type d -not -name "*__pycache__" -print0)
 
 # *** EMC files ***
-echo "I (2/4): checking EMC folders with both C and C++ code"
+echo "I (2/3): checking EMC folders with both C and C++ code"
 while IFS= read -r -d '' d
 do
     # Will give Tcl problems
     case "$d" in emc/usr_intf/axis/extensions*) continue;; esac
 
-    echo "I (2/4): checking $d"
+    echo "I (2/3): checking $d"
     docheck "$d" || result=1
 done < <(find emc/ -type d -not -name "*__pycache__" -print0)
 
-# *** NML files ***
-echo "I (3/4): checking LIBNML folders with both C and C++ code"
-while IFS= read -r -d '' d
-do
-    echo "I (3/4): checking $d"
-    docheck "$d" || result=1
-done < <(find libnml/ -type d -not -name "*__pycache__" -print0)
-
 # *** RTAPI files ***
-echo "I (4/4): checking RTAPI folders with both C and C++ code"
+echo "I (3/3): checking RTAPI folders with both C and C++ code"
 while IFS= read -r -d '' d
 do
-    echo "I (4/4): checking $d"
+    echo "I (3/3): checking $d"
     docheck "$d" || result=1
 done < <(find rtapi/ -type d -not -name "*__pycache__" -print0)
 

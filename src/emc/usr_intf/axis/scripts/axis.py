@@ -735,8 +735,6 @@ class LivePlotter:
 
     def start(self):
         if self.running.get(): return
-        if not os.path.exists(linuxcnc.nmlfile):
-            return False
         try:
             self.stat = linuxcnc.stat()
         except linuxcnc.error:
@@ -3553,9 +3551,6 @@ root_window.tk.eval("${pane_top}.maxvel.s set [setval $maxvel_speed $max_maxvel]
 widgets.feedoverride.configure(to=max_feed_override)
 widgets.rapidoverride.configure(to=100)
 widgets.spinoverride.configure(to=max_spindle_override)
-nmlfile = inifile.find("EMC", "NML_FILE")
-if nmlfile:
-    linuxcnc.nmlfile = os.path.join(os.path.dirname(sys.argv[2]), nmlfile)
 vars.coord_type.set(inifile.find("DISPLAY", "POSITION_OFFSET") == "RELATIVE")
 vars.display_type.set(inifile.find("DISPLAY", "POSITION_FEEDBACK") == "COMMANDED")
 coordinate_display = inifile.find("DISPLAY", "POSITION_UNITS")

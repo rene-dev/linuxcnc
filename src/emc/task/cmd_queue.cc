@@ -29,10 +29,33 @@ std::deque<Entry>  g_queue;
 Entry              g_current;   /* keeps the popped message alive */
 taskcmd::Ticket    g_next_ticket = 1;
 
+/* The command task has dispatched but not settled yet, and the state
+   changes waiting to be drained. */
+taskcmd::Ticket             g_inflight = 0;
+std::vector<taskcmd::Event> g_events;
+
 /* A backlog this long means the producer is far ahead of task and the
    commands are stale anyway; dropping is better than growing without
    bound. Jogs coalesce, so reaching this takes a genuine flood. */
 const size_t MAX_QUEUED = 64;
+
+/* Events pile up when nobody drains them, which is the normal case: halui
+   never asks, and there may be no websocket client connected. Keeping only
+   the newest is right -- a client that connects later has no business
+   learning about commands issued before it existed. */
+const size_t MAX_EVENTS = 256;
+
+/* g_mu must be held. */
+void note(taskcmd::Ticket ticket, taskcmd::State state)
+{
+    if (ticket == 0) {
+        return;
+    }
+    if (g_events.size() >= MAX_EVENTS) {
+        g_events.erase(g_events.begin());
+    }
+    g_events.push_back(taskcmd::Event{ticket, state});
+}
 
 } // namespace
 
@@ -56,6 +79,7 @@ taskcmd::Ticket taskcmd::pushRaw(const void *cmd, size_t size,
                turn, so ordering against other commands is unchanged. */
             e.data.assign(static_cast<const char *>(cmd),
                           static_cast<const char *>(cmd) + size);
+            note(e.ticket, State::done);   /* superseded, never ran */
             e.ticket = ticket;
             return ticket;
         }
@@ -98,12 +122,49 @@ RCS_CMD_MSG *taskcmd::next(int echo_serial_number)
         return NULL;
     }
 
+    /* Task takes one command per cycle whatever the last one is doing, just
+       as it does with NML. A command still in flight has therefore been
+       left behind: report it done, which is what an NML client concludes
+       when the echo moves past its serial. */
+    if (g_inflight != 0) {
+        note(g_inflight, State::done);
+        g_inflight = 0;
+    }
+
     g_current = std::move(g_queue.front());
     g_queue.pop_front();
+
+    g_inflight = g_current.ticket;
+    note(g_inflight, State::received);
 
     /* Task treats a command as new when its serial differs from the one it
        last echoed, so hand it the next serial along. */
     RCS_CMD_MSG *msg = reinterpret_cast<RCS_CMD_MSG *>(g_current.data.data());
     msg->serial_number = echo_serial_number + 1;
     return msg;
+}
+
+void taskcmd::report(RCS_STATUS status)
+{
+    std::lock_guard<std::mutex> lk(g_mu);
+
+    if (g_inflight == 0) {
+        return;
+    }
+    /* EXEC means the command is still running, so leave it in flight. */
+    if (status == RCS_STATUS::DONE) {
+        note(g_inflight, State::done);
+        g_inflight = 0;
+    } else if (status == RCS_STATUS::ERROR) {
+        note(g_inflight, State::error);
+        g_inflight = 0;
+    }
+}
+
+void taskcmd::drainEvents(std::vector<Event> &out)
+{
+    out.clear();
+
+    std::lock_guard<std::mutex> lk(g_mu);
+    out.swap(g_events);
 }

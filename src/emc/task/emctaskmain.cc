@@ -58,6 +58,7 @@
 #include <sys/wait.h>		// waitpid(), WNOHANG, WIFEXITED
 #include <ctype.h>		// isspace()
 #include <libintl.h>
+#include <thread>			// std::this_thread::sleep_for()
 #include <locale.h>
 #include "motion/usrmotintf.h"
 #include <rtapi_string.h>	// rtapi_strlcpy()
@@ -70,22 +71,23 @@ fpu_control_t __fpu_control = _FPU_IEEE & ~(_FPU_MASK_IM | _FPU_MASK_ZM | _FPU_M
 #endif
 
 #include "config.h"
-#include "rcs_status.hh"		// NML classes, nmlErrorFormat()
-#include "nml_intf/emc.hh"		// EMC NML
+#include "rcs_status.hh"		// enum class RCS_STATUS
+#include "nml_intf/emc.hh"
 #include "nml_intf/emc_nml.hh"
 #include "nml_intf/canon.hh"		// CANON_TOOL_TABLE stuff
 #include <inifile.hh>
 #include "usr_intf/mapini.hh"
 #include "nml_intf/interpl_nml.hh"		// NML_INTERP_LIST, interp_list
-#include "nml_intf/emcglb.h"		// EMC_INIFILE,NMLFILE, EMC_TASK_CYCLE_TIME
+#include "nml_intf/emcglb.h"		// EMC_INIFILE, EMC_TASK_CYCLE_TIME
 #include "nml_intf/interp_return.hh"	// public interpreter return values
 #include "rs274ngc/interp_internal.hh"	// interpreter private definitions
-#include "libnml/nml/nml_oi.hh"
 #include "timeutil.hh"
 #include "task.hh"		// emcTaskCommand etc
 #include "taskclass.hh"
 #include "motion/motion.h"             // EMCMOT_ORIENT_*
 #include "ini/inihal.hh"
+#include "ws_server.hh"		// websocket/flatbuffers transport
+#include "ws_defaults.hh"		// WS_DEFAULT_PORT
 #include "halui.hh"		// the HAL user interface, in task
 #include "cmd_queue.hh"		// commands from ws_server and halui
 
@@ -94,25 +96,19 @@ using namespace std::chrono_literals;
 
 static emcmot_config_t emcmotConfig;
 
-/* time after which the user interface is declared dead
- * because it wouldn't read any more messages
- */
-#define DEFAULT_EMC_UI_TIMEOUT 5.0
-
-
-// NML channels
-static RCS_CMD_CHANNEL *emcCommandBuffer = NULL;
-static RCS_STAT_CHANNEL *emcStatusBuffer = NULL;
-static NML *emcErrorBuffer = NULL;
-
-// NML command channel data pointer
+// The command task is working on this cycle. It points into the command
+// queue's storage (cmd_queue.cc keeps the popped message alive), not into
+// any shared buffer -- every command now arrives through taskcmd::next().
 static RCS_CMD_MSG *emcCommand = NULL;
 
 // global EMC status
 EMC_STAT *emcStatus = NULL;
-// set while emcCommand points at a command from inside task (the websocket
-// server or halui) rather than at the NML command buffer
-static bool emcCommandInternal = false;
+
+// websocket transport port, from [TASK]WEBSOCKET_PORT; 0 disables it.
+// It is on by default: this is the only way in, so a config should not have
+// to ask for it. The listener is loopback only -- reaching it from another
+// machine still takes a deliberate step.
+static int ws_port = WS_DEFAULT_PORT;
 
 // timer stuff
 static linuxcnc::CyclicTimer *timer = NULL;
@@ -173,46 +169,10 @@ void emctask_quit(int sig)
     signal(sig, emctask_quit);
 }
 
-/* make sure at least space bytes are available on
- * error channel; wait a bit to drain if needed
- */
-int emcErrorBufferOKtoWrite(int space, const char *caller)
-{
-    // check channel for validity
-    if (emcErrorBuffer == NULL)
-	return -1;
-    if (!emcErrorBuffer->valid())
-	return -1;
-
-    double send_errorchan_timout = etime() + DEFAULT_EMC_UI_TIMEOUT;
-
-    while (etime() < send_errorchan_timout) {
-	if (emcErrorBuffer->get_space_available() < space) {
-	    esleep(10ms);
-	    continue;
-	} else {
-	    break;
-	}
-    }
-    if (etime() >= send_errorchan_timout) {
-	if (emc_debug & EMC_DEBUG_TASK_ISSUE) {
-	    fmt::print("timeout waiting for error channel to drain, caller=`{}' request={}\n", caller, space);
-	}
-	return -1;
-    } else {
-	// printf("--- %d bytes available after %f seconds\n", space, etime() - send_errorchan_timout + DEFAULT_EMC_UI_TIMEOUT);
-    }
-    return 0;
-}
-
-
 // implementation of EMC error logger
 static int emcOperatorErrorV(bool echo, const char *fmt, va_list ap)
 {
     EMC_OPERATOR_ERROR error_msg;
-
-    if ( emcErrorBufferOKtoWrite(sizeof(error_msg) * 2, "emcOperatorError"))
-	return -1;
 
     if (NULL == fmt) {
 	return -1;
@@ -233,7 +193,9 @@ static int emcOperatorErrorV(bool echo, const char *fmt, va_list ap)
     if (echo) {
 	fmt::print("{}\n", error_msg.error);
     }
-    return emcErrorBuffer->write(error_msg);
+
+    wsServerOperatorMsg(WS_OPERATOR_ERROR, error_msg.error);
+    return 0;
 }
 
 int emcOperatorError(const char *fmt, ...)
@@ -263,10 +225,7 @@ int emcOperatorText(const char *fmt, ...)
     EMC_OPERATOR_TEXT text_msg;
     va_list ap;
 
-    if ( emcErrorBufferOKtoWrite(sizeof(text_msg) * 2, "emcOperatorText"))
-	return -1;
-
-    // write args to NML message (ignore int text code)
+    // ignore int text code
     va_start(ap, fmt);
     vsnprintf(text_msg.text, sizeof(text_msg.text), fmt, ap);
     va_end(ap);
@@ -275,7 +234,8 @@ int emcOperatorText(const char *fmt, ...)
     text_msg.text[LINELEN - 1] = 0;
 
     // write it
-    return emcErrorBuffer->write(text_msg);
+    wsServerOperatorMsg(WS_OPERATOR_TEXT, text_msg.text);
+    return 0;
 }
 
 int emcOperatorDisplay(const char *fmt, ...)
@@ -283,10 +243,7 @@ int emcOperatorDisplay(const char *fmt, ...)
     EMC_OPERATOR_DISPLAY display_msg;
     va_list ap;
 
-    if ( emcErrorBufferOKtoWrite(sizeof(display_msg) * 2, "emcOperatorDisplay"))
-	return -1;
-
-    // write args to NML message (ignore int display code)
+    // ignore int display code
     va_start(ap, fmt);
     vsnprintf(display_msg.display, sizeof(display_msg.display), fmt, ap);
     va_end(ap);
@@ -295,7 +252,8 @@ int emcOperatorDisplay(const char *fmt, ...)
     display_msg.display[LINELEN - 1] = 0;
 
     // write it
-    return emcErrorBuffer->write(display_msg);
+    wsServerOperatorMsg(WS_OPERATOR_DISPLAY, display_msg.display);
+    return 0;
 }
 
 /*
@@ -792,8 +750,8 @@ void readahead_waiting(void)
 static bool allow_while_idle_type() {
     // allow for EMC_TASK_MODE::AUTO, EMC_TASK_MODE::MDI
     // expect immediate command
-    RCS_CMD_MSG *emcCommand;
-    emcCommand = emcCommandBuffer->get_address();
+    // Uses the current command rather than re-reading the NML buffer, so
+    // that a command injected from another transport is judged too.
     switch(emcCommand->_type) {
       case EMC_JOG_CONT_TYPE:
       case EMC_JOG_INCR_TYPE:
@@ -816,8 +774,11 @@ static int emcTaskPlan(void)
     NMLTYPE type;
     int retval = 0;
 
-    // check for new command
-    if (emcCommand->serial_number != emcStatus->echo_serial_number) {
+    // check for new command. emcCommand is NULL until the first one
+    // arrives -- it used to point at the NML command buffer, which existed
+    // from startup whether anything had been written to it or not.
+    if (emcCommand != NULL &&
+	emcCommand->serial_number != emcStatus->echo_serial_number) {
         // flag it here locally as a new command
 	type = emcCommand->_type;
     } else {
@@ -1714,8 +1675,10 @@ static int emcTaskIssueCommand(NMLmsg * cmd)
 	return 0;
     }
     if (emc_debug & EMC_DEBUG_TASK_ISSUE) {
-	fmt::print("Issuing {} -- \t ({})\n", emcSymbolLookup(cmd->_type),
-		  emcCommandBuffer->msg2str(cmd));
+	// This used to append NML's msg2str() dump of the field values. That
+	// was CMS's ASCII encoder, and it went with the NML channels; the
+	// message name is what the trace is read for anyway.
+	fmt::print("Issuing {}\n", emcSymbolLookup(cmd->_type));
     }
     switch (cmd->_type) {
 	// general commands
@@ -3208,87 +3171,6 @@ constexpr auto RETRY_TIME = 10s;     // wait for subsystems to come up
     // // get our status data structure
     // emcStatus = new EMC_STAT;
 
-    // get the NML command buffer
-    end = RETRY_TIME;
-    good = 0;
-    do {
-	if (NULL != emcCommandBuffer) {
-	    delete emcCommandBuffer;
-	}
-	emcCommandBuffer =
-	    new RCS_CMD_CHANNEL(emcFormat, "emcCommand", "emc",
-				emc_nmlfile);
-	if (emcCommandBuffer->valid()) {
-	    good = 1;
-	    break;
-	}
-	esleep(RETRY_INTERVAL);
-	end -= RETRY_INTERVAL;
-	if (done) {
-	    emctask_shutdown();
-	    exit(1);
-	}
-    } while (end > 0s);
-
-    if (!good) {
-	fmt::print(stderr,"can't get emcCommand buffer\n");
-	return -1;
-    }
-    // get our command data structure
-    emcCommand = emcCommandBuffer->get_address();
-
-    // get the NML status buffer
-    end = RETRY_TIME;
-    good = 0;
-    do {
-	if (NULL != emcStatusBuffer) {
-	    delete emcStatusBuffer;
-	}
-	emcStatusBuffer =
-	    new RCS_STAT_CHANNEL(emcFormat, "emcStatus", "emc",
-				 emc_nmlfile);
-	if (emcStatusBuffer->valid()) {
-	    good = 1;
-	    break;
-	}
-	esleep(RETRY_INTERVAL);
-	end -= RETRY_INTERVAL;
-	if (done) {
-	    emctask_shutdown();
-	    exit(1);
-	}
-    } while (end > 0s);
-
-    if (!good) {
-	fmt::print(stderr,"can't get emcStatus buffer\n");
-	return -1;
-    }
-
-    // get the NML error buffer
-    end = RETRY_TIME;
-    good = 0;
-    do {
-	if (NULL != emcErrorBuffer) {
-	    delete emcErrorBuffer;
-	}
-	emcErrorBuffer =
-	    new NML(nmlErrorFormat, "emcError", "emc", emc_nmlfile);
-	if (emcErrorBuffer->valid()) {
-	    good = 1;
-	    break;
-	}
-	esleep(RETRY_INTERVAL);
-	end -= RETRY_INTERVAL;
-	if (done) {
-	    emctask_shutdown();
-	    exit(1);
-	}
-    } while (end > 0s);
-
-    if (!good) {
-	fmt::print(stderr,"can't get emcError buffer\n");
-	return -1;
-    }
     // get the timer
     if (!emcTaskNoDelay) {
 	timer = new linuxcnc::CyclicTimer(emc_task_cycle_time);
@@ -3314,7 +3196,7 @@ constexpr auto RETRY_TIME = 10s;     // wait for subsystems to come up
 	    good = 1;
 	    break;
 	}
-	esleep(RETRY_INTERVAL);
+	std::this_thread::sleep_for(RETRY_INTERVAL);
 	end -= RETRY_INTERVAL;
 	if (done) {
 	    emctask_shutdown();
@@ -3338,7 +3220,7 @@ constexpr auto RETRY_TIME = 10s;     // wait for subsystems to come up
 	    good = 1;
 	    break;
 	}
-	esleep(RETRY_INTERVAL);
+	std::this_thread::sleep_for(RETRY_INTERVAL);
 	end -= RETRY_INTERVAL;
 	if (done) {
 	    emctask_shutdown();
@@ -3385,27 +3267,14 @@ static int emctask_shutdown(void)
 	delete timer;
 	timer = NULL;
     }
+    // stop serving the websocket transport
+    wsServerStop();
+
     // release the halui HAL component
     haluiExit();
 
-    // delete the NML channels
-
-    if (NULL != emcErrorBuffer) {
-	delete emcErrorBuffer;
-	emcErrorBuffer = NULL;
-    }
-
-    if (NULL != emcStatusBuffer) {
-	delete emcStatusBuffer;
-	emcStatusBuffer = NULL;
-	emcStatus = NULL;
-    }
-
-    if (NULL != emcCommandBuffer) {
-	delete emcCommandBuffer;
-	emcCommandBuffer = NULL;
-	emcCommand = NULL;
-    }
+    // emcCommand points into the command queue, which owns the message
+    emcCommand = NULL;
 
     if (NULL != emcStatus) {
 	delete emcStatus;
@@ -3437,11 +3306,6 @@ static int iniLoad(const char *filename)
             program_invocation_short_name, getpid(), machine, version
         );
     }
-
-    if (auto inistring = inifile.findString("NML_FILE", "EMC")) {
-	// copy to global
-	rtapi_strxcpy(emc_nmlfile, inistring->c_str());
-    } // else not found, use default
 
     if (auto inival = inifile.findSInt("INTERP_MAX_LEN", "TASK")) {
         if (*inival > 0) {
@@ -3476,6 +3340,10 @@ static int iniLoad(const char *filename)
     if (auto inival = inifile.findSInt("MDI_QUEUED_COMMANDS", "TASK")) {
         max_mdi_queued_commands = *inival;
     }
+
+    // port for the websocket/flatbuffers transport; 0 turns it off, and
+    // then the UIs that connect there cannot reach task at all
+    ws_port = inifile.findSIntV("WEBSOCKET_PORT", "TASK", WS_DEFAULT_PORT);
 
     return 0;
 }
@@ -3559,6 +3427,14 @@ int main(int argc, char *argv[])
 	exit(1);
     }
 
+    // Listen before emctask_startup() readies the inihal component, for
+    // the same reason the halui pins are created first: halcmd is waiting
+    // on that and runs the HAL files next, and a HAL file may load a
+    // program that connects here straight away (mqtt-publisher does).
+    // Nothing is published yet, which is fine -- a client that connects
+    // this early simply has no status until the first task cycle.
+    wsServerStart(ws_port);
+
     // Create the halui pins before emctask_startup() readies the inihal
     // component: halcmd is waiting on that and runs the HAL files next,
     // and those may connect halui pins.
@@ -3602,20 +3478,12 @@ int main(int argc, char *argv[])
         task_beat++;  // Task's heartbeat
 
         check_ini_hal_items(emcStatus->motion.traj.joints);
-	// read command
-	if (0 != emcCommandBuffer->read()) {
+	// read command -- from the websocket server or halui, both of which
+	// hand their messages to the command queue
+	if (RCS_CMD_MSG *queued =
+	    taskcmd::next(emcStatus->echo_serial_number)) {
 	    // got a new command, so clear out errors
-	    emcCommand = emcCommandBuffer->get_address();
-	    emcCommandInternal = false;
-	    taskPlanError = 0;
-	    taskExecuteError = 0;
-	} else if (RCS_CMD_MSG *queued =
-		   taskcmd::next(emcStatus->echo_serial_number)) {
-	    // A command came from inside task -- the websocket server or
-	    // halui. Point emcCommand at it and the rest of the loop treats
-	    // it exactly like one read from NML.
 	    emcCommand = queued;
-	    emcCommandInternal = true;
 	    taskPlanError = 0;
 	    taskExecuteError = 0;
 	}
@@ -3761,23 +3629,20 @@ int main(int argc, char *argv[])
 	// handle RCS_STAT_MSG base class members explicitly, since this
 	// is not an NML_MODULE and they won't be set automatically
 
-	// A command from inside task must not consume a serial number. An
-	// NML serial is the command buffer's write id, so echoing "one past
-	// the last NML command" is echoing the id the next NML client write
-	// will get, and task would then drop that command as one it has
-	// already seen. Leave the echo where the last NML command put it,
-	// and mark the internal message as seen so that emcTaskPlan() does
-	// not dispatch it again next cycle.
-	if (emcCommandInternal) {
-	    emcCommand->serial_number = emcStatus->echo_serial_number;
-	} else {
-	// do task
-	emcStatus->task.command_type = emcCommand->_type;
-	emcStatus->task.echo_serial_number = emcCommand->serial_number;
+	// The echo is how emcTaskPlan() tells a command it has not seen from
+	// one it is still working on: taskcmd::next() stamps the message with
+	// echo + 1, and moving the echo up to it here marks it seen. While
+	// NML was the way in this had to stay put for a command raised inside
+	// task, because the serial was the shared command buffer's write id
+	// and advancing it made task drop the next client's command. Nothing
+	// shares it now, so it is a plain dispatch counter and command_type
+	// says what task last took on.
+	if (emcCommand != NULL) {
+	    emcStatus->task.command_type = emcCommand->_type;
+	    emcStatus->task.echo_serial_number = emcCommand->serial_number;
 
-	// do top level
-	emcStatus->command_type = emcCommand->_type;
-	emcStatus->echo_serial_number = emcCommand->serial_number;
+	    emcStatus->command_type = emcCommand->_type;
+	    emcStatus->echo_serial_number = emcCommand->serial_number;
 	}
 
 	if (taskPlanError || taskExecuteError ||
@@ -3801,11 +3666,16 @@ int main(int argc, char *argv[])
 	    emcStatus->task.status = RCS_STATUS::EXEC;
 	}
 
+	// Tell the command queue how this cycle settled, so that whoever
+	// submitted the command gets a result. The queue records the outcome
+	// per ticket and ws_server turns it into an ack for that one session.
+	taskcmd::report(emcStatus->status);
+
 	// write it
 	// since emcStatus was passed to the WM init functions, it
 	// will be updated in the _update() functions above. There's
 	// no need to call the individual functions on all WM items.
-	emcStatusBuffer->write(emcStatus);
+	wsServerPublish(emcStatus);
 	haluiUpdate();
 
 	// wait on timer cycle, if specified, or calculate actual

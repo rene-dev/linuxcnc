@@ -18,6 +18,9 @@
 #define TASK_CMD_QUEUE_HH
 
 #include <cstddef>
+#include <vector>
+
+#include "rcs_status.hh"
 
 class RCS_CMD_MSG;
 
@@ -68,6 +71,43 @@ bool pending(Ticket ticket);
    buffer's write id, and echoing one of those here would make task drop
    the next command an NML client writes. */
 RCS_CMD_MSG *next(int echo_serial_number);
+
+/* ---------------------------------------------------------------- */
+/* completion reporting                                             */
+/* ---------------------------------------------------------------- */
+
+/* How far a queued command has got. A producer that has to wait for its
+   command -- a websocket client standing in for an NML client that used to
+   poll echo_serial_number and status -- follows these. halui does not: it
+   fires and forgets, and uses pending() instead. */
+enum class State {
+    received,  /* task has taken it off the queue and dispatched it */
+    done,      /* task settled on RCS_STATUS::DONE after dispatching it */
+    error      /* ... or on RCS_STATUS::ERROR */
+};
+
+struct Event {
+    Ticket ticket;
+    State  state;
+};
+
+/* Record the status task settled on this cycle. Task loop only, once per
+   cycle, after emcStatus->status has been decided.
+
+   This is how a queued command gets a result at all: the status is task's
+   single global one, so it says "task settled like this after running your
+   command", exactly what an NML client reads when echo_serial_number
+   matches its own. It carries the same caveat -- a command from another
+   client in flight at the same time muddies the answer. */
+void report(RCS_STATUS status);
+
+/* Take the state changes accumulated since the last call, oldest first.
+   Thread safe; ws_server.cc drains these on its own thread.
+
+   A command superseded before it ran -- coalesced away, or still in flight
+   when the next one was dispatched -- is reported done, matching what an
+   NML client concludes when the echo moves past its serial. */
+void drainEvents(std::vector<Event> &out);
 
 } // namespace taskcmd
 

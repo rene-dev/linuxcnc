@@ -26,8 +26,6 @@ BASE = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), ".."))
 gettext.install("linuxcnc", localedir=os.path.join(BASE, "share", "locale"))
 
 if len(sys.argv) > 1 and sys.argv[1] == '-ini':
-    ini = linuxcnc.ini(sys.argv[2])
-    linuxcnc.nmlfile = ini.getstring("EMC", "NML_FILE", fallback=linuxcnc.nmlfile)
     del sys.argv[1:3]
 
 s = linuxcnc.stat(); s.poll()

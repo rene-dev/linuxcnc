@@ -190,7 +190,7 @@ def save_a_copy(fname,archive_dir='/tmp/old_ngc'):
         sys.exit(1)
 
 def get_linuxcnc_ini_file():
-    ps   = subprocess.Popen('ps -C linuxcncsvr --no-header -o args'.split(),
+    ps   = subprocess.Popen('ps -C milltask --no-header -o args'.split(),
                              stdout=subprocess.PIPE
                            )
     p,e = ps.communicate()

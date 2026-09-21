@@ -94,10 +94,10 @@ def _watchdog():
 
 def connect_and_wait_ready(timeout):
     """Wait until linuxcnc.stat().poll() returns without error and
-    reports a non-negative echo_serial_number. The NML status buffer
-    can be 'invalid err=3' for the first ~30s while linuxcncsvr is
-    still initialising; recreate the stat object on every iteration so
-    a stale invalid buffer does not stick after linuxcncsvr is ready.
+    reports a non-negative echo_serial_number. Task may not be
+    listening yet, or may not have published a first status; recreate
+    the stat object on every iteration rather than holding one that
+    failed to connect.
 
     Catch the full Exception hierarchy: in early startup stat.poll()
     can raise SystemError ('error return without exception set') when

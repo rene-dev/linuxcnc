@@ -26,7 +26,6 @@ extern "C" {
 
     extern char emc_inifile[LINELEN];
 
-    extern char emc_nmlfile[LINELEN];
 
 #define DEFAULT_RS274NGC_STARTUP_CODE ""
     extern char rs274ngc_startup_code[LINELEN];

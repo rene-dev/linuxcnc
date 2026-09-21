@@ -9,9 +9,6 @@ import tkinter
 import time
 
 if len(sys.argv) > 1 and sys.argv[1] == '-ini':
-    ini = linuxcnc.ini(sys.argv[2])
-    nmlfile = ini.find("EMC", "NML_FILE")
-    if nmlfile: linuxcnc.nmlfile = nmlfile
     del sys.argv[1:3]
 
 s = linuxcnc.stat()
@@ -30,12 +27,11 @@ rs274.options.install(t)
 # it only makes sense to enable them during startup.
 #
 # From inspection of the source, and because no messages were seen
-# for those flags, it looks like the state of DEBUG_NML and DEBUG_RCS
-# is only checked early in startup, so changing them later has no effect.
+# for that flag, it looks like the state of DEBUG_RCS is only checked
+# early in startup, so changing it later has no effect.
 bits = [
     (linuxcnc.DEBUG_CONFIG, _('Configuration *')),
     (linuxcnc.DEBUG_VERSIONS, _('Version Numbers *')),
-    (linuxcnc.DEBUG_NML, _('NML *')),
     (linuxcnc.DEBUG_RCS, _('RCS *')),
     (linuxcnc.DEBUG_TASK_ISSUE, _('Task Issue')),
     (linuxcnc.DEBUG_MOTION_TIME, _('Motion Time')),
