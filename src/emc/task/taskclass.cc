@@ -178,8 +178,8 @@ Task::Task(EMC_IO_STAT & emcioStatus_in) :
         }
 
         if (tooltable_filename != NULL && db_program[0] != '\0') {
-            fprintf(stderr,"DB_PROGRAM active: IGNORING tool table file %s\n",
-                    tooltable_filename);
+            log_warn("DB_PROGRAM active: IGNORING tool table file {}",
+                     tooltable_filename);
         }
     }
 

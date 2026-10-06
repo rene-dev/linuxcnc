@@ -368,7 +368,7 @@ static int commandHello(connectionRecType *context)
   if (pch == NULL) return -1;
   context->linked = true;    
   strxcpy(context->version, pch);
-  printf("Connected to %s\n", context->hostName);
+  log_info("Connected to {}", context->hostName);
   return 0;
 }
 
@@ -932,14 +932,14 @@ int commandGet(connectionRecType *context)
 
 int commandQuit(connectionRecType *context)
 {
-  printf("Closing connection with %s\n", context->hostName);
+  log_info("Closing connection with {}", context->hostName);
   return -1;
 }
 
 int commandShutdown(connectionRecType *context)
 {
   if (context->cliSock == enabledConn) {
-    printf("Shutting down\n");
+    log_info("Shutting down");
     thisQuit();
     return -1;
     }
@@ -1154,7 +1154,7 @@ void *readClient(void * /*arg*/)
 //  res = 1;
   context = (connectionRecType *) malloc(sizeof(connectionRecType));
   if (!context) {
-    fprintf(stderr, "emcrsh: no memory\n");
+    log_error("no memory");
     goto fail;
   }
   context->cliSock = client_sockfd;
@@ -1177,7 +1177,7 @@ void *readClient(void * /*arg*/)
     if (!memchr(str, 0x0d, strlen(str))) continue;
     if (context->echo && context->linked)
       if(write(context->cliSock, buf, strlen(buf)) != (ssize_t)strlen(buf)) {
-        fprintf(stderr, "emcrsh: write() failed: %s", strerror(errno));
+        log_error("write() failed: {}", strerror(errno));
       }
     i = 0;
     j = 0;

@@ -49,17 +49,17 @@ static ptr_inihal_data *the_inihal_data;
 #define UPDATE_IDX(NAME,IDX) old_inihal_data.NAME[IDX] = new_inihal_data.NAME[IDX]
 
 #define SHOW_CHANGE(NAME) \
-    fprintf(stderr,"Changed: "#NAME" %g-->%g\n",old_inihal_data.NAME, \
-                                                new_inihal_data.NAME);
+    log_info("Changed: " #NAME " {}-->{}", old_inihal_data.NAME, \
+                                           new_inihal_data.NAME);
 #define SHOW_CHANGE_INT(NAME) \
-    fprintf(stderr,"Changed: "#NAME" %ld-->%ld\n",old_inihal_data.NAME, \
-                                                new_inihal_data.NAME);
+    log_info("Changed: " #NAME " {}-->{}", old_inihal_data.NAME, \
+                                           new_inihal_data.NAME);
 #define SHOW_CHANGE_ARC_BLEND() \
-    fprintf(stderr,"Changed: blend_enable:          %d-->%d\n"\
-                   "         blend_fallback_enable: %d-->%d\n"\
-                   "         optimization_depth:    %ld-->%ld\n"\
-                   "         gap_cycles:            %f-->%f\n"\
-                   "         ramp_freq:             %f-->%f\n"\
+    log_info("Changed: blend_enable: {}-->{}, "\
+                   "blend_fallback_enable: {}-->{}, "\
+                   "optimization_depth: {}-->{}, "\
+                   "gap_cycles: {:f}-->{:f}, "\
+                   "ramp_freq: {:f}-->{:f}"\
            ,old_inihal_data.traj_arc_blend_enable \
            ,new_inihal_data.traj_arc_blend_enable \
            ,old_inihal_data.traj_arc_blend_fallback_enable \
@@ -73,11 +73,11 @@ static ptr_inihal_data *the_inihal_data;
           );
 
 #define SHOW_CHANGE_IDX(NAME,IDX) \
-    fprintf(stderr,"Changed: "#NAME"[%d] %g-->%g\n",IDX,old_inihal_data.NAME[IDX], \
-                                                        new_inihal_data.NAME[IDX]);
+    log_info("Changed: " #NAME "[{}] {}-->{}", IDX, old_inihal_data.NAME[IDX], \
+                                                   new_inihal_data.NAME[IDX]);
 #define SHOW_CHANGE_IDX_INT(NAME,IDX) \
-    fprintf(stderr,"Changed: "#NAME"[%d] %ld-->%ld\n",IDX,old_inihal_data.NAME[IDX], \
-                                                        new_inihal_data.NAME[IDX]);
+    log_info("Changed: " #NAME "[{}] {}-->{}", IDX, old_inihal_data.NAME[IDX], \
+                                                   new_inihal_data.NAME[IDX]);
 #define MAKE_BIT_PIN(NAME,DIR) \
 do { \
      int retval = hal_pin_new_bool(comp_id, DIR, &(the_inihal_data->NAME), 0, PREFIX#NAME); \

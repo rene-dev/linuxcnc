@@ -38,6 +38,7 @@
 #include <algorithm>
 #include <fmt/format.h>
 
+#include "logutil.hh"
 #include "shcom.hh"
 #include "nml_intf/emcglb.h"
 #include <inifile.hh>
@@ -268,7 +269,6 @@ static struct option longopts[] = {
 	{}
 };
 
-static void info(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static std::string vformat(const char *fmt, va_list va) __attribute__((format(printf, 1, 0)));
 static std::string vformat(const char *fmt, va_list va)
 {
@@ -283,16 +283,14 @@ static std::string vformat(const char *fmt, va_list va)
 	return s;
 }
 
+static void info(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static void info(const char *fmt, ...)
 {
 	if(quiet)
 		return;
 	va_list va;
 	va_start(va, fmt);
-	fprintf(stdout, "linuxcncrsh: ");
-	vfprintf(stdout, fmt, va);
-	fprintf(stdout, "\n");
-	fflush(stdout);
+	log_info("{}", vformat(fmt, va));
 	va_end(va);
 }
 
@@ -301,10 +299,7 @@ static void error(const char *fmt, ...)
 {
 	va_list va;
 	va_start(va, fmt);
-	fprintf(stderr, "linuxcncrsh: ");
-	vfprintf(stderr, fmt, va);
-	fprintf(stderr, "\n");
-	fflush(stderr);
+	log_error("{}", vformat(fmt, va));
 	va_end(va);
 }
 
@@ -314,10 +309,7 @@ static void xperror(const char *fmt, ...)
 	int en = errno;
 	va_list va;
 	va_start(va, fmt);
-	fprintf(stderr, "linuxcncrsh: ");
-	vfprintf(stderr, fmt, va);
-	fprintf(stderr, ": %s\n", strerror(en));
-	fflush(stderr);
+	log_error("{}: {}", vformat(fmt, va), strerror(en));
 	va_end(va);
 }
 

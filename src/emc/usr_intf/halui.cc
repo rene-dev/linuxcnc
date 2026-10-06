@@ -1977,7 +1977,7 @@ static void modify_hal_pins()
         for (idx = 0; idx <= tooldata_last_index_get(); idx ++) { // note <=
             CANON_TOOL_TABLE tdata;
             if (tooldata_get(&tdata,idx) != IDX_OK) {
-                fprintf(stderr,"UNEXPECTED idx %s %d\n",__FILE__,__LINE__);
+                log_error("UNEXPECTED idx {} {}", __FILE__, __LINE__);
             }
             if (tdata.toolno == emcStatus->io.tool.toolInSpindle) {
                 hal_set_real(halui_data->tool_diameter, tdata.diameter);

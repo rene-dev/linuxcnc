@@ -286,7 +286,7 @@ int emcCommandWaitDone()
                 return -1;
 
             default: // Default should never happen...
-                fprintf(stderr, "shcom.cc: emcCommandWaitDone(): unknown emcStatus->status=%d\n", (int)emcStatus->status);
+                log_error("shcom.cc: emcCommandWaitDone(): unknown emcStatus->status={}", (int)emcStatus->status);
                 return -1;
             }
         }
@@ -515,10 +515,10 @@ int sendJogStop(int ja, int jjogmode)
 
     // FIXME: these checks should use the emcStatus values
     if (  jjogmode &&  (ja < 0 || ja >= num_joints)) {
-      fprintf(stderr,"shcom.cc: unexpected_1 %d\n",ja); return -1;
+      log_error("shcom.cc: unexpected_1 {}", ja); return -1;
     }
     if ( !jjogmode &&  (ja < 0))                     {
-      fprintf(stderr,"shcom.cc: unexpected_2 %d\n",ja); return -1;
+      log_error("shcom.cc: unexpected_2 {}", ja); return -1;
     }
 
     emc_jog_stop_msg.jjogmode = jjogmode;
@@ -541,10 +541,10 @@ int sendJogCont(int ja, int jjogmode, double speed)
 
     // FIXME: these checks should use the emcStatus values
     if (  jjogmode &&  (ja < 0 || ja >= num_joints)) {
-       fprintf(stderr,"shcom.cc: unexpected_3 %d\n",ja); return -1;
+       log_error("shcom.cc: unexpected_3 {}", ja); return -1;
     }
     if ( !jjogmode &&  (ja < 0))                     {
-       fprintf(stderr,"shcom.cc: unexpected_4 %d\n",ja); return -1;
+       log_error("shcom.cc: unexpected_4 {}", ja); return -1;
     }
 
     emc_jog_cont_msg.jjogmode = jjogmode;
@@ -569,10 +569,10 @@ int sendJogIncr(int ja, int jjogmode, double speed, double incr)
 
     // FIXME: these checks should use the emcStatus values
     if (  jjogmode &&  (ja < 0 || ja >= num_joints)) {
-        fprintf(stderr,"shcom.cc: unexpected_5 %d\n",ja); return -1;
+        log_error("shcom.cc: unexpected_5 {}", ja); return -1;
     }
     if ( !jjogmode &&  (ja < 0))                     {
-        fprintf(stderr,"shcom.cc: unexpected_6 %d\n",ja); return -1;
+        log_error("shcom.cc: unexpected_6 {}", ja); return -1;
     }
 
     emc_jog_incr_msg.jjogmode = jjogmode;

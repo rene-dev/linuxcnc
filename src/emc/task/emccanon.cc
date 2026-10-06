@@ -3136,13 +3136,13 @@ void COMMENT(const char *comment)
 	if (3 !=
 	    sscanf(comment, "%*s %lf %lf %lf", &rpy.r, &rpy.p, &rpy.y)) {
 	    // print current orientation
-	    printf("rpy = %f %f %f, quat = %f %f %f %f\n",
-		   rpy.r, rpy.p, rpy.y, quat.s, quat.x, quat.y, quat.z);
+	    log_info("rpy = {:f} {:f} {:f}, quat = {:f} {:f} {:f} {:f}",
+		     rpy.r, rpy.p, rpy.y, quat.s, quat.x, quat.y, quat.z);
 	} else {
 	    // set and print orientation
 	    quat = rpy;
-	    printf("rpy = %f %f %f, quat = %f %f %f %f\n",
-		   rpy.r, rpy.p, rpy.y, quat.s, quat.x, quat.y, quat.z);
+	    log_info("rpy = {:f} {:f} {:f}, quat = {:f} {:f} {:f} {:f}",
+		     rpy.r, rpy.p, rpy.y, quat.s, quat.x, quat.y, quat.z);
 	}
 	return;
     }
@@ -3294,27 +3294,27 @@ static FILE *logfile = NULL;
 void LOG(char *s) {
     flush_segments();
     if(logfile) { fprintf(logfile, "%s\n", s); fflush(logfile); }
-    fprintf(stderr, "LOG(%s)\n", s);
+    log_info("LOG({})", s);
 
 }
 
 void LOGOPEN(char *name) {
     if(logfile) fclose(logfile);
     logfile = fopen(name, "wt");
-    fprintf(stderr, "LOGOPEN(%s) -> %p\n", name, logfile);
+    log_info("LOGOPEN({}) -> {}", name, fmt::ptr(logfile));
 }
 
 void LOGAPPEND(char *name) {
     if(logfile) fclose(logfile);
     logfile = fopen(name, "at");
-    fprintf(stderr, "LOGAPPEND(%s) -> %p\n", name, logfile);
+    log_info("LOGAPPEND({}) -> {}", name, fmt::ptr(logfile));
 }
 
 
 void LOGCLOSE() {
     if(logfile) fclose(logfile);
     logfile = NULL;
-    fprintf(stderr, "LOGCLOSE()\n");
+    log_info("LOGCLOSE()");
 }
 
 void MIST_OFF()
