@@ -17,16 +17,15 @@
 #include <string.h>		/* strchr(), memmove() */
 #include <stdlib.h>		/* malloc(), free(), realloc() */
 #include <errno.h>		// errno()
+#include <string>
+#include <string_view>
 #include <vector>
 
-#include <sys/types.h>
-#include <unistd.h>		/* getpid() */
+#include <spdlog/spdlog.h>
+
 
 #include "libnml/rcs/rcs_print.hh"
 #include "libnml/linklist/linklist.hh"
-#ifndef _TIMER_H
-extern "C" double etime(void);
-#endif
 
 LinkedList *rcs_print_list = NULL;
 char **rcs_lines_table = NULL;
@@ -282,10 +281,11 @@ int separate_words(char **_dest, int _max, char *_src)
     return (i + 1);
 }
 
-int rcs_vprint(const char *_fmt, va_list _args, int save_string)
+// printf-style formatting into a std::string; false if _fmt is bad
+static bool rcs_vformat(std::string &out, const char *_fmt, va_list _args)
 {
     if (NULL == _fmt) {
-	return EOF;
+	return false;
     }
     // Determine the required size of the buffer (see EXAMPLES in printf(3))
     va_list va;
@@ -293,36 +293,20 @@ int rcs_vprint(const char *_fmt, va_list _args, int save_string)
     int sz = vsnprintf(NULL, 0, _fmt, va);
     va_end(va);
     if (sz < 0)
-        return EOF;
+        return false;
     // Create the space and print into it
     std::vector<char> tmpstr(sz+1);
     if (vsnprintf(tmpstr.data(), sz+1, _fmt, _args) < 0) {
-	return EOF;
+	return false;
     }
-    if (save_string) {
-        last_error_buf_filled++;
-        last_error_buf_filled %= 4;
-        nml_strlcpy(last_error_bufs[last_error_buf_filled], tmpstr.data(), error_buf_size-1);
-    }
-    return rcs_fputs(tmpstr.data());
+    out.assign(tmpstr.data(), sz);
+    return true;
 }
 
-int rcs_puts(const char *_str)
-{
-    int retval, retval2;
-    retval = rcs_fputs(_str);
-    if (retval != EOF) {
-	retval2 = rcs_fputs("\n");
-	if (retval2 != EOF) {
-	    retval += retval;
-	} else {
-	    retval = EOF;
-	}
-    }
-    return (retval);
-}
-
-int rcs_fputs(const char *_str)
+// Writes one message to the current destination. On the console
+// destinations it becomes one spdlog record at `level`; spdlog ends the
+// line itself, so trailing newlines are dropped.
+static int rcs_output(spdlog::level::level_enum level, const char *_str)
 {
     int retval = EOF;
     if (NULL != _str) {
@@ -331,16 +315,18 @@ int rcs_fputs(const char *_str)
 	}
 	switch (rcs_print_destination) {
 	case RCS_PRINT_TO_LOGGER:
-
 	case RCS_PRINT_TO_STDOUT:
-	    retval = fputs(_str, stdout);
-	    fflush(stdout);
+	case RCS_PRINT_TO_STDERR: {
+	    std::string_view msg(_str);
+	    retval = msg.size();
+	    while (!msg.empty() && msg.back() == '\n') {
+		msg.remove_suffix(1);
+	    }
+	    if (!msg.empty()) {
+		spdlog::default_logger_raw()->log(level, "{}", msg);
+	    }
 	    break;
-
-	case RCS_PRINT_TO_STDERR:
-	    retval = fputs(_str, stderr);
-	    fflush(stderr);
-	    break;
+	}
 
 	case RCS_PRINT_TO_LIST:
 	    if (NULL == rcs_print_list) {
@@ -380,6 +366,45 @@ int rcs_fputs(const char *_str)
 	}
     }
     return (retval);
+}
+
+static int rcs_vlog(spdlog::level::level_enum level, const char *_fmt,
+		    va_list _args, int save_string)
+{
+    std::string msg;
+    if (!rcs_vformat(msg, _fmt, _args)) {
+	return EOF;
+    }
+    if (save_string) {
+        last_error_buf_filled++;
+        last_error_buf_filled %= 4;
+        nml_strlcpy(last_error_bufs[last_error_buf_filled], msg.c_str(), error_buf_size-1);
+    }
+    return rcs_output(level, msg.c_str());
+}
+
+int rcs_vprint(const char *_fmt, va_list _args, int save_string)
+{
+    return rcs_vlog(spdlog::level::info, _fmt, _args, save_string);
+}
+
+int rcs_puts(const char *_str)
+{
+    if (NULL == _str) {
+	return EOF;
+    }
+    return rcs_output(spdlog::level::info, (std::string(_str) + "\n").c_str());
+}
+
+int rcs_fputs(const char *_str)
+{
+    return rcs_output(spdlog::level::info, _str);
+}
+
+static void rcs_print_too_many_errors()
+{
+    rcs_output(spdlog::level::warn,
+	       "Maximum number of errors to print exceeded!\n");
 }
 
 void close_rcs_printing()
@@ -425,22 +450,10 @@ int rcs_print(const char *_fmt, ...)
     if(!_fmt)
         return rcs_fputs("internal error: rcs_print(NULL) detected\n");
     va_list args;
-    // Determine the required size of the buffer (see EXAMPLES in printf(3))
     va_start(args, _fmt);
-    int sz = vsnprintf(NULL, 0, _fmt, args);
+    int retval = rcs_vlog(spdlog::level::info, _fmt, args, 0);
     va_end(args);
-    if (sz < 0)
-        return -1;
-
-    // Create the space and print into it
-    std::vector<char> tmpbuf(sz+1);
-    va_start(args, _fmt);
-    sz = vsnprintf(tmpbuf.data(), sz+1, _fmt, args);
-    va_end(args);
-    if (sz < 0)
-        return -1;
-
-    return rcs_fputs(tmpbuf.data());
+    return retval;
 }
 
 #ifndef DO_NOT_USE_RCS_PRINT_ERROR_NEW
@@ -461,15 +474,25 @@ int print_rcs_error_new(const char *_fmt, ...)
     if ((rcs_print_mode_flags & PRINT_RCS_ERRORS)
 	&& ((max_rcs_errors_to_print >= rcs_errors_printed)
 	    || max_rcs_errors_to_print < 0)) {
-	if (NULL != rcs_error_filename && rcs_error_linenum > 0) {
-	    rcs_print("%s %d: ", rcs_error_filename, rcs_error_linenum);
-	    rcs_error_filename = NULL;
-	    rcs_error_linenum = -1;
+	std::string msg;
+	if (rcs_vformat(msg, _fmt, args)) {
+	    if (NULL != rcs_error_filename && rcs_error_linenum > 0) {
+		msg = fmt::format("{} {}: {}", rcs_error_filename,
+				  rcs_error_linenum, msg);
+	    }
+	    last_error_buf_filled++;
+	    last_error_buf_filled %= 4;
+	    nml_strlcpy(last_error_bufs[last_error_buf_filled], msg.c_str(),
+			error_buf_size-1);
+	    retval = rcs_output(spdlog::level::err, msg.c_str());
+	} else {
+	    retval = EOF;
 	}
-	retval = rcs_vprint(_fmt, args, 1);
+	rcs_error_filename = NULL;
+	rcs_error_linenum = -1;
 	if (max_rcs_errors_to_print == rcs_errors_printed &&
 	    max_rcs_errors_to_print >= 0) {
-	    rcs_print("\nMaximum number of errors to print exceeded!\n");
+	    rcs_print_too_many_errors();
 	}
     }
     if (rcs_print_destination != RCS_PRINT_TO_NULL) {
@@ -484,14 +507,12 @@ int print_rcs_error_new(const char *_fmt, ...)
 int rcs_print_debug(long flag_to_check, const char *_fmt, ...)
 {
     int retval = 0;
-    int pid = 0;
     va_list args;
     va_start(args, _fmt);
 
+    // the time and pid it used to print are in the log pattern now
     if (flag_to_check & rcs_print_mode_flags) {
-	pid = getpid();
-	rcs_print("(time=%f,pid=%d): ", etime(), pid);
-	retval = rcs_vprint(_fmt, args, 0);
+	retval = rcs_vlog(spdlog::level::debug, _fmt, args, 0);
     }
     va_end(args);
     return (retval);
@@ -509,33 +530,20 @@ void clear_rcs_print_flag(long flag_to_clear)
 
 int rcs_print_sys_error(int error_source, const char *_fmt, ...)
 {
+    int err = errno;	// before formatting can change it
     va_list args;
-    int r;
 
-    if (NULL == _fmt) {
-	return (EOF);
-    }
-
-    // Determine the required size of the buffer (see EXAMPLES in printf(3))
+    std::string msg;
     va_start(args, _fmt);
-    r = vsnprintf(NULL, 0, _fmt, args);
+    bool ok = rcs_vformat(msg, _fmt, args);
     va_end(args);
-    if (r < 0) {
-	return EOF;
-    }
-
-    // Create the space and print into it
-    std::vector<char> tmpstr(r+1);
-    va_start(args, _fmt);
-    r = vsnprintf(tmpstr.data(), r+1, _fmt, args);
-    va_end(args);
-    if (r < 0) {
+    if (!ok) {
 	return EOF;
     }
 
     if (max_rcs_errors_to_print == rcs_errors_printed &&
 	max_rcs_errors_to_print >= 0) {
-	rcs_print("\nMaximum number of errors to print exceeded!\n");
+	rcs_print_too_many_errors();
     }
     rcs_errors_printed++;
     if (max_rcs_errors_to_print <= rcs_errors_printed &&
@@ -543,19 +551,13 @@ int rcs_print_sys_error(int error_source, const char *_fmt, ...)
 	return (EOF);
     }
 
-    switch (error_source) {
-    case ERRNO_ERROR_SOURCE: {
-        r = snprintf(NULL, 0, "%s %d %s\n", tmpstr.data(), errno, strerror(errno));
-        std::vector<char> msgstr(r+1);
-        snprintf(msgstr.data(), r+1, "%s %d %s\n", tmpstr.data(), errno, strerror(errno));
-	r = rcs_puts(msgstr.data());
-	break;
-        }
-    default:
-	r = rcs_puts(tmpstr.data());
-	break;
+    if (error_source == ERRNO_ERROR_SOURCE) {
+	while (!msg.empty() && msg.back() == '\n') {
+	    msg.pop_back();
+	}
+	msg = fmt::format("{} {} {}", msg, err, strerror(err));
     }
-    return r;
+    return rcs_output(spdlog::level::err, msg.c_str());
 }
 
 #ifdef rcs_print_error
@@ -572,10 +574,10 @@ int rcs_print_error(const char *_fmt, ...)
     if ((rcs_print_mode_flags & PRINT_RCS_ERRORS)
 	&& ((max_rcs_errors_to_print >= rcs_errors_printed)
 	    || max_rcs_errors_to_print < 0)) {
-	retval = rcs_vprint(_fmt, args, 1);
+	retval = rcs_vlog(spdlog::level::err, _fmt, args, 1);
 	if (max_rcs_errors_to_print == rcs_errors_printed &&
 	    max_rcs_errors_to_print >= 0) {
-	    rcs_print("\nMaximum number of errors to print exceeded!\n");
+	    rcs_print_too_many_errors();
 	}
     }
     if (rcs_print_destination != RCS_PRINT_TO_NULL) {
