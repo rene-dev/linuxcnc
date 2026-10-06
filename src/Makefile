@@ -259,6 +259,7 @@ endif
 INCLUDE := $(patsubst %,-I%, $(INCLUDES)) -I$(RTDIR)/include -I../include
 INCLUDE += $(PYTHON_CPPFLAGS)
 INCLUDE += $(LIBTIRPC_CFLAGS)
+INCLUDE += $(SPDLOG_CFLAGS)
 
 # Compilation options.	Perhaps some of these should come from Makefile.inc? (CXXFLAGS now does)
 INTEGER_OVERFLOW_FLAGS := -fwrapv

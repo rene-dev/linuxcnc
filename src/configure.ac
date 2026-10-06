@@ -1598,6 +1598,10 @@ if test "x$HAVE_LIBFMT" = "xno"; then
     AC_MSG_ERROR([libfmt header not found. Install with 'sudo apt-get install libfmt-dev'])
 fi
 
+# 1.10 is the first release whose logging calls take fmt::format_string
+PKG_CHECK_MODULES([SPDLOG], [spdlog >= 1.10], [],
+    [AC_MSG_ERROR([spdlog not found. Install with 'sudo apt-get install libspdlog-dev'])])
+
 AC_LANG_PUSH([C++])
 CPPFLAGS_SAVED="$CPPFLAGS"
 CPPFLAGS="$PYTHON_CPPFLAGS $CPPFLAGS"

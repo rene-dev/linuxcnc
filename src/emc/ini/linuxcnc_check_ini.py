@@ -207,6 +207,11 @@ def check_enums():
     if ini.hasvariable("DISPLAY", "POSITION_FEEDBACK"):
         if ini.getstring("DISPLAY", "POSITION_FEEDBACK").upper() not in ["COMMANDED", "ACTUAL"]:
             perr("[DISPLAY]POSITION_FEEDBACK: Must be one of [COMMANDED,ACTUAL]")
+    if ini.hasvariable("EMC", "LOG_LEVEL"):
+        # spdlog level names, case sensitive; warn and err are its aliases
+        if ini.getstring("EMC", "LOG_LEVEL") not in ["trace", "debug", "info", "warning", "warn",
+                                                    "error", "err", "critical", "off"]:
+            perr("[EMC]LOG_LEVEL: Must be one of [trace,debug,info,warning,error,critical,off]")
 
 #
 # Check a set of variables for having the right type if they are present

@@ -62,14 +62,14 @@ int usrmotIniLoad(const char *filename)
         if (auto inival = inifile.findUInt("SHMEM_KEY", "EMCMOT")) {
             SHMEM_KEY = *inival;
         } else {
-            log_error("USRMOT: ERROR: Invalid [EMCMOT]SHMEM_KEY\n");
+            log_error("USRMOT: ERROR: Invalid [EMCMOT]SHMEM_KEY");
         }
     }
     if (inifile.isSet("COMM_TIMEOUT", "EMCMOT")) {
         if (auto inival = inifile.findReal("COMM_TIMEOUT", "EMCMOT")) {
             EMCMOT_COMM_TIMEOUT = *inival;
         } else {
-            log_error("USRMOT: ERROR: Invalid [EMCMOT]COMM_TIMEOUT\n");
+            log_error("USRMOT: ERROR: Invalid [EMCMOT]COMM_TIMEOUT");
         }
     }
     return 0;
@@ -83,7 +83,7 @@ int usrmotWriteEmcmotCommand(emcmot_command_t * c)
     double end;
 
     if (!MOTION_ID_VALID(c->id)) {
-        log_error("USRMOT: ERROR: invalid motion id: {}\n", c->id);
+        log_error("USRMOT: ERROR: invalid motion id: {}", c->id);
 	return EMCMOT_COMM_INVALID_MOTION_ID;
     }
 
@@ -91,7 +91,7 @@ int usrmotWriteEmcmotCommand(emcmot_command_t * c)
 
     /* check for mapped mem still around */
     if (NULL == emcmotCommand) {
-        log_error("USRMOT: ERROR: can't connect to shared memory\n");
+        log_error("USRMOT: ERROR: can't connect to shared memory");
 	return EMCMOT_COMM_ERROR_CONNECT;
     }
 
@@ -111,13 +111,13 @@ int usrmotWriteEmcmotCommand(emcmot_command_t * c)
 	    if (s.commandStatus == EMCMOT_COMMAND_OK) {
 		return EMCMOT_COMM_OK;
 	    } else {
-                log_error("USRMOT: ERROR: invalid command\n");
+                log_error("USRMOT: ERROR: invalid command");
 		return EMCMOT_COMM_ERROR_COMMAND;
 	    }
 	}
 	esleep(25us);
     }
-    log_error("USRMOT: ERROR: command {} timeout (seq: {})\n",
+    log_error("USRMOT: ERROR: command {} timeout (seq: {})",
         static_cast<unsigned>(c->command), commandNum);
     return EMCMOT_COMM_ERROR_TIMEOUT;
 }
@@ -144,7 +144,7 @@ int usrmotReadEmcmotStatus(emcmot_status_t * s)
 	/* inc counter and try again, max three times */
     } while ( ++split_read_count < 3 );
     /* A timeout is harmless. It will be tried again, soon enough */
-    /* log_error("{}: Split read timeout\n", __FUNCTION__); */
+    /* log_error("{}: Split read timeout", __FUNCTION__); */
     return EMCMOT_COMM_SPLIT_READ_TIMEOUT;
 }
 
@@ -169,7 +169,7 @@ int usrmotReadEmcmotConfig(emcmot_config_t * s)
 	}
 	/* inc counter and try again, max three times */
     } while ( ++split_read_count < 3 );
-    log_error("{}: Split read timeout\n", __FUNCTION__);
+    log_error("{}: Split read timeout", __FUNCTION__);
     return EMCMOT_COMM_SPLIT_READ_TIMEOUT;
 }
 
@@ -194,7 +194,7 @@ int usrmotReadEmcmotInternal(emcmot_internal_t * s)
 	}
 	/* inc counter and try again, max three times */
     } while ( ++split_read_count < 3 );
-    log_error("{}: Split read timeout\n", __FUNCTION__);
+    log_error("{}: Split read timeout", __FUNCTION__);
     return EMCMOT_COMM_SPLIT_READ_TIMEOUT;
 }
 

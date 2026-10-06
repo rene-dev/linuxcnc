@@ -36,14 +36,15 @@
 
 using namespace linuxcnc;
 
-// FIXME:
-// This should not be printed directly to stderr, although the previous ini
-// reader did that. We also do not want to pull in libnml. A new consistent
-// linuxcnc global print library with channels should be established instead.
-#include <iostream>
+// The messages read like compiler diagnostics ("file:line: warning: ..."),
+// and that word picks the log level.
 static inline void print_msg(const std::string &str)
 {
-	log_error("{}\n",str);
+	if (str.find("warning:") != std::string::npos) {
+		log_warn("{}", str);
+	} else {
+		log_error("{}", str);
+	}
 }
 
 // Identifier characters

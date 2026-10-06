@@ -3484,7 +3484,7 @@ void INIT_CANON()
         std::string err;
         linuxcnc::IniFile ini(emc_inifile);
         if (axisKindsRead(ini, &kinds, &err)) {
-            log_error("{}\n", err);
+            log_error("{}", err);
         }
     }
 
@@ -3554,7 +3554,7 @@ CANON_TOOL_TABLE GET_EXTERNAL_TOOL_TABLE(int idx)
         tdata.orientation = 0;
     } else {
         if (tooldata_get(&tdata,idx) != IDX_OK) {
-            log_error("UNEXPECTED idx {} {}\n",__FILE__,__LINE__);
+            log_error("UNEXPECTED idx {} {}",__FILE__,__LINE__);
         }
     }
     return tdata;

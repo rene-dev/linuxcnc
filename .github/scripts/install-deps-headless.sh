@@ -29,6 +29,7 @@ sudo apt-get install --yes --no-install-recommends \
     libusb-1.0-0-dev \
     libboost-python-dev \
     libfmt-dev \
+    libspdlog-dev \
     python3-pybind11 \
     python3-numpy \
     libcap-dev \

@@ -772,25 +772,25 @@ int sendProgramOpen(const char *program)
         /* open file */
         FILE *fd;
         if(!(fd = fopen(program, "r"))) {
-            log_error("fopen({}) error: {}\n", program, strerror(errno));
+            log_error("fopen({}) error: {}", program, strerror(errno));
             return -1;
         }
         /* get filesize */
         if(fseek(fd, 0L, SEEK_END) != 0) {
             fclose(fd);
-            log_error("fseek({}) error: {}\n", program, strerror(errno));
+            log_error("fseek({}) error: {}", program, strerror(errno));
             return -1;
         }
         long ftpos = ftell(fd);
         msg.remote_filesize = ftpos;
         if(ftpos < 0) {
             fclose(fd);
-            log_error("ftell({}) error: {}\n", program, strerror(errno));
+            log_error("ftell({}) error: {}", program, strerror(errno));
             return -1;
         }
         if(fseek(fd, 0L, SEEK_SET) != 0) {
             fclose(fd);
-            log_error("fseek({}) error: {}\n", program, strerror(errno));
+            log_error("fseek({}) error: {}", program, strerror(errno));
             return -1;
         }
 
@@ -799,7 +799,7 @@ int sendProgramOpen(const char *program)
             size_t bytes_read = fread(&msg.remote_buffer, 1, sizeof(msg.remote_buffer), fd);
             /* read error? */
             if(bytes_read <= 0 && ferror(fd)) {
-                log_error("fread({}) error: {}\n", program, strerror(errno));
+                log_error("fread({}) error: {}", program, strerror(errno));
                 res = -1;
                 break;
             }
@@ -809,7 +809,7 @@ int sendProgramOpen(const char *program)
             emcCommandSend(msg);
             /* error happened? */
             if(emcCommandWaitDone() != 0) {
-                log_error("emcCommandSend() error\n");
+                log_error("emcCommandSend() error");
                 res = -1;
                 break;
             }
@@ -973,13 +973,14 @@ int iniLoad(const char *filename)
 
     // EMC debugging flags
     emc_debug = (unsigned)inifile.findUIntV("DEBUG", "EMC", 0);
+    log_configure(inifile);
 
     if (emc_debug & EMC_DEBUG_CONFIG) {
         std::string version = inifile.findStringV("VERSION", "EMC", "<unknown>");
         std::string machine = inifile.findStringV("MACHINE", "EMC", "<unknown>");
         extern char *program_invocation_short_name;
         log_info(
-            "{} ({}) shcom: machine '{}'  version '{}'\n",
+            "{} ({}) shcom: machine '{}'  version '{}'",
             program_invocation_short_name, getpid(), machine, version
             );
     }

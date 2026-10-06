@@ -22,27 +22,27 @@ $(call TOOBJSDEPS, $(EMCSHSRCS)) : EXTRAFLAGS = $(ULFLAGS) $(TCL_CFLAGS) -fPIC
 
 ../tcl/linuxcnc.so: $(call TOOBJS, $(EMCSHSRCS)) ../lib/liblinuxcnc.a ../lib/liblinuxcncini.so.1 ../lib/libnml.so.0
 	$(ECHO) Linking $(notdir $@)
-	$(Q)$(CXX) -shared $(LDFLAGS) -o $@ $(ULFLAGS) $(TCL_CFLAGS) $^ $(TCL_LIBS) -lXinerama
+	$(Q)$(CXX) -shared $(LDFLAGS) -o $@ $(ULFLAGS) $(TCL_CFLAGS) $^ $(TCL_LIBS) -lXinerama $(SPDLOG_LIBS)
 ifeq ($(BUILD_GUI),yes)
 TARGETS += ../tcl/linuxcnc.so
 endif
 
 ../bin/linuxcncrsh: $(call TOOBJS, $(EMCRSHSRCS)) ../lib/liblinuxcnchal.so.0 ../lib/liblinuxcnc.a ../lib/libnml.so.0 ../lib/liblinuxcncini.so.1
 	$(ECHO) Linking $(notdir $@)
-	$(Q)$(CXX) -o $@ $(ULFLAGS) $^ -lfmt $(LDFLAGS)
+	$(Q)$(CXX) -o $@ $(ULFLAGS) $^ $(SPDLOG_LIBS) $(LDFLAGS)
 TARGETS += ../bin/linuxcncrsh
 
 ../bin/schedrmt: $(call TOOBJS, $(EMCSCHEDSRCS)) ../lib/liblinuxcnchal.so.0 ../lib/liblinuxcnc.a ../lib/libnml.so.0 ../lib/liblinuxcncini.so.1
 	$(ECHO) Linking $(notdir $@)
-	$(Q)$(CXX) -o $@ $(ULFLAGS) $^ -lpthread -lfmt $(LDFLAGS)
+	$(Q)$(CXX) -o $@ $(ULFLAGS) $^ -lpthread $(SPDLOG_LIBS) $(LDFLAGS)
 TARGETS += ../bin/schedrmt
 
 ../bin/linuxcnclcd: $(call TOOBJS, $(EMCLCDSRCS)) ../lib/liblinuxcnchal.so.0 ../lib/liblinuxcnc.a ../lib/libnml.so.0 ../lib/liblinuxcncini.so.1
 	$(ECHO) Linking $(notdir $@)
-	$(Q)$(CXX) -o $@ $(ULFLAGS) $^ -lfmt $(LDFLAGS)
+	$(Q)$(CXX) -o $@ $(ULFLAGS) $^ $(SPDLOG_LIBS) $(LDFLAGS)
 TARGETS += ../bin/linuxcnclcd
 
 ../bin/halui: $(call TOOBJS, $(HALUISRCS)) ../lib/liblinuxcnc.a ../lib/liblinuxcncini.so.1 ../lib/libnml.so.0 ../lib/liblinuxcnchal.so.0 ../lib/libtooldata.so.0
 	$(ECHO) Linking $(notdir $@)
-	$(Q)$(CXX) $(CXXFLAGS) -o $@ $(ULFLAGS) $^ -lfmt $(LDFLAGS)
+	$(Q)$(CXX) $(CXXFLAGS) -o $@ $(ULFLAGS) $^ $(SPDLOG_LIBS) $(LDFLAGS)
 TARGETS += ../bin/halui

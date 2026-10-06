@@ -1,5 +1,5 @@
 # The ini-file dynamic library
-LIBLCNCINISRCS := emc/ini/inifile.cc
+LIBLCNCINISRCS := emc/ini/inifile.cc emc/logutil.cc
 $(call TOOBJSDEPS, $(LIBLCNCINISRCS)) : EXTRAFLAGS=-fPIC
 
 USERSRCS += $(LIBLCNCINISRCS)
@@ -9,7 +9,7 @@ TARGETS += ../lib/liblinuxcncini.so ../lib/liblinuxcncini.so.1
 	$(ECHO) Creating shared library $(notdir $@)
 	@mkdir -p ../lib
 	@rm -f $(basename $@).[0-9]*
-	$(Q)$(CXX) $(LDFLAGS) -Wl,-soname,$(notdir $@) -shared -o $@ $^ -lfmt
+	$(Q)$(CXX) $(LDFLAGS) -Wl,-soname,$(notdir $@) -shared -o $@ $^ $(SPDLOG_LIBS)
 
 # Explicit symlink rule: the generic ../lib/%.so pattern rules in src/Makefile
 # match both %.so.0 and %.so.1, and the %.so.0 rule wins when a stale .so.0 is
@@ -24,7 +24,7 @@ USERSRCS += $(INIVALUESRCS)
 
 ../bin/inivalue: $(call TOOBJS, $(INIVALUESRCS)) ../lib/liblinuxcncini.so.1
 	$(ECHO) Linking $(notdir $@)
-	$(Q)$(CXX) $(LDFLAGS) -o $@ $^ -lfmt
+	$(Q)$(CXX) $(LDFLAGS) -o $@ $^ $(SPDLOG_LIBS)
 
 TARGETS += ../bin/inivalue
 

@@ -30,7 +30,7 @@ extern value_inihal_data old_inihal_data;
 static void inline print_dbg_config(const std::string &s)
 {
     if (emc_debug & EMC_DEBUG_CONFIG) {
-        log_error("{}: failed\n", s);
+        log_error("{}: failed", s);
     }
 }
 

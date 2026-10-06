@@ -41,13 +41,14 @@ static int iniLoad(const char *filename)
 
     // EMC debugging flags
     emc_debug = inifile.findUIntV("DEBUG", "EMC", 0);
+    log_configure(inifile);
 
     if (emc_debug & EMC_DEBUG_CONFIG) {
         std::string version = inifile.findStringV("VERSION", "EMC", "<unknown>");
         std::string machine = inifile.findStringV("MACHINE", "EMC", "<unknown>");
         extern char *program_invocation_short_name;
         log_info(
-            "{} ({}) emcsvr: machine '{}'  version '{}'\n",
+            "{} ({}) emcsvr: machine '{}'  version '{}'",
             program_invocation_short_name, getpid(), machine, version
             );
     }
@@ -57,7 +58,7 @@ static int iniLoad(const char *filename)
 	rtapi_strxcpy(emc_nmlfile, inistring->c_str());
     } // else not found, use default
 
-    log_debug(EMC_DEBUG_CONFIG, "config file \"{}\" loaded successfully.\n",
+    log_debug(EMC_DEBUG_CONFIG, "config file \"{}\" loaded successfully.",
                                 filename);
 
     return 0;
@@ -99,7 +100,7 @@ int main(int argc, char *argv[])
 
     // process command line args
     if (0 != emcGetArgs(argc, argv)) {
-	log_error("Error in argument list\n");
+	log_error("Error in argument list");
 	exit(1);
     }
     // get configuration information

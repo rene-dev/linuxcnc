@@ -22,6 +22,7 @@
 #include <limits.h>		// PATH_MAX
 #include <dlfcn.h>
 #include <memory>
+#include <string>
 
 #include "nml_intf/emc.hh"		// EMC NML
 #include "nml_intf/emc_nml.hh"
@@ -65,7 +66,6 @@ static char interp_stack_buf[LINELEN];
 
 static void print_interp_error(int retval)
 {
-    int index = 0;
     if (retval == 0) {
 	return;
     }
@@ -77,22 +77,20 @@ static void print_interp_error(int retval)
     interp_error_text_buf[0] = 0;
     interp.error_text(retval, interp_error_text_buf, LINELEN);
     if (0 != interp_error_text_buf[0]) {
-	log_error("interp_error: {}\n", interp_error_text_buf);
+	log_error("interp_error: {}", interp_error_text_buf);
     }
     emcOperatorError("%s", interp_error_text_buf);
-    index = 0;
     if (emc_debug & EMC_DEBUG_INTERP) {
-	log_info("Interpreter stack: \t");
-	while (index < 5) {
+	std::string stack;
+	for (int index = 0; index < 5; index++) {
 	    interp_stack_buf[0] = 0;
 	    interp.stack_name(index, interp_stack_buf, LINELEN);
 	    if (0 == interp_stack_buf[0]) {
 		break;
 	    }
-	    log_info(" - {} ", interp_stack_buf);
-	    index++;
+	    stack += fmt::format(" - {} ", interp_stack_buf);
 	}
-	log_info("\n");
+	log_debug(EMC_DEBUG_INTERP, "Interpreter stack: \t{}", stack);
     }
 }
 
@@ -137,7 +135,7 @@ int emcTaskInit()
     // Identify user_defined_function directories
     if (auto inistring = inifile.findString("PROGRAM_PREFIX", "DISPLAY")) {
         if (inistring->length() >= sizeof(mdir[0])) {
-            log_info("[DISPLAY]PROGRAM_PREFIX too long (max len {})\n", sizeof(mdir[0]));
+            log_info("[DISPLAY]PROGRAM_PREFIX too long (max len {})", sizeof(mdir[0]));
             return -1;
         }
         rtapi_strlcpy(mdir[0], inistring->c_str(), sizeof(mdir[0]));
@@ -156,7 +154,7 @@ int emcTaskInit()
         for (dct=1; dct < MAX_M_DIRS; dct++) mdir[dct][0] = 0;
 
         if (inistring->length() >= sizeof(tmpdirs)) {
-            log_info("[RS274NGC]USER_M_PATH too long (max len {})\n", sizeof(tmpdirs));
+            log_info("[RS274NGC]USER_M_PATH too long (max len {})", sizeof(tmpdirs));
             return -1;
         }
         rtapi_strlcpy(tmpdirs, inistring->c_str(), sizeof(tmpdirs));
@@ -167,7 +165,7 @@ int emcTaskInit()
         while (dct < MAX_M_DIRS) {
             if (nextdir == NULL) break; // no more tokens
             if (strlen(nextdir) >= sizeof(mdir[dct])) {
-                log_info("[RS274NGC]USER_M_PATH component ({}) too long (max len {})\n",
+                log_info("[RS274NGC]USER_M_PATH component ({}) too long (max len {})",
                         nextdir, sizeof(mdir[dct]));
                 return -1;
             }
@@ -185,7 +183,7 @@ int emcTaskInit()
 	    std::string expanddir;
 	    if (!mdir[dct][0]) continue;
             if (inifile.TildeExpansion(mdir[dct],expanddir)) {
-		log_info("emcTaskInit: TildeExpansion failed for {}, ignoring\n",
+		log_info("emcTaskInit: TildeExpansion failed for {}, ignoring",
 		       mdir[dct]);
             }
 	    size_t ret = snprintf(path, sizeof(path), "%s/M1%02d",expanddir.c_str(),num);
@@ -200,13 +198,13 @@ int emcTaskInit()
 			return -EMSGSIZE; // name truncated
 		    } else {
 		    USER_DEFINED_FUNCTION_ADD(user_defined_add_m_code,num);
-		    log_debug(EMC_DEBUG_CONFIG, "emcTaskInit: adding user-defined function {}\n",
+		    log_debug(EMC_DEBUG_CONFIG, "emcTaskInit: adding user-defined function {}",
 		                          path);
 	            user_defined_function_dirindex[num] = dct;
 	            break; // use first occurrence found for num
 		    }
 	        } else {
-		    log_debug(EMC_DEBUG_CONFIG, "emcTaskInit: user-defined function {} found, but not executable, so ignoring\n",
+		    log_debug(EMC_DEBUG_CONFIG, "emcTaskInit: user-defined function {} found, but not executable, so ignoring",
 		                          path);
 	        }
 	    }
@@ -268,7 +266,7 @@ int emcTaskAbort()
 	emcTaskPlanClose();
         emcTaskPlanReset();  // Flush any unflushed segments
 	if (emc_debug & EMC_DEBUG_INTERP && was_open) {
-	    log_info("emcTaskPlanClose() called at {}:{}\n", __FILE__,
+	    log_info("emcTaskPlanClose() called at {}:{}", __FILE__,
 	            __LINE__);
 	}
     }
@@ -483,7 +481,7 @@ int emcTaskPlanInit()
 	}
     }
 
-    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanInit() returned {}\n", retval);
+    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanInit() returned {}", retval);
 
     return retval;
 }
@@ -492,7 +490,7 @@ int emcTaskPlanSetWait()
 {
     waitFlag = 1;
 
-    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanSetWait() called\n");
+    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanSetWait() called");
 
     return 0;
 }
@@ -506,7 +504,7 @@ int emcTaskPlanClearWait()
 {
     waitFlag = 0;
 
-    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanClearWait() called\n");
+    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanClearWait() called");
 
     return 0;
 }
@@ -530,7 +528,7 @@ int emcTaskPlanSynch()
         emcTaskAbort();
     }
 
-    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanSynch() returned {}\n", retval);
+    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanSynch() returned {}", retval);
 
     return retval;
 }
@@ -557,7 +555,7 @@ int emcTaskPlanOpen(const char *file)
     }
     taskplanopen = 1;
 
-    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanOpen({}) returned {}\n", file, retval);
+    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanOpen({}) returned {}", file, retval);
 
     return retval;
 }
@@ -578,7 +576,7 @@ int emcTaskPlanRead()
 	print_interp_error(retval);
     }
     
-    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanRead() returned {}\n", retval);
+    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanRead() returned {}", retval);
     
     return retval;
 }
@@ -601,7 +599,7 @@ int emcTaskPlanExecute(const char *command)
 	FINISH();
     }
 
-    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanExecute(0) return {}\n", retval);
+    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanExecute(0) return {}", retval);
 
     return retval;
 }
@@ -616,7 +614,7 @@ int emcTaskPlanExecute(const char *command, int line_number)
 	FINISH();
     }
 
-    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanExecute({}) returned {}\n",
+    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanExecute({}) returned {}",
                                 command ? command : "(null)", retval);
 
     return retval;
@@ -647,7 +645,7 @@ int emcTaskPlanLine()
 {
     int retval = interp.line();
     
-    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanLine() returned {}\n", retval);
+    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanLine() returned {}", retval);
 
     return retval;
 }
@@ -656,7 +654,7 @@ int emcTaskPlanLevel()
 {
     int retval = interp.call_level();
 
-    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanLevel() returned {}\n", retval);
+    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanLevel() returned {}", retval);
 
     return retval;
 }
@@ -667,7 +665,7 @@ int emcTaskPlanCommand(char *cmd)
 
     strcpy(cmd, interp.command(buf, LINELEN));
 
-    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanCommand({}) called. (line_number={})\n",
+    log_debug(EMC_DEBUG_INTERP, "emcTaskPlanCommand({}) called. (line_number={})",
                        cmd, emcStatus->task.readLine);
 
     return 0;

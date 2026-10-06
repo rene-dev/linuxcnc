@@ -30,7 +30,7 @@ extern value_inihal_data old_inihal_data;
 static void inline print_dbg_config(const std::string &s)
 {
     if (emc_debug & EMC_DEBUG_CONFIG) {
-        log_error("{}: failed\n", s);
+        log_error("{}: failed", s);
     }
 }
 
@@ -105,7 +105,7 @@ static int loadTraj(const IniFile &ini)
     double linearUnits  = ini.findLinearUnits("LINEAR_UNITS", "TRAJ", 0.0);
     double angularUnits = ini.findAngularUnits("ANGULAR_UNITS", "TRAJ", 0.0);
     if (0 != emcTrajSetUnits(linearUnits, angularUnits)) {
-        log_info("emcTrajSetUnits failed to set [TRAJ]LINEAR_UNITS or [TRAJ]ANGULAR_UNITS\n");
+        log_info("emcTrajSetUnits failed to set [TRAJ]LINEAR_UNITS or [TRAJ]ANGULAR_UNITS");
         return -1;
     }
 
@@ -159,7 +159,7 @@ static int loadTraj(const IniFile &ini)
     if (planner_type == 1 && jerk < 1.0) {
         log_error("[TRAJ]PLANNER_TYPE = 1 (S-curve) requires "
                "[TRAJ]MAX_LINEAR_JERK >= 1.0 (got {}); "
-               "using trapezoidal planner\n", jerk);
+               "using trapezoidal planner", jerk);
         planner_type = 0;
     }
     if (0 != emcTrajPlannerType(planner_type)) {
@@ -238,7 +238,7 @@ static int loadTraj(const IniFile &ini)
             errno = 0;
             double val = strtod(toks[i].c_str(), &eptr);
             if (errno || *eptr || eptr == toks[i].c_str()) {
-                log_error("Invalid value '{}' for axis {} in homePose\n", toks[i], i);
+                log_error("Invalid value '{}' for axis {} in homePose", toks[i], i);
                 return -1;
             }
             switch(i) {
@@ -253,7 +253,7 @@ static int loadTraj(const IniFile &ini)
             case 8: homePose.w = val; break;
             default:
                 // Should never trigger because of EMCMOT_MAX_AXIS, but you never know
-                log_error("Value for invalid axis number {} cannot be part of homePose\n", i);
+                log_error("Value for invalid axis number {} cannot be part of homePose", i);
                 return -1;
             }
         }

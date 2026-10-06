@@ -269,6 +269,20 @@ static struct option longopts[] = {
 };
 
 static void info(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+static std::string vformat(const char *fmt, va_list va) __attribute__((format(printf, 1, 0)));
+static std::string vformat(const char *fmt, va_list va)
+{
+	va_list va2;
+	va_copy(va2, va);
+	int sz = vsnprintf(NULL, 0, fmt, va2);
+	va_end(va2);
+	if (sz < 0)
+		return fmt;
+	std::string s(sz, '\0');
+	vsnprintf(s.data(), sz + 1, fmt, va);
+	return s;
+}
+
 static void info(const char *fmt, ...)
 {
 	if(quiet)

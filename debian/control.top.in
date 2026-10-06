@@ -71,6 +71,7 @@ Build-Depends:
     python3-numpy <!nocheck>,
     python3-configobj <!nocheck>,
     libfmt-dev,
+    libspdlog-dev,
     yapps2
 Build-Depends-Indep:
     @DOC_DEPENDS@,

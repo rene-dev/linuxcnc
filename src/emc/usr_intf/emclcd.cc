@@ -1713,14 +1713,14 @@ int main(int argc, char *argv[])
 
     // process command line args
     if (emcGetArgs(argc, argv) != 0) {
-	log_error("error in argument list\n");
+	log_error("error in argument list");
 	exit(1);
     }
     // get configuration information
     iniLoad(emc_inifile);
     // init NML
     if (tryNml() != 0) {
-	log_error("can't connect to emc\n");
+	log_error("can't connect to emc");
 	thisQuit();
 	exit(1);
     }
