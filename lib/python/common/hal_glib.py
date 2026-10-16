@@ -352,6 +352,13 @@ class _GStat(GObject.GObject):
         self.current_jog_distance_angular_text =''
         self.selected_joint = -1
         self.selected_axis = ''
+        # label of each jog increment a widget has set, see set_jog_increments()
+        self._jog_increment_text = {}
+        # the jog setup lives in task: start from what it holds
+        try:
+            self._jog_from_task(self._jog_status(), emit=False)
+        except Exception:
+            pass
         self._is_all_homed = False
         self.set_timer()
 
@@ -588,6 +595,7 @@ class _GStat(GObject.GObject):
         self.old['blend-tolerance-code'] = settings[3]
         self.old['nativecam-tolerance-code'] = settings[4]
         self.old['current-command'] = self.stat.command
+        self.old['jog-setup'] = self._jog_status()
 
     def update(self):
         try:
@@ -601,6 +609,9 @@ class _GStat(GObject.GObject):
         self._status_active = True
         old = dict(self.old)
         self.merge()
+        # jog setup changed by another GUI, halui or this one
+        if self.old['jog-setup'] != old.get('jog-setup'):
+            self._jog_from_task(self.old['jog-setup'])
         cmd_state_old = old.get('command-state')
         cmd_state_new = self.old['command-state']
         if cmd_state_new != cmd_state_old:
@@ -1108,10 +1119,10 @@ class _GStat(GObject.GObject):
         self.emit('actual-spindle-speed-changed', spindle_spd_new)
         self.emit('spindle-control-changed', 0, False, 0, False)
 
-        self.set_jograte(self.current_jog_rate)
-        self.set_jograte_angular(self.current_angular_jog_rate)
-        self.set_jog_increments(self.current_jog_distance, self.current_jog_distance_text)
-        self.set_jog_increment_angular(self.current_jog_distance_angular, self.current_jog_distance_angular_text)
+        # the jog setup is task's: show it, don't push this GUI's into task
+        if 'jog-setup' in self.old:
+            self._jog_from_task(self.old['jog-setup'], emit=False)
+        self._jog_emit_all()
 
         tool_info_new = self.old['tool-info']
         self.emit('tool-info-changed', tool_info_new)
@@ -1199,19 +1210,137 @@ class _GStat(GObject.GObject):
     def get_previous_mode(self):
         return self.previous_mode
 
-    # linear - in machine units
+    # The jog setup -- speeds, increments, selected joint and axis -- is
+    # held by task and shared with every other GUI and halui (stat.jog_speed
+    # and friends). The setters send a value to task; update() picks up a
+    # change from anywhere and emits the signals. Without a running task
+    # (e.g. in a designer) the setters keep the value locally, as before.
+    #
+    # Units here as before: speeds in machine units (degrees) per minute,
+    # increments in machine units (degrees), 0 = continuous. An axis is its
+    # letter, '' for none, 'MPG<n>' for aux target n.
+
+    def _jog_status(self):
+        st = self.stat
+        return (st.jog_speed * 60, st.jog_angular_speed * 60,
+                st.jog_increment, st.jog_angular_increment,
+                st.jog_selected_joint, st.jog_selected_axis)
+
+    @staticmethod
+    def _axis_letter(index):
+        if 0 <= index < 9:
+            return 'XYZABCUVW'[index]
+        if linuxcnc.JOG_SELECT_AUX <= index < linuxcnc.JOG_SELECT_AUX + linuxcnc.JOG_SELECT_AUX_MAX:
+            return 'MPG{}'.format(index - linuxcnc.JOG_SELECT_AUX)
+        return ''
+
+    @staticmethod
+    def _axis_index(letter):
+        letter = str(letter).strip().upper()
+        if len(letter) == 1 and letter in 'XYZABCUVW':
+            return 'XYZABCUVW'.index(letter)
+        if letter.startswith('MPG') and letter[3:].isdigit():
+            return linuxcnc.JOG_SELECT_AUX + int(letter[3:])
+        return linuxcnc.JOG_SELECT_NONE
+
+    def _increment_text(self, distance, angular):
+        text = self._jog_increment_text.get((angular, round(distance, 9)))
+        if text is not None:
+            return text
+        if distance == 0:
+            return 'Continuous'
+        return '{:g}'.format(distance)
+
+    # Send one jog setup command to task and read back what task made of it
+    # (it limits speeds and refuses an unknown joint or axis). False if task
+    # can't be reached: the caller then keeps the value locally. The setter
+    # takes over its own field; update() emits any other field that changed.
+    def _jog_send(self, function, *args):
+        if not self._status_active:
+            return False
+        try:
+            function(*args)
+            self.stat.poll()
+        except Exception as e:
+            LOG.debug('jog setup not sent to task: {}'.format(e))
+            return False
+        return True
+
+    # Take over task's values; emit the ones that changed.
+    def _jog_from_task(self, values, emit=True):
+        rate, arate, distance, adistance, joint, axis = values
+        if not math.isclose(rate, self.current_jog_rate, abs_tol=1e-9):
+            self.current_jog_rate = rate
+            if emit: self._emit_jograte()
+        if not math.isclose(arate, self.current_angular_jog_rate, abs_tol=1e-9):
+            self.current_angular_jog_rate = arate
+            if emit: self._emit_jograte_angular()
+        if not math.isclose(distance, self.current_jog_distance, abs_tol=1e-12):
+            self.current_jog_distance = distance
+            self.current_jog_distance_text = self._increment_text(distance, False)
+            if emit: self._emit_jog_increment()
+        if not math.isclose(adistance, self.current_jog_distance_angular, abs_tol=1e-12):
+            self.current_jog_distance_angular = adistance
+            self.current_jog_distance_angular_text = self._increment_text(adistance, True)
+            if emit: self._emit_jog_increment_angular()
+        if joint != self.selected_joint:
+            self.selected_joint = joint
+            if emit: self._emit_selected_joint()
+        letter = self._axis_letter(axis)
+        if letter != self.selected_axis:
+            self.selected_axis = letter
+            if emit: self._emit_selected_axis()
+
+    def _emit_jograte(self):
+        self.emit('jograte-changed', self.current_jog_rate)
+        self.write_msg('jograte-changed', self.current_jog_rate)
+
+    def _emit_jograte_angular(self):
+        self.emit('jograte-angular-changed', self.current_angular_jog_rate)
+        self.write_msg('jograte-angular-changed', self.current_angular_jog_rate)
+
+    def _emit_jog_increment(self):
+        self.emit('jogincrement-changed', self.current_jog_distance, self.current_jog_distance_text)
+        self.write_msg('jogincrements-changed', (self.current_jog_distance, self.current_jog_distance_text))
+
+    def _emit_jog_increment_angular(self):
+        self.emit('jogincrement-angular-changed', self.current_jog_distance_angular,
+                  self.current_jog_distance_angular_text)
+        self.write_msg('jogincrements-angular-changed',
+                       (self.current_jog_distance_angular, self.current_jog_distance_angular_text))
+
+    def _emit_selected_joint(self):
+        self.emit('joint-selection-changed', self.selected_joint)
+        self.write_msg('joint-selection-changed', self.selected_joint)
+
+    def _emit_selected_axis(self):
+        self.emit('axis-selection-changed', self.selected_axis)
+        self.write_msg('axis-selection-changed', self.selected_axis)
+
+    def _jog_emit_all(self):
+        self._emit_jograte()
+        self._emit_jograte_angular()
+        self._emit_jog_increment()
+        self._emit_jog_increment_angular()
+
+    # linear - in machine units per minute
     def set_jograte(self, upm):
-        self.current_jog_rate = upm
-        self.emit('jograte-changed', upm)
-        self.write_msg('jograte-changed', upm)
+        if self._jog_send(self.cmd.set_jog_speed, float(upm) / 60, False):
+            self.current_jog_rate = self.stat.jog_speed * 60
+        else:
+            self.current_jog_rate = upm
+        self._emit_jograte()
 
     def get_jograte(self):
         return self.current_jog_rate
 
+    # angular - in degrees per minute
     def set_jograte_angular(self,rate):
-        self.current_angular_jog_rate = rate
-        self.emit('jograte-angular-changed', rate)
-        self.write_msg('jograte-angular-changed', rate)
+        if self._jog_send(self.cmd.set_jog_speed, float(rate) / 60, True):
+            self.current_angular_jog_rate = self.stat.jog_angular_speed * 60
+        else:
+            self.current_angular_jog_rate = rate
+        self._emit_jograte_angular()
 
     def get_jograte_angular(self):
         return self.current_angular_jog_rate
@@ -1221,26 +1350,32 @@ class _GStat(GObject.GObject):
 
     def set_jog_increment_angular(self, distance, text):
         try:
-            isinstance(float(distance), float)
+            distance = float(distance)
         except:
             LOG.warning('error converting angular jog increment ({}) to float: staying at {}'.format(distance,self.current_jog_distance_angular))
             return
-        self.current_jog_distance_angular = distance
-        self.current_jog_distance_text_angular = text
-        self.emit('jogincrement-angular-changed', distance, text)
-        self.write_msg('jogincrements-angular-changed', (distance, text))
+        self._jog_increment_text[(True, round(distance, 9))] = text
+        if self._jog_send(self.cmd.set_jog_increment, distance, True):
+            self.current_jog_distance_angular = self.stat.jog_angular_increment
+        else:
+            self.current_jog_distance_angular = distance
+        self.current_jog_distance_angular_text = self._increment_text(self.current_jog_distance_angular, True)
+        self._emit_jog_increment_angular()
 
     # should be in machine units
     def set_jog_increments(self, distance, text):
         try:
-            isinstance(float(distance), float)
+            distance = float(distance)
         except:
             LOG.warning('error converting jog increment ({}) to float: staying at {}'.format(distance,self.current_jog_distance))
             return
-        self.current_jog_distance = distance
-        self.current_jog_distance_text = text
-        self.emit('jogincrement-changed', distance, text)
-        self.write_msg('jogincrements-changed', (distance,text))
+        self._jog_increment_text[(False, round(distance, 9))] = text
+        if self._jog_send(self.cmd.set_jog_increment, distance, False):
+            self.current_jog_distance = self.stat.jog_increment
+        else:
+            self.current_jog_distance = distance
+        self.current_jog_distance_text = self._increment_text(self.current_jog_distance, False)
+        self._emit_jog_increment()
 
     def get_jog_increment(self):
         return self.current_jog_distance
@@ -1249,17 +1384,21 @@ class _GStat(GObject.GObject):
         return self.old['max-velocity-or'] * 60
 
     def set_selected_joint(self, data):
-        self.selected_joint = int(data)
-        self.emit('joint-selection-changed', data)
-        self.write_msg('joint-selection-changed', data)
+        if self._jog_send(self.cmd.set_jog_selection, True, int(data)):
+            self.selected_joint = self.stat.jog_selected_joint
+        else:
+            self.selected_joint = int(data)
+        self._emit_selected_joint()
 
     def get_selected_joint(self):
         return self.selected_joint
 
     def set_selected_axis(self, data):
-        self.selected_axis = str(data)
-        self.emit('axis-selection-changed', data)
-        self.write_msg('axis-selection-changed', data)
+        if self._jog_send(self.cmd.set_jog_selection, False, self._axis_index(data)):
+            self.selected_axis = self._axis_letter(self.stat.jog_selected_axis)
+        else:
+            self.selected_axis = str(data)
+        self._emit_selected_axis()
 
     def get_selected_axis(self):
         return self.selected_axis

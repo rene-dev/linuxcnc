@@ -165,9 +165,7 @@ class QTVCP:
 
         self.STATUS = Status()
 
-        # set default jog rates from INI settings
-        self.STATUS.current_jog_rate = self.INFO.DEFAULT_LINEAR_JOG_VEL
-        self.STATUS.current_angular_jog_rate = self.INFO.DEFAULT_ANGULAR_JOG_VEL
+        # the jog rates come from task, which starts them from the INI settings
 
 
         self.PATH = Path()
@@ -364,10 +362,6 @@ Pressing cancel will close linuxcnc.""" % target)
             if "after_override__" in dir(window.handler_instance):
                 LOG.debug('''Calling the handler file's after_override__ function''')
                 window.handler_instance.after_override__()
-
-        # set the default jog speeds before the forced update
-        self.current_jog_rate = self.INFO.DEFAULT_LINEAR_JOG_VEL
-        self.current_angular_jog_rate = self.INFO.DEFAULT_ANGULAR_JOG_VEL
 
         # All Widgets should be added now - sync them to linuxcnc
         self.STATUS.forced_update()
