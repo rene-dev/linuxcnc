@@ -231,12 +231,35 @@ contact) connect the physical button to a HAL debounce filter first.
 *halui.machine.on* bool in::
   pin for setting machine On
 
+=== Jog setup
+
+The jog speeds, the jog increments and the selected joint and axis are
+held by the task controller and shared with every GUI: the value a GUI
+shows and the value halui jogs with are the same. The pins that set them
+act on a change of their value only, so the last change wins, whether it
+came from a pin or from a GUI. A continuous jog that is running follows a
+change of the speed, and a jog of the selected joint or axis follows a
+change of the selection, wherever the change came from. The values start
+from *[DISPLAY]DEFAULT_LINEAR_VELOCITY* and *DEFAULT_ANGULAR_VELOCITY*,
+with continuous jogging, joint 0 and the first axis of
+*[TRAJ]COORDINATES* selected.
+
+Linear joints and axes jog at the linear speed, angular ones at the
+angular speed. The speed pins are in units per minute, as before.
+
+**halui.jog-aux.**_N_**.select** bool in::
+  pin for selecting auxiliary jog target _N_ (0 ... 7) instead of an
+  axis: something an MPG is pointed at that is not an axis, such as
+  scrolling in a GUI. Nothing jogs while an aux target is selected.
+**halui.jog-aux.**_N_**.is-selected** bool out::
+  status pin that auxiliary jog target _N_ is selected
+
 === Joint
 
 _N_ = joint number (0 ... num_joints-1)
 
 **halui.joint.**_N_**.select** bool in::
-  pin for selecting joint _N_
+  pin for selecting joint _N_ (on a rising edge)
 **halui.joint.**_N_**.is-selected** bool out::
   status pin that joint _N_ is selected
 **halui.joint.**_N_**.has-fault** bool out::
@@ -258,7 +281,8 @@ _N_ = joint number (0 ... num_joints-1)
 **halui.joint.**_N_**.unhome** bool in::
   pin for unhoming joint _N_
 **halui.joint.selected** uint out::
-  selected joint number (0 ... num_joints-1)
+  selected joint number (0 ... num_joints-1); keeps the last joint while
+  no joint is selected
 **halui.joint.selected.has-fault** bool out::
   status pin selected joint is faulted
 **halui.joint.selected.home** bool in::
@@ -285,7 +309,8 @@ Joint jogging is possible in unhomed state except for joints having a negative H
 *halui.joint.jog-deadband* real in::
    pin for setting jog analog deadband (jog analog inputs smaller/slower than this (in absolute value) are ignored).
 *halui.joint.jog-speed* real in::
-  pin for setting jog speed for plus/minus jogging.
+  pin for setting the linear jog speed, in units per minute. This is the
+  same speed as *halui.axis.jog-speed* sets.
 **halui.joint.**_N_**.analog** real in::
   pin for jogging the joint _N_ using a real value (e.g. joystick).
   The value, typically set between 0.0 and ±1.0, is used as a jog-speed multiplier.
@@ -299,10 +324,10 @@ Joint jogging is possible in unhomed state except for joints having a negative H
   by the increment amount
 **halui.joint.**_N_**.minus** bool in::
   pin for jogging joint _N_ in negative direction at the
-  halui.joint.jog-speed velocity
+  jog speed
 **halui.joint.**_N_**.plus** bool in::
   pin for jogging joint _N_ in positive direction at the
-  halui.joint.jog-speed velocity
+  jog speed
 *halui.joint.selected.increment* real in::
   pin for setting the jog increment for the selected joint when using
   increment-plus/minus
@@ -314,17 +339,17 @@ Joint jogging is possible in unhomed state except for joints having a negative H
   direction by the increment amount
 *halui.joint.selected.minus* bool in::
   pin for jogging the selected joint in negative direction at the
-  halui.joint.jog-speed velocity
+  jog speed
 *halui.joint.selected.plus* bool in::
   pin for jogging the selected joint in positive direction at the
-  halui.joint.jog-speed velocity
+  jog speed
 
 === Axis
 
 _L_ = axis letter (xyzabcuvw)
 
 **halui.axis.**_L_**.select** bool in::
-  pin for selecting axis by letter
+  pin for selecting axis by letter (on a rising edge)
 **halui.axis.**_L_**.is-selected** bool out::
   status pin that axis _L_ is selected
 **halui.axis.**_L_**.pos-commanded** real out::
@@ -344,7 +369,22 @@ _L_ = axis letter (xyzabcuvw)
   pin for setting jog analog deadband (jog analog inputs smaller/slower
   than this (in absolute value) are ignored)
 *halui.axis.jog-speed* real in::
-  pin for setting jog speed for plus/minus jogging.
+  pin for setting the linear jog speed, in units per minute.
+*halui.axis.jog-speed.value* real out::
+  the linear jog speed in units per minute, however it was set.
+*halui.axis.jog-speed-angular* real in::
+  pin for setting the angular jog speed, in degrees per minute.
+*halui.axis.jog-speed-angular.value* real out::
+  the angular jog speed in degrees per minute.
+*halui.axis.jog-increment* real in::
+  pin for setting the shared linear jog increment, 0 for continuous
+  jogging. It does not change what the increment-plus/minus pins jog by.
+*halui.axis.jog-increment.value* real out::
+  the shared linear jog increment, e.g. for scaling an MPG.
+*halui.axis.jog-increment-angular* real in::
+  pin for setting the shared angular jog increment.
+*halui.axis.jog-increment-angular.value* real out::
+  the shared angular jog increment.
 **halui.axis.**L**.analog** real in::
   pin for jogging the axis L using a real value (e.g. joystick). The
   value, typically set between 0.0 and ±1.0, is used as a jog-speed
@@ -360,12 +400,13 @@ _L_ = axis letter (xyzabcuvw)
   the increment amount
 **halui.axis.**_L_**.minus** bool in::
   pin for jogging axis _L_ in negative direction at the
-  halui.axis.jog-speed velocity
+  jog speed
 **halui.axis.**_L_**.plus** bool in::
   pin for jogging axis _L_ in positive direction at the
-  halui.axis.jog-speed velocity
+  jog speed
 *halui.axis.selected* uint out::
-  selected axis (by index: 0:x 1:y 2:z 3:a 4:b 5:cr 6:u 7:v 8:w)
+  selected axis (by index: 0:x 1:y 2:z 3:a 4:b 5:c 6:u 7:v 8:w); keeps the
+  last axis while no axis or an aux target is selected
 *halui.axis.selected.increment* real in::
   pin for setting the jog increment for the selected axis when using increment-plus/minus
 *halui.axis.selected.increment-minus* bool in::
@@ -375,9 +416,9 @@ _L_ = axis letter (xyzabcuvw)
   a rising edge will will make the selected axis jog in the positive
   direction by the increment amount
 *halui.axis.selected.minus* bool in::
-  pin for jogging the selected axis in negative direction at the halui.axis.jog-speed velocity
+  pin for jogging the selected axis in negative direction at the jog speed
 *halui.axis.selected.plus* bool in::
-  pin for jogging the selected axis in positive direction at the halui.axis.jog-speed velocity
+  pin for jogging the selected axis in positive direction at the jog speed
 
 === Flood coolant
 
