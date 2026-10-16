@@ -430,7 +430,7 @@
 <labelframe text="settings">
 <tabs>
     <names>["Jogging", "Program control", "Overrides"]</names>
-<vbox> <!-- jogging -->
+<vbox> <!-- jogging: the jog setup is task's, shared with the GUI -->
     <hbox>
     <label><text>"jog speed: "</text></label>
     <spinbox>
@@ -438,10 +438,80 @@
        <min_>0</min_>
        <resolution>.5</resolution>
        <format>"2.1f"</format>
-       <width>5</width>
+       <width>6</width>
        <justify>RIGHT</justify>
        <initval>20</initval>
     </spinbox>
+    <label><text>" in/min, in task: "</text></label>
+    <number><halpin>"jog-speed.value"</halpin><format>"2.2f"</format></number>
+    </hbox>
+    <hbox>
+    <label><text>"angular speed: "</text></label>
+    <spinbox>
+       <halpin>"jog-speed-angular"</halpin>
+       <min_>0</min_>
+       <resolution>10</resolution>
+       <format>"4.0f"</format>
+       <width>6</width>
+       <justify>RIGHT</justify>
+       <initval>0</initval>
+    </spinbox>
+    <label><text>" deg/min, in task: "</text></label>
+    <number><halpin>"jog-speed-angular.value"</halpin><format>"4.1f"</format></number>
+    </hbox>
+    <hbox>
+    <label><text>"increment: "</text></label>
+    <spinbox>
+       <halpin>"jog-increment"</halpin>
+       <min_>0</min_>
+       <resolution>.001</resolution>
+       <format>"1.4f"</format>
+       <width>6</width>
+       <justify>RIGHT</justify>
+       <initval>0</initval>
+    </spinbox>
+    <label><text>" in (0 = continuous), in task: "</text></label>
+    <number><halpin>"jog-increment.value"</halpin><format>"1.4f"</format></number>
+    </hbox>
+    <hbox>
+    <label><text>"mode: "</text></label>
+        <button><halpin>"mode.joint"</halpin><text>"Joint"</text><justify>"center"</justify></button>
+        <led><halpin>"mode.is-joint"</halpin><size>12</size><on_color>"blue"</on_color><off_color>"black"</off_color></led>
+        <button><halpin>"mode.teleop"</halpin><text>"Teleop"</text><justify>"center"</justify></button>
+        <led><halpin>"mode.is-teleop"</halpin><size>12</size><on_color>"blue"</on_color><off_color>"black"</off_color></led>
+        <button><halpin>"home-all"</halpin><text>"Home all"</text><justify>"center"</justify></button>
+    </hbox>
+    <hbox>
+    <label><text>"joint: "</text></label>
+        <button><halpin>"joint.0.select"</halpin><text>"0"</text><justify>"center"</justify></button>
+        <led><halpin>"joint.0.is-selected"</halpin><size>12</size><on_color>"green"</on_color><off_color>"black"</off_color></led>
+        <button><halpin>"joint.1.select"</halpin><text>"1"</text><justify>"center"</justify></button>
+        <led><halpin>"joint.1.is-selected"</halpin><size>12</size><on_color>"green"</on_color><off_color>"black"</off_color></led>
+        <button><halpin>"joint.2.select"</halpin><text>"2"</text><justify>"center"</justify></button>
+        <led><halpin>"joint.2.is-selected"</halpin><size>12</size><on_color>"green"</on_color><off_color>"black"</off_color></led>
+    <label><text>" selected: "</text></label>
+    <uint><halpin>"joint.selected"</halpin></uint>
+    </hbox>
+    <hbox>
+    <label><text>"axis: "</text></label>
+        <button><halpin>"axis.x.select"</halpin><text>"X"</text><justify>"center"</justify></button>
+        <led><halpin>"axis.x.is-selected"</halpin><size>12</size><on_color>"green"</on_color><off_color>"black"</off_color></led>
+        <button><halpin>"axis.y.select"</halpin><text>"Y"</text><justify>"center"</justify></button>
+        <led><halpin>"axis.y.is-selected"</halpin><size>12</size><on_color>"green"</on_color><off_color>"black"</off_color></led>
+        <button><halpin>"axis.z.select"</halpin><text>"Z"</text><justify>"center"</justify></button>
+        <led><halpin>"axis.z.is-selected"</halpin><size>12</size><on_color>"green"</on_color><off_color>"black"</off_color></led>
+        <button><halpin>"jog-aux.0.select"</halpin><text>"MPG0"</text><justify>"center"</justify></button>
+        <led><halpin>"jog-aux.0.is-selected"</halpin><size>12</size><on_color>"yellow"</on_color><off_color>"black"</off_color></led>
+    <label><text>" selected: "</text></label>
+    <uint><halpin>"axis.selected"</halpin></uint>
+    </hbox>
+    <hbox>
+    <label><text>"jog selected: "</text></label>
+        <button><halpin>"jog-selected-"</halpin><text>"-"</text><justify>"center"</justify></button>
+        <button><halpin>"jog-selected+"</halpin><text>"+"</text><justify>"center"</justify></button>
+    <label><text>"  by increment: "</text></label>
+        <button><halpin>"jog-selected-incr-"</halpin><text>"-"</text><justify>"center"</justify></button>
+        <button><halpin>"jog-selected-incr+"</halpin><text>"+"</text><justify>"center"</justify></button>
     </hbox>
 </vbox>
 
@@ -511,6 +581,18 @@
     <number>
 	<halpin>"spindle-override.value"</halpin>
     </number>
+    </hbox>
+    <hbox>
+        <button><halpin>"rapid-override+"</halpin><text>"+"</text><justify>"center"</justify></button>
+        <button><halpin>"rapid-override-"</halpin><text>"-"</text><justify>"center"</justify></button>
+    <label><text>"rapid override: "</text></label>
+    <number><halpin>"rapid-override.value"</halpin><format>"1.2f"</format></number>
+    </hbox>
+    <hbox>
+        <button><halpin>"max-velocity+"</halpin><text>"+"</text><justify>"center"</justify></button>
+        <button><halpin>"max-velocity-"</halpin><text>"-"</text><justify>"center"</justify></button>
+    <label><text>"max velocity (in/s): "</text></label>
+    <number><halpin>"max-velocity.value"</halpin><format>"1.3f"</format></number>
     </hbox>
 </vbox>
 </tabs>

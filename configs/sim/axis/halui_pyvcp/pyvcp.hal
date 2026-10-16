@@ -94,3 +94,51 @@ net quill-up             pyvcp.quillup              halui.mdi-command-00
 net reference-pos        pyvcp.referencepos         halui.mdi-command-01
 
 net jogspeed             pyvcp.jog-speed            halui.joint.jog-speed halui.axis.jog-speed
+
+# jog setup: held by task and shared with the GUI. The panel's spinboxes
+# set it, the "in task" numbers show what task holds, whoever set it last.
+net jog-speed-value      halui.axis.jog-speed.value          => pyvcp.jog-speed.value
+net jog-aspeed           pyvcp.jog-speed-angular             => halui.axis.jog-speed-angular
+net jog-aspeed-value     halui.axis.jog-speed-angular.value  => pyvcp.jog-speed-angular.value
+net jog-incr             pyvcp.jog-increment                 => halui.axis.jog-increment
+# the selected joint/axis jogs by the shared increment
+net jog-incr-value       halui.axis.jog-increment.value      => pyvcp.jog-increment.value halui.axis.selected.increment halui.joint.selected.increment
+
+net mode-joint           pyvcp.mode.joint           halui.mode.joint
+net mode-teleop          pyvcp.mode.teleop          halui.mode.teleop
+net mode-is-joint        pyvcp.mode.is-joint        halui.mode.is-joint
+net mode-is-teleop       pyvcp.mode.is-teleop       halui.mode.is-teleop
+net home-all             pyvcp.home-all             halui.home-all
+
+net j0-select            pyvcp.joint.0.select       halui.joint.0.select
+net j1-select            pyvcp.joint.1.select       halui.joint.1.select
+net j2-select            pyvcp.joint.2.select       halui.joint.2.select
+net j0-is-selected       pyvcp.joint.0.is-selected  halui.joint.0.is-selected
+net j1-is-selected       pyvcp.joint.1.is-selected  halui.joint.1.is-selected
+net j2-is-selected       pyvcp.joint.2.is-selected  halui.joint.2.is-selected
+net joint-selected       pyvcp.joint.selected       halui.joint.selected
+
+net x-select             pyvcp.axis.x.select        halui.axis.x.select
+net y-select             pyvcp.axis.y.select        halui.axis.y.select
+net z-select             pyvcp.axis.z.select        halui.axis.z.select
+net x-is-selected        pyvcp.axis.x.is-selected   halui.axis.x.is-selected
+net y-is-selected        pyvcp.axis.y.is-selected   halui.axis.y.is-selected
+net z-is-selected        pyvcp.axis.z.is-selected   halui.axis.z.is-selected
+net aux0-select          pyvcp.jog-aux.0.select     halui.jog-aux.0.select
+net aux0-is-selected     pyvcp.jog-aux.0.is-selected halui.jog-aux.0.is-selected
+net axis-selected        pyvcp.axis.selected        halui.axis.selected
+
+net jog-selected-minus   pyvcp.jog-selected-        halui.joint.selected.minus halui.axis.selected.minus
+net jog-selected-plus    pyvcp.jog-selected+        halui.joint.selected.plus  halui.axis.selected.plus
+net jog-sel-incr-minus   pyvcp.jog-selected-incr-   halui.joint.selected.increment-minus halui.axis.selected.increment-minus
+net jog-sel-incr-plus    pyvcp.jog-selected-incr+   halui.joint.selected.increment-plus  halui.axis.selected.increment-plus
+
+net ro-increase          pyvcp.rapid-override+      halui.rapid-override.increase
+net ro-decrease          pyvcp.rapid-override-      halui.rapid-override.decrease
+net ro-value             pyvcp.rapid-override.value halui.rapid-override.value
+
+# max-velocity.scale defaults to 0, so increase/decrease would do nothing
+setp halui.max-velocity.scale 0.1
+net mv-increase          pyvcp.max-velocity+        halui.max-velocity.increase
+net mv-decrease          pyvcp.max-velocity-        halui.max-velocity.decrease
+net mv-value             pyvcp.max-velocity.value   halui.max-velocity.value
