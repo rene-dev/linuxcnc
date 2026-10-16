@@ -247,6 +247,24 @@ there is nothing to start. Remove these from existing configurations:
 The pins, `[HALUI]MDI_COMMAND` and the `[DISPLAY]` override limits work
 as before, see link:../gui/halui.html[HAL User Interface].
 
+=== Jog speed, increment and selection are shared
+
+The jog speeds, the jog increment and the selected joint and axis are now
+held by the task controller, not by each GUI. AXIS, gmoccapy, the QtVCP
+and GladeVCP screens and halui show and change the same values: moving
+the jog speed slider in one GUI moves it in the others, and a pendant
+wired to `halui.axis.jog-speed` sets the speed the GUI jogs with. A
+change wins until the next change, wherever it came from.
+
+The values start from `[DISPLAY]DEFAULT_LINEAR_VELOCITY` and
+`[DISPLAY]DEFAULT_ANGULAR_VELOCITY`; a GUI no longer sets them from its
+own preferences at startup. The `halui.axis.jog-speed` and
+`halui.joint.jog-speed` pins now act on a change of their value only, and
+both set the same linear speed. New pins show the shared values, see
+link:../man/man1/halui.1.html[halui(1)]; Python programs use
+`linuxcnc.stat.jog_speed` and friends and `linuxcnc.command.set_jog_speed()`,
+see link:../config/python-interface.html[the Python interface].
+
 
 == Preview renderer now requires OpenGL 3.3 core
 
