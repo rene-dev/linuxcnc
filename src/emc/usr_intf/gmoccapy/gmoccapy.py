@@ -249,6 +249,11 @@ class gmoccapy(object):
         self.mcodes = []          # this are the unformatted M-code values to check if an update is required
 
         self.distance = 0         # This global will hold the jog distance
+        # The jog speeds and increment are task's, shared with other GUIs and
+        # halui (stat.jog_speed and friends). _sync_jog_setup() shows them;
+        # while it does, the widget handlers must not send them back.
+        self._jog_syncing = False
+        self._jog_seen = None
         self.tool_change = False  # this is needed to get back to manual mode after a tool change
         self.load_tool = False    # We use this avoid mode switching on reloading the tool on start up of the GUI
         self.macrobuttons = []    # The list of all macros defined in the INI file
@@ -1225,6 +1230,47 @@ class gmoccapy(object):
         self.distance = self._parse_increment(widget.get_property("name"))
         self.halcomp["jog.jog-increment"] = self.distance
         self.active_increment = widget.get_property("name")
+        if self.initialized and not self._jog_syncing:
+            self.stat.poll()
+            if abs(self.distance - self.stat.jog_increment) > 1e-9:
+                self.command.set_jog_increment(self.distance)
+
+    # a jog speed slider moved: the speed is task's
+    def _on_jog_vel_changed(self, widget, value, angular):
+        if not self.initialized or self._jog_syncing:
+            return
+        # not the signal's value, that is single precision
+        value = widget.get_value() / 60
+        speed = value if angular else value / self.faktor
+        self.stat.poll()
+        current = self.stat.jog_angular_speed if angular else self.stat.jog_speed
+        if abs(speed - current) > 1e-9 * max(1, current):
+            self.command.set_jog_speed(speed, angular)
+
+    # show the jog speeds and the increment task holds
+    def _sync_jog_setup(self):
+        st = self.stat
+        seen = (st.jog_speed, st.jog_angular_speed, st.jog_increment, self.faktor)
+        if seen == self._jog_seen:
+            return
+        self._jog_seen = seen
+        self._jog_syncing = True
+        try:
+            for widget, value in ((self.widgets.spc_lin_jog_vel, st.jog_speed * 60 * self.faktor),
+                                  (self.widgets.spc_ang_jog_vel, st.jog_angular_speed * 60)):
+                if abs(widget.get_value() - value) > 1e-6:
+                    widget.set_value(value)
+            if abs(self.distance - st.jog_increment) > 1e-9:
+                # an increment that is not one of the buttons leaves them alone
+                for name, rbt in self.incr_rbt_dic.items():
+                    if abs(self._parse_increment(name) - st.jog_increment) <= 1e-9 * max(1, st.jog_increment):
+                        rbt.set_active(True)
+                        self.distance = st.jog_increment
+                        self.halcomp["jog.jog-increment"] = self.distance
+                        self.active_increment = name
+                        break
+        finally:
+            self._jog_syncing = False
 
     def _on_btn_jog_pressed(self, widget, button_name, shift=False):
         LOG.debug("Jog Button pressed = {0}".format(button_name))
@@ -1251,10 +1297,11 @@ class gmoccapy(object):
             else:
                 value = self.jog_rate_max
         else:
+            # the speed task holds, which the slider shows
             if self._jog_is_angular(button_name):
-                value = self.widgets.spc_ang_jog_vel.get_value() / 60
+                value = self.stat.jog_angular_speed
             else:
-                value = self.widgets.spc_lin_jog_vel.get_value() / 60
+                value = self.stat.jog_speed * self.faktor
 
         # an angle is degrees whatever the display units
         if self._jog_is_angular(button_name):
@@ -1853,7 +1900,10 @@ class gmoccapy(object):
             self.widgets.spc_ang_jog_vel.set_property("min", self.get_ini_info.get_min_ang_jog_vel())
             self.widgets.spc_ang_jog_vel.set_property("max", self.get_ini_info.get_max_ang_jog_vel())
             self.widgets.spc_ang_jog_vel.set_value(self.get_ini_info.get_default_ang_jog_vel())
-            
+
+        self.widgets.spc_lin_jog_vel.connect("value_changed", self._on_jog_vel_changed, False)
+        self.widgets.spc_ang_jog_vel.connect("value_changed", self._on_jog_vel_changed, True)
+
         font = self.prefs.getpref("gcodeview_font", "monospace 10", str)
         font_desc = Pango.FontDescription.from_string(font)
         self.widgets.fontbutton_gcodeview.set_font(font)
@@ -2810,6 +2860,8 @@ class gmoccapy(object):
                 self._switch_to_g7(True)
 
         self._update_vel()
+        if self.initialized:
+            self._sync_jog_setup()
         self._update_coolant()
         self._update_spindle()
         self._update_halui_pin()
@@ -3335,6 +3387,15 @@ class gmoccapy(object):
 
         widgetlist = ["spc_lin_jog_vel"]
 
+        # rescaling the slider to the new units is not a change of the speed
+        self._jog_syncing = True
+        try:
+            self._change_jog_units(metric_units, widgetlist)
+        finally:
+            self._jog_syncing = False
+            self._jog_seen = None
+
+    def _change_jog_units(self, metric_units, widgetlist):
         # self.stat.linear_units will return 1.0 for metric and 1/25,4 for imperial
         # display units not equal machine units
         if metric_units != int(self.stat.linear_units):
