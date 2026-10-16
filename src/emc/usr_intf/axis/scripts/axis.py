@@ -196,7 +196,14 @@ feedrate_blackout = 0
 rapidrate_blackout = 0
 spindlerate_blackout = 0
 maxvel_blackout = 0
+jog_blackout = 0
+ajog_blackout = 0
 jogincr_index_last = 1
+# The jog setup -- speeds, increment, selected joint/axis -- is task's,
+# shared with other GUIs and halui (stat.jog_speed and friends). Nothing is
+# sent to task before the first status update has shown task's values.
+jog_synced = False
+jog_seen = {}
 mdi_history_index= -1
 resume_inhibit = 0
 continuous_jog_in_progress = False
@@ -962,6 +969,7 @@ class LivePlotter:
             if vars.metric.get(): m = m * 25.4
             vupdate(vars.maxvel_speed, float(int(600 * m)/10.0))
             root_window.tk.call("update_maxvel_slider")
+        sync_jog_setup(self.stat)
         vupdate(vars.override_limits, self.stat.joint[0]['override_limits'])
         on_any_limit = 0
         for l in self.stat.limit:
@@ -1579,14 +1587,111 @@ def parse_increment(jogincr):
     return jogincr * scale
 
 
-def set_hal_jogincrement():
-    if not 'comp' in globals(): return # this is called once during startup before comp exists
+def current_jogincrement():
     jogincr = widgets.jogincr.get()
     if jogincr == _("Continuous"):
-        distance = 0
-    else:
-        distance = parse_increment(jogincr)
+        return 0
+    return parse_increment(jogincr)
+
+def set_hal_jogincrement(send=True):
+    distance = current_jogincrement()
+    if send and jog_synced:
+        angular = jogincr_kind_shown == "angular"
+        s.poll()
+        if abs(distance - (s.jog_angular_increment if angular else s.jog_increment)) > 1e-9:
+            c.set_jog_increment(distance, angular)
+    if not 'comp' in globals(): return # this is called once during startup before comp exists
     comp['jog.increment'] = distance
+
+# Select the increment task holds, for the kind (linear/angular) shown. An
+# increment that is not in this GUI's list leaves the selection alone.
+def show_task_jogincrement(st):
+    global jogincr_index_last
+    angular = jogincr_kind_shown == "angular"
+    value = st.jog_angular_increment if angular else st.jog_increment
+    if abs(current_jogincrement() - value) <= 1e-9:
+        return
+    entries = [_("Continuous")] + jogincr_lists[jogincr_kind_shown]
+    for idx, entry in enumerate(entries):
+        distance = 0 if idx == 0 else parse_increment(entry)
+        if abs(distance - value) <= 1e-9 * max(1, abs(value)):
+            root_window.call(widgets.jogincr._w, "select", idx)
+            if idx > 0:
+                jogincr_index_last = idx
+            set_hal_jogincrement(send=False)
+            return
+
+# the jog speed task holds, in the units the slider shows (per minute)
+def jog_speed_shown(st, angular):
+    if angular:
+        return st.jog_angular_speed * 60
+    m = to_internal_linear_unit(st.jog_speed)
+    if vars.metric.get(): m = m * 25.4
+    return m * 60
+
+# Tk calls this for every change of a jog speed slider, also when the
+# status update below moves it to task's speed: the slider then snaps to
+# its .02 resolution, at most half a step off. A user's move is at least a
+# step, so anything closer than 3/4 of a step to task's speed is an echo.
+def jog_slider_moved(newval, speed, angular):
+    global jog_blackout, ajog_blackout
+    if not jog_synced: return
+    var = vars.jog_aspeed if angular else vars.jog_speed
+    x = float(newval)
+    speed = float(speed)
+    s.poll()
+    shown = jog_speed_shown(s, angular)
+    if shown > 0 and x > 0 and abs(speed - shown) <= shown * 0.015 / (x * x):
+        var.set(round(shown, 4))
+        return
+    v = speed / 60.
+    if not angular:
+        if vars.metric.get(): v = v / 25.4
+        v = from_internal_linear_unit(v)
+    c.set_jog_speed(v, angular)
+    if angular:
+        ajog_blackout = time.time() + 1
+    else:
+        jog_blackout = time.time() + 1
+
+def set_axisui_jog_pins():
+    if not 'comp' in globals(): return
+    ja = vars.ja_rbutton.get()
+    for letter in "xyzabcuvw":
+        comp['jog.' + letter] = ja == letter
+
+# Show task's jog setup. Called from the status update.
+def sync_jog_setup(st):
+    global jog_synced
+    now = time.time()
+    if has_linear_joint_or_axis and now > jog_blackout:
+        key = (st.jog_speed, vars.metric.get())
+        if jog_seen.get('speed') != key:
+            jog_seen['speed'] = key
+            vars.jog_speed.set(round(jog_speed_shown(st, False), 4))
+            root_window.tk.call("update_jog_slider")
+    if has_angular_joint_or_axis and now > ajog_blackout:
+        if jog_seen.get('aspeed') != st.jog_angular_speed:
+            jog_seen['aspeed'] = st.jog_angular_speed
+            vars.jog_aspeed.set(round(jog_speed_shown(st, True), 4))
+            root_window.tk.call("update_ajog_slider")
+    key = (st.jog_increment, st.jog_angular_increment, jogincr_kind_shown)
+    if jog_seen.get('increment') != key:
+        jog_seen['increment'] = key
+        show_task_jogincrement(st)
+    # the radio buttons hold a joint number in joint mode, else a letter
+    cur = vars.ja_rbutton.get()
+    if cur.isdigit():
+        j = st.jog_selected_joint
+        want = str(j) if 0 <= j < num_joints else cur
+    else:
+        a = st.jog_selected_axis
+        letter = "xyzabcuvw"[a] if 0 <= a < 9 else ""
+        want = letter if letter and letter in trajcoordinates else cur
+    if want != cur:
+        vars.ja_rbutton.set(want)
+        set_axisui_jog_pins()
+    jog_synced = True
 
 def jogspeed_listbox_change(dummy, value):
     global jogincr_index_last
@@ -3047,17 +3152,25 @@ class TclCommands(nf.TclCommands):
             commands.set_view_z()
 
     def axis_activated(*args):
+        # the selection is task's, shared with other GUIs and halui
+        ja = vars.ja_rbutton.get()
+        if jog_synced:
+            s.poll()
+            if ja.isdigit():
+                if int(ja) != s.jog_selected_joint:
+                    c.set_jog_selection(True, int(ja))
+            elif ja and ja in "xyzabcuvw":
+                if "xyzabcuvw".index(ja) != s.jog_selected_axis:
+                    c.set_jog_selection(False, "xyzabcuvw".index(ja))
         # this only makes sense if HAL is present on this machine
         if not hal_present: return
-        comp['jog.x'] = vars.ja_rbutton.get() == "x"
-        comp['jog.y'] = vars.ja_rbutton.get() == "y"
-        comp['jog.z'] = vars.ja_rbutton.get() == "z"
-        comp['jog.a'] = vars.ja_rbutton.get() == "a"
-        comp['jog.b'] = vars.ja_rbutton.get() == "b"
-        comp['jog.c'] = vars.ja_rbutton.get() == "c"
-        comp['jog.u'] = vars.ja_rbutton.get() == "u"
-        comp['jog.v'] = vars.ja_rbutton.get() == "v"
-        comp['jog.w'] = vars.ja_rbutton.get() == "w"
+        set_axisui_jog_pins()
+
+    def jog_slider_moved(newval, speed):
+        jog_slider_moved(newval, speed, False)
+
+    def ajog_slider_moved(newval, speed):
+        jog_slider_moved(newval, speed, True)
 
     def set_teleop_mode():
         set_motion_teleop(vars.teleop_mode.get())
@@ -3915,7 +4028,10 @@ def update_jogincr_for_selection(*_args):
     idx = min(idx, len(jogincr_lists[kind]))
     root_window.call(widgets.jogincr._w, "select", idx)
     jogincr_kind_shown = kind
-    set_hal_jogincrement()
+    if jog_synced:
+        # each kind has its own increment in task: show that one
+        show_task_jogincrement(s)
+    set_hal_jogincrement(send=False)
 
 # vars.* are nf.makevar instances (not plain tkinter Vars) and lack the
 # _root that Variable.trace_add() needs - register through nf.makecommand,

@@ -2221,6 +2221,16 @@ proc update_jog_slider_vel {newval} {
     if {$::metric} { set max_speed_units [expr {25.4 * $max_speed_units}] }
     set speed [val2vel_show $newval $max_speed_units];
     set jog_speed $speed
+    jog_slider_moved $newval $speed
+}
+
+# move the jog speed slider to jog_speed, the speed task holds
+proc update_jog_slider {} {
+    global jog_speed max_speed jog_slider_val
+    set max_speed_units [to_internal_linear_unit $max_speed]
+    if {$max_speed_units == {None}} return
+    if {$::metric} { set max_speed_units [expr {25.4 * $max_speed_units}] }
+    set jog_slider_val [setval $jog_speed $max_speed_units]
 }
 
 proc update_maxvel_slider_vel {newval} {
@@ -2256,6 +2266,12 @@ proc update_units {args} {
 proc update_ajog_slider_vel {newval} {
     global jog_aspeed max_aspeed
     set jog_aspeed [val2vel_show $newval $max_aspeed];
+    ajog_slider_moved $newval $jog_aspeed
+}
+
+proc update_ajog_slider {} {
+    global jog_aspeed max_aspeed ajog_slider_val
+    set ajog_slider_val [setval $jog_aspeed $max_aspeed]
 }
 
 proc update_recent {args} {
