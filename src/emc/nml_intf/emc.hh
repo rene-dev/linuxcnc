@@ -141,6 +141,18 @@ struct PM_CARTESIAN;
 #define EMC_TASK_PLAN_OPTIONAL_STOP_TYPE             ((NMLTYPE) 519)
 #define EMC_TASK_PLAN_REVERSE_TYPE                   ((NMLTYPE) 520)
 #define EMC_TASK_PLAN_FORWARD_TYPE                   ((NMLTYPE) 521)
+#define EMC_TASK_SET_JOG_SPEED_TYPE                  ((NMLTYPE) 522)
+#define EMC_TASK_SET_JOG_INCREMENT_TYPE              ((NMLTYPE) 523)
+#define EMC_TASK_SET_JOG_SELECTION_TYPE              ((NMLTYPE) 524)
+
+// Jog selection values (EMC_TASK_SET_JOG_SELECTION, EMC_TASK_STAT
+// jogSelectedJoint/jogSelectedAxis): an axis is 0..EMC_MAX_AXIS-1 (X..W),
+// a joint 0..EMC_MAX_JOINTS-1. EMC_JOG_SELECT_AUX + n selects auxiliary
+// target n instead of an axis -- something the operator points an MPG at
+// that is not an axis, such as scrolling in the GUI.
+#define EMC_JOG_SELECT_NONE (-1)
+#define EMC_JOG_SELECT_AUX 100
+#define EMC_JOG_SELECT_AUX_MAX 8
 
 #define EMC_TASK_STAT_TYPE                           ((NMLTYPE) 599)
 

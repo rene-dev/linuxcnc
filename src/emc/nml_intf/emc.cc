@@ -217,6 +217,15 @@ int emcFormat(NMLTYPE type, void *buffer, CMS * cms)
     case EMC_TASK_PLAN_OPTIONAL_STOP_TYPE:
 	((EMC_TASK_PLAN_OPTIONAL_STOP *) buffer)->update(cms);
 	break;
+    case EMC_TASK_SET_JOG_SPEED_TYPE:
+	((EMC_TASK_SET_JOG_SPEED *) buffer)->update(cms);
+	break;
+    case EMC_TASK_SET_JOG_INCREMENT_TYPE:
+	((EMC_TASK_SET_JOG_INCREMENT *) buffer)->update(cms);
+	break;
+    case EMC_TASK_SET_JOG_SELECTION_TYPE:
+	((EMC_TASK_SET_JOG_SELECTION *) buffer)->update(cms);
+	break;
     case EMC_TASK_SET_MODE_TYPE:
 	((EMC_TASK_SET_MODE *) buffer)->update(cms);
 	break;
@@ -456,6 +465,12 @@ const char *emc_symbol_lookup(uint32_t type)
 	return "EMC_TASK_PLAN_SET_OPTIONAL_STOP";
     case EMC_TASK_PLAN_SET_BLOCK_DELETE_TYPE:
 	return "EMC_TASK_PLAN_SET_BLOCK_DELETE";
+    case EMC_TASK_SET_JOG_SPEED_TYPE:
+	return "EMC_TASK_SET_JOG_SPEED";
+    case EMC_TASK_SET_JOG_INCREMENT_TYPE:
+	return "EMC_TASK_SET_JOG_INCREMENT";
+    case EMC_TASK_SET_JOG_SELECTION_TYPE:
+	return "EMC_TASK_SET_JOG_SELECTION";
     case EMC_TASK_PLAN_OPTIONAL_STOP_TYPE:
 	return "EMC_TASK_PLAN_OPTIONAL_STOP";
     case EMC_TASK_SET_MODE_TYPE:
@@ -1377,6 +1392,12 @@ void EMC_TASK_STAT::update(CMS * cms)
     cms->update(task_paused);
     cms->update(delayLeft);
     cms->update(queuedMDIcommands);
+    cms->update(jogSpeed);
+    cms->update(jogAngularSpeed);
+    cms->update(jogIncrement);
+    cms->update(jogAngularIncrement);
+    cms->update(jogSelectedJoint);
+    cms->update(jogSelectedAxis);
 }
 
 /*
@@ -2012,6 +2033,30 @@ void EMC_TASK_PLAN_SET_BLOCK_DELETE::update(CMS * cms)
 {
     EMC_TASK_CMD_MSG::update(cms);
     cms->update(state);
+}
+
+// cppcheck-suppress duplInheritedMember
+void EMC_TASK_SET_JOG_SPEED::update(CMS * cms)
+{
+    EMC_TASK_CMD_MSG::update(cms);
+    cms->update(angular);
+    cms->update(speed);
+}
+
+// cppcheck-suppress duplInheritedMember
+void EMC_TASK_SET_JOG_INCREMENT::update(CMS * cms)
+{
+    EMC_TASK_CMD_MSG::update(cms);
+    cms->update(angular);
+    cms->update(increment);
+}
+
+// cppcheck-suppress duplInheritedMember
+void EMC_TASK_SET_JOG_SELECTION::update(CMS * cms)
+{
+    EMC_TASK_CMD_MSG::update(cms);
+    cms->update(jjogmode);
+    cms->update(index);
 }
 
 /*

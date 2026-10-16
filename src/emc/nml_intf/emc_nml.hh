@@ -1438,6 +1438,59 @@ class EMC_TASK_PLAN_SET_BLOCK_DELETE:public EMC_TASK_CMD_MSG {
     bool state; //state == ON, block delete is on, we ignore lines starting with "/"
 };
 
+// Jog setup. Accepted in every task state and mode: they change no
+// motion, only what EMC_TASK_STAT reports. See jogSpeed et al.
+class EMC_TASK_SET_JOG_SPEED:public EMC_TASK_CMD_MSG {
+  public:
+    EMC_TASK_SET_JOG_SPEED()
+      : EMC_TASK_CMD_MSG(EMC_TASK_SET_JOG_SPEED_TYPE, sizeof(EMC_TASK_SET_JOG_SPEED)),
+        angular(0),
+        speed(0.0)
+    {};
+
+    // For internal NML/CMS use only.
+    // Sub-class update() calls base-class update()
+    // cppcheck-suppress duplInheritedMember
+    void update(CMS * cms);
+
+    int angular;	// 0: linear speed, 1: angular speed
+    double speed;	// machine units or degrees per second
+};
+
+class EMC_TASK_SET_JOG_INCREMENT:public EMC_TASK_CMD_MSG {
+  public:
+    EMC_TASK_SET_JOG_INCREMENT()
+      : EMC_TASK_CMD_MSG(EMC_TASK_SET_JOG_INCREMENT_TYPE, sizeof(EMC_TASK_SET_JOG_INCREMENT)),
+        angular(0),
+        increment(0.0)
+    {};
+
+    // For internal NML/CMS use only.
+    // Sub-class update() calls base-class update()
+    // cppcheck-suppress duplInheritedMember
+    void update(CMS * cms);
+
+    int angular;	// 0: linear increment, 1: angular increment
+    double increment;	// machine units or degrees, 0 = continuous
+};
+
+class EMC_TASK_SET_JOG_SELECTION:public EMC_TASK_CMD_MSG {
+  public:
+    EMC_TASK_SET_JOG_SELECTION()
+      : EMC_TASK_CMD_MSG(EMC_TASK_SET_JOG_SELECTION_TYPE, sizeof(EMC_TASK_SET_JOG_SELECTION)),
+        jjogmode(0),
+        index(EMC_JOG_SELECT_NONE)
+    {};
+
+    // For internal NML/CMS use only.
+    // Sub-class update() calls base-class update()
+    // cppcheck-suppress duplInheritedMember
+    void update(CMS * cms);
+
+    int jjogmode;	// 1: select a joint, 0: select an axis
+    int index;		// see EMC_JOG_SELECT_NONE / EMC_JOG_SELECT_AUX
+};
+
 class EMC_TASK_PLAN_OPTIONAL_STOP:public EMC_TASK_CMD_MSG {
   public:
     EMC_TASK_PLAN_OPTIONAL_STOP()
@@ -1538,6 +1591,17 @@ class EMC_TASK_STAT:public EMC_TASK_STAT_MSG {
     int task_paused;		// non-zero means task is paused
     double delayLeft;           // delay time left of G4, M66..
     int queuedMDIcommands;      // current length of MDI input queue
+
+    // Jog setup, shared by every UI and halui. Set with the
+    // EMC_TASK_SET_JOG_* commands; jog commands still carry their own
+    // speed and increment, a UI fills them in from here.
+    double jogSpeed;		// linear, machine units per second
+    double jogAngularSpeed;	// angular, degrees per second
+    double jogIncrement;	// linear, machine units, 0 = continuous
+    double jogAngularIncrement;	// angular, degrees, 0 = continuous
+    int jogSelectedJoint;	// EMC_JOG_SELECT_NONE or a joint number
+    int jogSelectedAxis;	// EMC_JOG_SELECT_NONE, an axis number, or
+				// EMC_JOG_SELECT_AUX + n
 };
 
 // declarations for EMC_TOOL classes

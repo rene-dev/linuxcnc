@@ -88,6 +88,7 @@ fpu_control_t __fpu_control = _FPU_IEEE & ~(_FPU_MASK_IM | _FPU_MASK_ZM | _FPU_M
 #include "ini/inihal.hh"
 #include "halui.hh"		// the HAL user interface, in task
 #include "cmd_queue.hh"		// commands from inside task (halui)
+#include "jog_setup.hh"		// jog speeds, increments, selection
 
 using namespace linuxcnc;
 using namespace std::chrono_literals;
@@ -823,11 +824,15 @@ static int emcTaskPlan(void)
 	type = 0;
     }
 
-    // Always display messages
+    // Always display messages, and always accept a change of the jog
+    // setup: it moves nothing, so it is the same in every state and mode
     switch (type) {
     case EMC_OPERATOR_ERROR_TYPE:
     case EMC_OPERATOR_TEXT_TYPE:
     case EMC_OPERATOR_DISPLAY_TYPE:
+    case EMC_TASK_SET_JOG_SPEED_TYPE:
+    case EMC_TASK_SET_JOG_INCREMENT_TYPE:
+    case EMC_TASK_SET_JOG_SELECTION_TYPE:
 	retval = emcTaskIssueCommand(emcCommand);
 	return retval;
     }
@@ -2527,6 +2532,12 @@ static int emcTaskIssueCommand(NMLmsg * cmd)
 	retval =  emcSelectKinsType(kSwitch_msg->switchkins_type);
 	break;
 
+    case EMC_TASK_SET_JOG_SPEED_TYPE:
+    case EMC_TASK_SET_JOG_INCREMENT_TYPE:
+    case EMC_TASK_SET_JOG_SELECTION_TYPE:
+	retval = jogSetupIssue(cmd, *emcStatus);
+	break;
+
      default:
 	// unrecognized command
 	if (emc_debug & EMC_DEBUG_TASK_ISSUE) {
@@ -3525,6 +3536,11 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
     rtapi_strxcpy(emcStatus->task.ini_filename, emc_inifile);
+    if (0 != jogSetupInit(emc_inifile, *emcStatus)) {
+	log_error("can't read the jog setup from {}\n", emc_inifile);
+	emctask_shutdown();
+	exit(1);
+    }
     if (task_methods == NULL) {
 	log_error("can't initialize Task methods\n");
 	emctask_shutdown();

@@ -1162,6 +1162,18 @@ static PyMemberDef Stat_members[] = {
     { "delay_left", T_DOUBLE, O(task.delayLeft), READONLY, NULL},
     { "queued_mdi_commands", T_INT, O(task.queuedMDIcommands), READONLY,
         "Number of MDI commands queued waiting to run." },
+    { "jog_speed", T_DOUBLE, O(task.jogSpeed), READONLY,
+        "Linear jog speed shared by all UIs, machine units per second."},
+    { "jog_angular_speed", T_DOUBLE, O(task.jogAngularSpeed), READONLY,
+        "Angular jog speed shared by all UIs, degrees per second."},
+    { "jog_increment", T_DOUBLE, O(task.jogIncrement), READONLY,
+        "Linear jog increment shared by all UIs, machine units; 0 means continuous."},
+    { "jog_angular_increment", T_DOUBLE, O(task.jogAngularIncrement), READONLY,
+        "Angular jog increment shared by all UIs, degrees; 0 means continuous."},
+    { "jog_selected_joint", T_INT, O(task.jogSelectedJoint), READONLY,
+        "Joint selected for jogging, or JOG_SELECT_NONE."},
+    { "jog_selected_axis", T_INT, O(task.jogSelectedAxis), READONLY,
+        "Axis selected for jogging (0-8 for X-W), JOG_SELECT_NONE, or JOG_SELECT_AUX + n."},
 
 //   EMC_TRAJ_STAT traj
     { "linear_units", T_DOUBLE, O(motion.traj.linearUnits), READONLY, NULL},
@@ -1742,6 +1754,45 @@ static PyObject *optional_stop(pyCommandChannel *s, PyObject *o) {
 
     if(!PyArg_ParseTuple(o, "i", &t)) return NULL;
     m.state = t;
+
+    emcSendCommand(s, m);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *set_jog_speed(pyCommandChannel *s, PyObject *o) {
+    EMC_TASK_SET_JOG_SPEED m;
+    int angular = 0;
+
+    if(!PyArg_ParseTuple(o, "d|p", &m.speed, &angular)) return NULL;
+    m.angular = angular;
+
+    emcSendCommand(s, m);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *set_jog_increment(pyCommandChannel *s, PyObject *o) {
+    EMC_TASK_SET_JOG_INCREMENT m;
+    int angular = 0;
+
+    if(!PyArg_ParseTuple(o, "d|p", &m.increment, &angular)) return NULL;
+    m.angular = angular;
+
+    emcSendCommand(s, m);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *set_jog_selection(pyCommandChannel *s, PyObject *o) {
+    EMC_TASK_SET_JOG_SELECTION m;
+    int jjogmode;
+
+    if(!PyArg_ParseTuple(o, "pi", &jjogmode, &m.index)) return NULL;
+    m.jjogmode = jjogmode;
 
     emcSendCommand(s, m);
 
@@ -2417,6 +2468,25 @@ static PyMethodDef Command_methods[] = {
     {"auto", (PyCFunction)emcauto, METH_VARARGS, NULL},
     {"set_optional_stop", (PyCFunction)optional_stop, METH_VARARGS, NULL},
     {"set_block_delete", (PyCFunction)block_delete, METH_VARARGS, NULL},
+    {"set_jog_speed", (PyCFunction)set_jog_speed, METH_VARARGS,
+        "set_jog_speed(speed, angular=False)\n"
+        "\n"
+        "Set the jog speed all UIs share: machine units per second, or degrees\n"
+        "per second with angular=True. See stat.jog_speed.\n"
+    },
+    {"set_jog_increment", (PyCFunction)set_jog_increment, METH_VARARGS,
+        "set_jog_increment(increment, angular=False)\n"
+        "\n"
+        "Set the jog increment all UIs share: machine units, or degrees with\n"
+        "angular=True; 0 means continuous. See stat.jog_increment.\n"
+    },
+    {"set_jog_selection", (PyCFunction)set_jog_selection, METH_VARARGS,
+        "set_jog_selection(joint_flag, index)\n"
+        "\n"
+        "Select the joint (joint_flag True) or axis (0-8 for X-W) to jog, or\n"
+        "JOG_SELECT_NONE. An axis selection can also be JOG_SELECT_AUX + n.\n"
+        "See stat.jog_selected_joint and stat.jog_selected_axis.\n"
+    },
     {"set_min_limit", (PyCFunction)set_min_limit, METH_VARARGS, NULL},
     {"set_max_limit", (PyCFunction)set_max_limit, METH_VARARGS, NULL},
     {"set_feed_override", (PyCFunction)set_feed_override, METH_VARARGS, NULL},
@@ -3351,6 +3421,10 @@ PyMODINIT_FUNC PyInit_linuxcnc(void)
     PyModule_AddStringConstant(m, "PREFIX", EMC2_HOME);
     PyModule_AddStringConstant(m, "SHARE", EMC2_HOME "/share");
     PyModule_AddStringConstant(m, "nmlfile", EMC2_DEFAULT_NMLFILE);
+
+    PyModule_AddIntConstant(m, "JOG_SELECT_NONE", EMC_JOG_SELECT_NONE);
+    PyModule_AddIntConstant(m, "JOG_SELECT_AUX", EMC_JOG_SELECT_AUX);
+    PyModule_AddIntConstant(m, "JOG_SELECT_AUX_MAX", EMC_JOG_SELECT_AUX_MAX);
 
     PyModule_AddIntConstant(m, "OPERATOR_ERROR", EMC_OPERATOR_ERROR_TYPE);
     PyModule_AddIntConstant(m, "OPERATOR_TEXT", EMC_OPERATOR_TEXT_TYPE);

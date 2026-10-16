@@ -25,6 +25,7 @@ MILLTASKSRCS := \
 	emc/task/backtrace.cc \
 	emc/task/cmd_queue.cc \
 	emc/task/halui.cc \
+	emc/task/jog_setup.cc \
 	emc/usr_intf/mapini.cc
 
 USERSRCS += $(MILLTASKSRCS)

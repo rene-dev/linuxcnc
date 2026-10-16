@@ -224,6 +224,26 @@ see <<python:reading-ini-values,ReadingINI file values>> for an example.
   INTERP_FILE_NOT_OPEN, INTERP_ERROR.
   see src/emc/nml_intf/interp_return.hh
 
+*jog_angular_increment*:: '(returns float)' -
+  angular jog increment shared by all UIs and halui, in degrees; 0 means continuous jogging.
+
+*jog_angular_speed*:: '(returns float)' -
+  angular jog speed shared by all UIs and halui, in degrees per second.
+
+*jog_increment*:: '(returns float)' -
+  linear jog increment shared by all UIs and halui, in machine units; 0 means continuous jogging.
+
+*jog_selected_axis*:: '(returns integer)' -
+  axis selected for jogging, 0-8 for X-W, `JOG_SELECT_NONE`, or `JOG_SELECT_AUX` + n for
+  auxiliary target n (something other than an axis, such as scrolling in the GUI).
+
+*jog_selected_joint*:: '(returns integer)' -
+  joint selected for jogging, or `JOG_SELECT_NONE`.
+
+*jog_speed*:: '(returns float)' -
+  linear jog speed shared by all UIs and halui, in machine units per second.
+  Starts at `[DISPLAY]DEFAULT_LINEAR_VELOCITY`.
+
 *joint*:: '(returns tuple of dicts)' -
   reflecting current joint values. See
   <<sec:the-joint-dictionary,The joint dictionary>>.
@@ -750,6 +770,20 @@ c.tool_offset(toolno, z_offset,  x_offset, diameter, frontangle, backangle, orie
 
 `set_feed_override(int)`::
   set feed override on/off
+
+`set_jog_increment(float[, bool])`::
+  set the jog increment all UIs share, in machine units, or in degrees when the second
+  argument is True; 0 means continuous jogging. Accepted in every state and mode.
+
+`set_jog_selection(bool, int)`::
+  select the joint (first argument True) or axis to jog, or `JOG_SELECT_NONE`. An axis
+  selection can also be `JOG_SELECT_AUX` + n, with n below `JOG_SELECT_AUX_MAX`.
+  Accepted in every state and mode.
+
+`set_jog_speed(float[, bool])`::
+  set the jog speed all UIs share, in machine units per second, or in degrees per second
+  when the second argument is True. Limited to `[DISPLAY]MAX_LINEAR_VELOCITY` /
+  `MAX_ANGULAR_VELOCITY`. Accepted in every state and mode.
 
 `set_max_limit(int, float)`::
   set max position limit for a given axis

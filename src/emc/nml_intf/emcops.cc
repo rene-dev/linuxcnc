@@ -161,7 +161,13 @@ EMC_TASK_STAT::EMC_TASK_STAT()
     interpreter_errcode(0),
     task_paused(0),
     delayLeft(0.0),
-    queuedMDIcommands(0)
+    queuedMDIcommands(0),
+    jogSpeed(0.0),
+    jogAngularSpeed(0.0),
+    jogIncrement(0.0),
+    jogAngularIncrement(0.0),
+    jogSelectedJoint(EMC_JOG_SELECT_NONE),
+    jogSelectedAxis(EMC_JOG_SELECT_NONE)
 {
     int t;
 
