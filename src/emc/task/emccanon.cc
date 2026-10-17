@@ -599,8 +599,6 @@ void SET_G92_OFFSET(double x, double y, double z,
 void USE_LENGTH_UNITS(CANON_UNITS in_unit)
 {
     canon.lengthUnits = in_unit;
-
-    emcStatus->task.programUnits = in_unit;
 }
 
 /* Free Space Motion */

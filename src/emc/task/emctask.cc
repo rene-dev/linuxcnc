@@ -763,6 +763,12 @@ int emcTaskUpdate(EMC_TASK_STAT * stat)
         interp.active_settings(&stat->activeSettings[0]);
     }
 
+    // Report the units of the executing motion like activeGCodes does, not
+    // the units the interpreter readahead has reached. Slot 5 is G20 (200)
+    // or G21 (210).
+    stat->programUnits = (stat->activeGCodes[5] == 200) ? CANON_UNITS_INCHES
+                                                        : CANON_UNITS_MM;
+
     //update state of optional stop
     stat->optional_stop_state = GET_OPTIONAL_PROGRAM_STOP();
     

@@ -313,7 +313,9 @@ see <<python:reading-ini-values,ReadingINI file values>> for an example.
   flag, True if a probe operation is in progress.
 
 *program_units*:: '(returns integer)' -
-  one of CANON_UNITS_INCHES=1, CANON_UNITS_MM=2, CANON_UNITS_CM=3
+  one of CANON_UNITS_INCHES=1, CANON_UNITS_MM=2. While a program runs,
+  this follows the line being executed, the same as the G20/G21 entry
+  in *gcodes*.
 
 *queue*:: '(returns integer)' -
   current size of the trajectory planner queue.
