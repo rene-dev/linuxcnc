@@ -102,10 +102,6 @@ void export_Internals()
 
 	;
 
-    class_<remap_map,noncopyable>("RemapMap",no_init)
-        .def(map_indexing_suite<remap_map>())
-	;
-
     class_<parameter_value_struct /*,noncopyable */>("ParameterValue") // ,no_init)
 	.def_readwrite("attr",&parameter_value_struct::attr)
 	.def_readwrite("value",&parameter_value_struct::value)

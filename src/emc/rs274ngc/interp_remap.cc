@@ -34,6 +34,20 @@ namespace bp = boost::python;
 #include <string_view>
 
 
+static remap_pointer find_remap(setup_pointer settings, char letter, int number)
+{
+    letter = toupper(letter);
+    if (letter == 'T' || letter == 'S' || letter == 'F')
+        number = 0;
+    auto it = settings->remaps.find({letter, number});
+    return it == settings->remaps.end() ? nullptr : &it->second;
+}
+
+remap_pointer Interp::remapping(char letter, int number)
+{
+    return find_remap(&_setup, letter, number);
+}
+
 bool Interp::is_m_code_remappable(int m_code)
 {
     // this is overdue for a bitset
@@ -61,7 +75,7 @@ bool Interp::is_any_m_code_remapped(block_pointer block, setup_pointer settings)
     for (const int m_mode : block->m_modes) {
 	if (m_mode == -1)
             continue;
-        if (is_m_code_remappable(m_mode) && settings->m_remapped[m_mode])
+        if (is_m_code_remappable(m_mode) && find_remap(settings, 'M', m_mode))
 	    return true;
     }
     return false;
@@ -72,7 +86,7 @@ bool Interp::is_user_defined_m_code(block_pointer block, setup_pointer settings,
     const int m_code = block->m_modes[m_group];
     if (m_code < 0) return false;
 
-    return (is_m_code_remappable(m_code) && settings->m_remapped[m_code]);
+    return (is_m_code_remappable(m_code) && find_remap(settings, 'M', m_code));
 }
 
 // the tilted work plane codes are built in, but configs that remap them,
@@ -84,11 +98,11 @@ bool Interp::is_g_code_remappable(int g_code)
 }
 
 bool Interp::is_user_defined_g_code(int g_code)
-{ return is_g_code_remappable(g_code) && _setup.g_remapped[g_code]; }
+{ return is_g_code_remappable(g_code) && remapping('G', g_code); }
 
-bool Interp::remap_in_progress(const char *code)
+bool Interp::remap_in_progress(char letter, int number)
 {
-    remap_pointer rp = remapping(code);
+    remap_pointer rp = remapping(letter, number);
     if (rp == NULL)
 	return false;
     for (int i = _setup.remap_level; i > 0; i--) {
@@ -109,7 +123,6 @@ int Interp::convert_remapped_code(block_pointer /*block*/,
 				  int number)
 {
     remap_pointer remap;
-    char key[2];
     int status;
     block_pointer cblock;
     bp::list plist;
@@ -120,18 +133,7 @@ int Interp::convert_remapped_code(block_pointer /*block*/,
     else
 	logRemap("convert_remapped_code '%c%d'", letter, number);
 
-    switch (toupper(letter)) {
-    case 'M':
-	remap = settings->m_remapped[number];
-	break;
-    case 'G':
-	remap = settings->g_remapped[number];
-	break;
-    default:
-	key[0] = letter;
-	key[1] = '\0';
-	remap = remapping((const char *)key);
-    }
+    remap = find_remap(settings, letter, number);
     CHKS((remap == NULL), "BUG: convert_remapped_code: no remapping");
 
     // remapped handlers may use Python code to
@@ -388,16 +390,6 @@ int Interp::add_parameters(setup_pointer settings,
 }
 
 
-// this looks up a remapping by unnormalized code (like G88.1)
-remap_pointer Interp::remapping(const char *code)
-{
-    remap_iterator n = 	_setup.remaps.find(code);
-    if (n !=  _setup.remaps.end())
-	return &n->second;
-    else
-	return NULL;
-}
-
 // parse options of the form:
 // REMAP= M420 modalgroup=6 argspec=pq prolog=setnamedvars ngc=m43.ngc epilog=ignore_retvalue
 // REMAP= M421 modalgroup=6 argspec=- prolog=setnamedvars python=m43func epilog=ignore_retvalue
@@ -413,6 +405,7 @@ int Interp::parse_remap(const char *inistring, int lineno)
     int g1 = 0, g2 = 0;
     int mcode = -1;
     int gcode = -1;
+    remap_key key;
 
     memset((void *)&r, 0, sizeof(remap));
     r.modal_group = -1; // mark as unset, required param for m/g
@@ -545,12 +538,6 @@ int Interp::parse_remap(const char *inistring, int lineno)
 	goto fail;
     }
 
-    if (remapping(code)) {
-	Error("code '%s' already remapped : %d:REMAP = %s",
-	      code,lineno,inistring);
-	goto fail;
-    }
-
     // it is an error not to define a remap function to call.
     if ((r.remap_ngc == NULL) && (r.remap_py == NULL)) {
 	Error("code '%s' - no remap function given, use either 'python=<function>' or 'ngc=<basename>' : %d:REMAP = %s",
@@ -558,25 +545,24 @@ int Interp::parse_remap(const char *inistring, int lineno)
 	goto fail;
     }
 
-#define CHECK(bad, fmt, ...)			\
-    do {					\
-	if (bad) {				\
-	    Log(fmt, ## __VA_ARGS__);		\
-	    goto fail;				\
-	}					\
-    } while(0)
+    key.letter = toupper(*code);
+    switch (key.letter) {
 
-    switch (towlower(*code)) {
-
-    case 't':
-    case 's':
-    case 'f':
-	CHECK((strlen(code) > 1),"%d: %c remap - only single letter code allowed", lineno, *code);
-	CHECK((r.modal_group != -1), "%d: %c remap - modal group setting ignored - fixed sequencing", lineno, *code);
-	_setup.remaps[code] = r;
+    case 'T':
+    case 'S':
+    case 'F':
+	if (strlen(code) > 1) {
+	    Error("%d: %c remap - only single letter code allowed", lineno, *code);
+	    goto fail;
+	}
+	if (r.modal_group != -1) {
+	    Error("%d: %c remap - modal group setting ignored - fixed sequencing", lineno, *code);
+	    goto fail;
+	}
+	key.number = 0;
 	break;
 
-    case 'm': {
+    case 'M': {
 	int len = 0;
 	if (sscanf(code + 1, "%d%n", &mcode, &len) != 1 || code[1 + len] != '\0') {
 	    Error("parsing M-code: expecting integer like 'M420', got '%s' : %d:REMAP = %s",
@@ -585,14 +571,6 @@ int Interp::parse_remap(const char *inistring, int lineno)
 	}
 	if (!is_m_code_remappable(mcode)) {
 	    Error("code '%s' can't be remapped : %d:REMAP = %s",
-		  code,lineno,inistring);
-	    goto fail;
-	}
-	// the built-in code looks M-code remaps up as "M6", so store M06 as that
-	code = strstore(("M" + std::to_string(mcode)).c_str());
-	r.name = code;
-	if (_setup.m_remapped[mcode]) {
-	    Error("code '%s' already remapped : %d:REMAP = %s",
 		  code,lineno,inistring);
 	    goto fail;
 	}
@@ -606,11 +584,10 @@ int Interp::parse_remap(const char *inistring, int lineno)
 		  code,lineno,inistring);
 	    goto fail;
 	}
-        _setup.remaps[code] = r;
-        _setup.m_remapped[mcode] = &_setup.remaps[code];
+	key.number = mcode;
 	break;
     }
-    case 'g': {
+    case 'G': {
 	int len = 0;
 	// code may be G88.1 or so - normalize to use 'G881' instead
 	// (multiply by 10, no dots)
@@ -629,11 +606,6 @@ int Interp::parse_remap(const char *inistring, int lineno)
 		  code,lineno,inistring);
 	    goto fail;
 	}
-	if (_setup.g_remapped[gcode]) {
-	    Error("code '%s' already remapped : %d:REMAP = %s",
-		  code,lineno,inistring);
-	    goto fail;
-	}
 	r.motion_code = gcode;
 	if (r.modal_group == -1) {
 	    Error("warning: code '%s' : no modalgroup=<int> given, using default group %d : %d:REMAP = %s",
@@ -641,28 +613,26 @@ int Interp::parse_remap(const char *inistring, int lineno)
 	    r.modal_group = GCODE_DEFAULT_MODAL_GROUP;
 	}
 	if (!G_MODE_OK(r.modal_group)) {
-	    Error("error: code '%s' : %s modalgroup=<int> given  : %d:REMAP = %s",
-		  argv[0].c_str(),
-		  r.modal_group == -1 ? "no" : "invalid",
-		  lineno,
-		  inistring);
+	    Error("error: code '%s' : invalid modalgroup=<int> given  : %d:REMAP = %s",
+		  code, lineno, inistring);
 	    goto fail;
 	}
-	_setup.remaps[code] = r;
-	_setup.g_remapped[gcode] = &_setup.remaps[code];
+	key.number = gcode;
 	break;
     }
-
     default:
-	// make sure the python plugin is in a usable state if needed
-	if ((r.prolog_func || r.remap_py || r.epilog_func) &&
-	    (!PYUSABLE))  {
-	    fprintf(stderr, "fatal: REMAP requires the Python plugin, which did not initialize\n");
-	    break;
-	}
-	Log("REMAP BUG=%s %d:REMAP = %s",
-	    code,lineno,inistring);
+	Error("code '%s' can't be remapped, only T, S, F, M and G codes can : %d:REMAP = %s",
+	      code,lineno,inistring);
+	goto fail;
     }
+
+    // M6 and M06 are the same code
+    if (_setup.remaps.count(key)) {
+	Error("code '%s' already remapped : %d:REMAP = %s",
+	      code,lineno,inistring);
+	goto fail;
+    }
+    _setup.remaps[key] = r;
     return INTERP_OK;
 
  fail:

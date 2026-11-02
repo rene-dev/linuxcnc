@@ -444,11 +444,16 @@ struct nocase_cmp
     }
 };
 
-typedef std::map<const char *,remap,nocase_cmp> remap_map;
-typedef remap_map::iterator remap_iterator;
-
-typedef std::map<int, remap_pointer> int_remap_map;
-typedef int_remap_map::iterator int_remap_iterator;
+// a remap is found by its letter (upper case) and number: the M-code,
+// the G-code times ten (G88.1 is 881), or 0 for T, S and F
+struct remap_key {
+    char letter;
+    int number;
+    bool operator<(const remap_key &o) const {
+        return letter != o.letter ? letter < o.letter : number < o.number;
+    }
+};
+typedef std::map<remap_key, remap> remap_map;
 
 #define REMAP_FUNC(r) (r->remap_ngc ? r->remap_ngc: \
 		       (r->remap_py ? r->remap_py : "BUG-no-remap-func"))
@@ -916,7 +921,6 @@ struct setup
     const char *on_abort_command;
     bool in_abort_command;      // running the ON_ABORT_COMMAND routine
     bool in_startup_code;       // running the startup code at task init
-    int_remap_map  g_remapped,m_remapped;
     remap_map remaps;
 #define INIT_FUNC  "__init__"
 #define DELETE_FUNC  "__delete__"

@@ -649,33 +649,33 @@ int Interp::remap_finished(int phase)
 // return number of remaps found
 int Interp::find_remappings(block_pointer block, setup_pointer settings)
 {
-    if (block->f_flag && remapping("F")) {
-	if (remap_in_progress("F"))
+    if (block->f_flag && remapping('F')) {
+	if (remap_in_progress('F'))
 	    CONTROLLING_BLOCK(*settings).builtin_used = true;
 	else
 	    block->remappings.insert(STEP_SET_FEED_RATE);
     }
-    if (block->s_flag && remapping("S")) {
-	if (remap_in_progress("S"))
+    if (block->s_flag && remapping('S')) {
+	if (remap_in_progress('S'))
 	    CONTROLLING_BLOCK(*settings).builtin_used = true;
 	else
 	    block->remappings.insert(STEP_SET_SPINDLE_SPEED);
     }
-    if (block->t_flag && remapping("T")) {
-	if (remap_in_progress("T"))
+    if (block->t_flag && remapping('T')) {
+	if (remap_in_progress('T'))
 	    CONTROLLING_BLOCK(*settings).builtin_used = true;
 	else
 	    block->remappings.insert(STEP_PREPARE);
     }
     // User defined M-Codes in group 5
     if (is_user_defined_m_code(block, settings, 5) &&
-	!(((block->m_modes[5] == 62) && remap_in_progress("M62")) ||
-	  ((block->m_modes[5] == 63) && remap_in_progress("M63")) ||
-	  ((block->m_modes[5] == 64) && remap_in_progress("M64")) ||
-	  ((block->m_modes[5] == 65) && remap_in_progress("M65")) ||
-	  ((block->m_modes[5] == 66) && remap_in_progress("M66")) ||
-	  ((block->m_modes[5] == 67) && remap_in_progress("M67")) ||
-	  ((block->m_modes[5] == 68) && remap_in_progress("M68"))))
+	!(((block->m_modes[5] == 62) && remap_in_progress('M', 62)) ||
+	  ((block->m_modes[5] == 63) && remap_in_progress('M', 63)) ||
+	  ((block->m_modes[5] == 64) && remap_in_progress('M', 64)) ||
+	  ((block->m_modes[5] == 65) && remap_in_progress('M', 65)) ||
+	  ((block->m_modes[5] == 66) && remap_in_progress('M', 66)) ||
+	  ((block->m_modes[5] == 67) && remap_in_progress('M', 67)) ||
+	  ((block->m_modes[5] == 68) && remap_in_progress('M', 68))))
 	// non-recursive behavior
 	block->remappings.insert(STEP_M_5);
 
@@ -684,8 +684,8 @@ int Interp::find_remappings(block_pointer block, setup_pointer settings)
     // it's an M6 or M61 and a remap is in progress
     // (recursion case)
     if (is_user_defined_m_code(block, settings, 6) &&
-	!(((block->m_modes[6] == 6) && remap_in_progress("M6")) ||
-	  ((block->m_modes[6] == 61) && remap_in_progress("M61")))) {
+	!(((block->m_modes[6] == 6) && remap_in_progress('M', 6)) ||
+	  ((block->m_modes[6] == 61) && remap_in_progress('M', 61)))) {
 	block->remappings.insert(STEP_M_6); // then call the remap procedure
     } // else we get the builtin behaviour
     
@@ -695,9 +695,9 @@ int Interp::find_remappings(block_pointer block, setup_pointer settings)
 
     // User defined M-Codes in group 8
     if (is_user_defined_m_code(block, settings, 8)) {
-        if (((block->m_modes[8] == 7) && remap_in_progress("M7")) ||
-        ((block->m_modes[8] == 8) && remap_in_progress("M8")) ||
-        ((block->m_modes[8] == 9) && remap_in_progress("M9"))){
+        if (((block->m_modes[8] == 7) && remap_in_progress('M', 7)) ||
+        ((block->m_modes[8] == 8) && remap_in_progress('M', 8)) ||
+        ((block->m_modes[8] == 9) && remap_in_progress('M', 9))){
         // recursive behavior
         CONTROLLING_BLOCK(*settings).builtin_used = true;
         } else {
@@ -739,13 +739,13 @@ int Interp::find_remappings(block_pointer block, setup_pointer settings)
     // User defined M-Codes in group 4 (stopping)
     if (is_user_defined_m_code(block, settings, 4)) {
 
-	if (remap_in_progress("M0") ||
-	    remap_in_progress("M1") ||
-	    remap_in_progress("M60"))  { // detect recursion case
+	if (remap_in_progress('M', 0) ||
+	    remap_in_progress('M', 1) ||
+	    remap_in_progress('M', 60))  { // detect recursion case
 
 	    // these require real work.
-	    // remap_in_progress("M2") ||
-	    // remap_in_progress("M60")
+	    // remap_in_progress('M', 2) ||
+	    // remap_in_progress('M', 60)
 	    CONTROLLING_BLOCK(*settings).builtin_used = true;
 	} else {
 	    block->remappings.insert(STEP_MGROUP4);
@@ -1068,8 +1068,6 @@ int Interp::init()
           }
  
 	  int n = 1;
-	  _setup.g_remapped.clear();
-	  _setup.m_remapped.clear();
 	  _setup.remaps.clear();
 	  while (auto inistring = inifile.findString(n, "REMAP", "RS274NGC")) {
 	      // FIXME: This should make use of the path/lineno pair returned

@@ -147,8 +147,8 @@ public:
 
     // common combination of add_named_param and store_named_param
     // int assign_named_param(const char *nameBuf, int attr = 0, double value = 0.0);
-    remap_pointer remapping(const char *code);
-    remap_pointer remapping(const char letter, int number = -1);
+    // number is ignored for T, S and F
+    remap_pointer remapping(char letter, int number = 0);
  int find_tool_pocket(setup_pointer settings, int toolno, int *pocket);
  int find_tool_index(setup_pointer settings, int toolno, int *index);
 
@@ -640,7 +640,7 @@ int read_inputs(setup_pointer settings);
  int init_named_parameters();
     int init_python_predef_parameter(const char *name);
 
-    bool remap_in_progress(const char *code);
+    bool remap_in_progress(char letter, int number = 0);
     int convert_remapped_code(block_pointer block,
 			       setup_pointer settings,
 			      int phase,
