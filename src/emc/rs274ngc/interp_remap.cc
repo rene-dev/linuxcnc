@@ -48,26 +48,33 @@ remap_pointer Interp::remapping(char letter, int number)
     return find_remap(&_setup, letter, number);
 }
 
+// Built-in codes that can also be remapped. Used inside its own remap,
+// such a code runs the built-in, so the remap can wrap it. Any other
+// remappable code is one the interpreter doesn't know.
+static const remap_key remappable_builtins[] = {
+    {'T', 0}, {'S', 0}, {'F', 0},
+    {'M', 0}, {'M', 1}, {'M', 60},                  // group 4, stopping
+    {'M', 62}, {'M', 63}, {'M', 64}, {'M', 65},     // group 5, I/O
+    {'M', 66}, {'M', 67}, {'M', 68},
+    {'M', 6}, {'M', 61},                            // group 6, tool change
+    {'M', 7}, {'M', 8}, {'M', 9},                   // group 8, coolant
+    {'G', G_68_2}, {'G', G_68_4}, {'G', G_69},      // tilted work plane
+};
+
+static bool is_remappable_builtin(char letter, int number)
+{
+    for (const remap_key &k : remappable_builtins) {
+        if (k.letter == letter && k.number == number)
+            return true;
+    }
+    return false;
+}
+
 bool Interp::is_m_code_remappable(int m_code)
 {
-    // this is overdue for a bitset
     return ((m_code > 199 && m_code < 1000) ||
             (m_code > 0 && m_code < 100 && ems[m_code] == -1) ||
-            m_code == 0 ||
-            m_code == 1 ||
-            m_code == 6 ||
-            m_code == 7 ||
-            m_code == 8 ||
-            m_code == 9 ||
-            m_code == 60 ||
-            m_code == 61 ||
-            m_code == 62 ||
-            m_code == 63 ||
-            m_code == 64 ||
-            m_code == 65 ||
-            m_code == 66 ||
-            m_code == 67 ||
-            m_code == 68);
+            is_remappable_builtin('M', m_code));
 }
 
 bool Interp::is_any_m_code_remapped(block_pointer block, setup_pointer settings)
@@ -89,12 +96,10 @@ bool Interp::is_user_defined_m_code(block_pointer block, setup_pointer settings,
     return (is_m_code_remappable(m_code) && find_remap(settings, 'M', m_code));
 }
 
-// the tilted work plane codes are built in, but configs that remap them,
-// like the nutating TWP sims, keep their own
 bool Interp::is_g_code_remappable(int g_code)
 {
     return g_code > 0 && g_code < 1000 &&
-           (gees[g_code] == -1 || g_code == G_68_2 || g_code == G_68_4 || g_code == G_69);
+           (gees[g_code] == -1 || is_remappable_builtin('G', g_code));
 }
 
 bool Interp::is_user_defined_g_code(int g_code)
@@ -107,12 +112,18 @@ bool Interp::remap_in_progress(char letter, int number)
 	return false;
     for (int i = _setup.remap_level; i > 0; i--) {
 	if (_setup.blocks[i].executing_remap == rp) {
-	    // printf("---------------- remap_in_progress(%s): TRUE level=%d\n",code,i);
 	    return true;
 	}
     }
-    // printf("---------------- remap_in_progress(%s): FALSE\n",code);
     return false;
+}
+
+bool Interp::builtin_in_own_remap(char letter, int number)
+{
+    letter = toupper(letter);
+    if (letter == 'T' || letter == 'S' || letter == 'F')
+        number = 0;
+    return is_remappable_builtin(letter, number) && remap_in_progress(letter, number);
 }
 
 

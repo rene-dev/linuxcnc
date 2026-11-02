@@ -820,8 +820,13 @@ like a tool length probe, but other than that retain the behavior of the built i
 
 Since this might be a common scenario, the built in behavior of remapped codes has been made available within the remap procedure.
 The interpreter detects that you are referring to a remapped code within the procedure which is supposed to redefine its behavior.
-In this case, the built in behavior is used - this currently is enabled for the set: `M6`, `M61`,`T`, `S`, `F`.
-Note that otherwise referring to a code within its own remap procedure would be a error - a `remapping recursion`.
+In this case, the built in behavior is used. This applies to every built in code that can be remapped:
+`T`, `S`, `F`, `M0`, `M1`, `M60`, `M6`, `M61`, `M7`, `M8`, `M9`, `M62` to `M68`, `G68.2`, `G68.4` and `G69`,
+whatever `modalgroup` the REMAP line gives.
+It only applies to the code's own remap: another remapped code used inside a remap procedure runs its remap,
+for example an `M1` inside the `M0` remap procedure.
+The epilog can tell that the built in was used from `self.blocks[self.remap_level].builtin_used`.
+A code that is not built in, like `M400`, calls its remap procedure again when used inside it.
 
 Slightly twisting a built in would look like so (in the case of `M6`):
 
@@ -837,8 +842,6 @@ M6 (use built in M6 behavior)
 o<mychange> endsub
 m2
 ----
-
-CAUTION: When redefining a built-in code, *do not specify any leading zeroes in G- or M-codes* - for example, say `REMAP=M1 ..`, not `REMAP=M01 ...`.
 
 See the `configs/sim/axis/remap/extend-builtins` directory for a complete configuration,
 which is the recommended starting point for own work when extending built in codes.

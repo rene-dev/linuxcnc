@@ -649,79 +649,43 @@ int Interp::remap_finished(int phase)
 // return number of remaps found
 int Interp::find_remappings(block_pointer block, setup_pointer settings)
 {
-    if (block->f_flag && remapping('F')) {
-	if (remap_in_progress('F'))
-	    CONTROLLING_BLOCK(*settings).builtin_used = true;
-	else
-	    block->remappings.insert(STEP_SET_FEED_RATE);
-    }
-    if (block->s_flag && remapping('S')) {
-	if (remap_in_progress('S'))
-	    CONTROLLING_BLOCK(*settings).builtin_used = true;
-	else
-	    block->remappings.insert(STEP_SET_SPINDLE_SPEED);
-    }
-    if (block->t_flag && remapping('T')) {
-	if (remap_in_progress('T'))
-	    CONTROLLING_BLOCK(*settings).builtin_used = true;
-	else
-	    block->remappings.insert(STEP_PREPARE);
-    }
-    // User defined M-Codes in group 5
-    if (is_user_defined_m_code(block, settings, 5) &&
-	!(((block->m_modes[5] == 62) && remap_in_progress('M', 62)) ||
-	  ((block->m_modes[5] == 63) && remap_in_progress('M', 63)) ||
-	  ((block->m_modes[5] == 64) && remap_in_progress('M', 64)) ||
-	  ((block->m_modes[5] == 65) && remap_in_progress('M', 65)) ||
-	  ((block->m_modes[5] == 66) && remap_in_progress('M', 66)) ||
-	  ((block->m_modes[5] == 67) && remap_in_progress('M', 67)) ||
-	  ((block->m_modes[5] == 68) && remap_in_progress('M', 68))))
-	// non-recursive behavior
-	block->remappings.insert(STEP_M_5);
+    // A remapped code runs its remap, unless it is a built-in used inside
+    // its own remap: then it means the built-in again. The remap's epilog
+    // can tell from builtin_used.
+    auto check = [&](char letter, int number, int step) {
+        if (!remapping(letter, number))
+            return;
+        if (builtin_in_own_remap(letter, number))
+            CONTROLLING_BLOCK(*settings).builtin_used = true;
+        else
+            block->remappings.insert(step);
+    };
 
-    // User defined M-Codes in group 6 (including M6, M61)
-    // call the remap procedure if it the code in that group is remapped unless:
-    // it's an M6 or M61 and a remap is in progress
-    // (recursion case)
-    if (is_user_defined_m_code(block, settings, 6) &&
-	!(((block->m_modes[6] == 6) && remap_in_progress('M', 6)) ||
-	  ((block->m_modes[6] == 61) && remap_in_progress('M', 61)))) {
-	block->remappings.insert(STEP_M_6); // then call the remap procedure
-    } // else we get the builtin behaviour
-    
-    // User defined M-Codes in group 7
-    if (is_user_defined_m_code(block, settings, 7))
-	block->remappings.insert(STEP_M_7);
+    if (block->f_flag)
+        check('F', 0, STEP_SET_FEED_RATE);
+    if (block->s_flag)
+        check('S', 0, STEP_SET_SPINDLE_SPEED);
+    if (block->t_flag)
+        check('T', 0, STEP_PREPARE);
 
-    // User defined M-Codes in group 8
-    if (is_user_defined_m_code(block, settings, 8)) {
-        if (((block->m_modes[8] == 7) && remap_in_progress('M', 7)) ||
-        ((block->m_modes[8] == 8) && remap_in_progress('M', 8)) ||
-        ((block->m_modes[8] == 9) && remap_in_progress('M', 9))){
-        // recursive behavior
-        CONTROLLING_BLOCK(*settings).builtin_used = true;
-        } else {
-        // non-recursive (ie the built in) behavior
-        block->remappings.insert(STEP_M_8);
-        }
+    // the M-code groups that can hold a remapped code
+    static const struct { int group; int step; } m_steps[] = {
+        {4, STEP_MGROUP4}, {5, STEP_M_5}, {6, STEP_M_6}, {7, STEP_M_7},
+        {8, STEP_M_8}, {9, STEP_M_9}, {10, STEP_M_10},
+    };
+    for (const auto &m : m_steps) {
+        int code = block->m_modes[m.group];
+        if (code != -1 && is_m_code_remappable(code))
+            check('M', code, m.step);
     }
 
-    // User defined M-Codes in group 9
-    if (is_user_defined_m_code(block, settings, 9))
-	block->remappings.insert(STEP_M_9);
-
-    // User defined M-Codes in group 10
-    if (is_user_defined_m_code(block, settings, 10))
-	block->remappings.insert(STEP_M_10);
-
-    // User-defined motion codes (G0 to G3, G33, G73, G76, G80 to G89)
-    // as modified (possibly) by G53.
+    // User-defined motion codes, as modified (possibly) by G53.
     int mode = block->g_modes[GM_MOTION];
-    if ((mode != -1) && is_user_defined_g_code(mode))
-	block->remappings.insert(STEP_MOTION);
-    
+    if (mode != -1 && is_g_code_remappable(mode))
+        check('G', mode, STEP_MOTION);
+
     // this makes it possible to call remapped codes like cycles:
-    // G84.2 x1 y2 
+    // G84.2 x1 y2
     // x3
     // will execute 'G84.2 x1 y2', then 'G84.2 x3 y2'
     // provided the remap function explicitly sets motion_mode like so:
@@ -732,25 +696,9 @@ int Interp::find_remappings(block_pointer block, setup_pointer settings)
     //     return INTERP_OK
 
     mode = block->motion_to_be;
-    if ((mode != -1) && is_user_defined_g_code(mode)) {
-	block->remappings.insert(STEP_MOTION);
-    }
+    if (mode != -1 && is_g_code_remappable(mode))
+        check('G', mode, STEP_MOTION);
 
-    // User defined M-Codes in group 4 (stopping)
-    if (is_user_defined_m_code(block, settings, 4)) {
-
-	if (remap_in_progress('M', 0) ||
-	    remap_in_progress('M', 1) ||
-	    remap_in_progress('M', 60))  { // detect recursion case
-
-	    // these require real work.
-	    // remap_in_progress('M', 2) ||
-	    // remap_in_progress('M', 60)
-	    CONTROLLING_BLOCK(*settings).builtin_used = true;
-	} else {
-	    block->remappings.insert(STEP_MGROUP4);
-	}
-    }
     return block->remappings.size();
 }
 

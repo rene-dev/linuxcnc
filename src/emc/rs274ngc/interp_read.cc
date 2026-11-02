@@ -584,7 +584,7 @@ int Interp::read_g(char *line,   //!< string: line of RS274/NGC code being proce
   // if (mode != -1) {
 
  remap_pointer r = remapping('G', value);
-  if (r) {
+  if (r && !builtin_in_own_remap('G', value)) {
       mode =  r->modal_group;
       CHKS ((mode < 0),"BUG: G remapping: modal group < 0"); // real bad
 
@@ -1121,7 +1121,7 @@ int Interp::read_m(char *line,   //!< string: line of RS274 code being processed
   CHKS((value < 0), NCE_NEGATIVE_M_CODE_USED);
 
   remap_pointer r = remapping('M', value);
-  if (r) {
+  if (r && !builtin_in_own_remap('M', value)) {
       mode =  r->modal_group;
       CHKS ((mode < 0),"BUG: M remapping: modal group < 0");
       CHKS ((mode > 10),"BUG: M remapping: modal group > 10");

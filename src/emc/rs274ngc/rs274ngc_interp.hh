@@ -641,6 +641,8 @@ int read_inputs(setup_pointer settings);
     int init_python_predef_parameter(const char *name);
 
     bool remap_in_progress(char letter, int number = 0);
+    // a built-in code used inside its own remap means the built-in again
+    bool builtin_in_own_remap(char letter, int number = 0);
     int convert_remapped_code(block_pointer block,
 			       setup_pointer settings,
 			      int phase,

@@ -4152,9 +4152,6 @@ int Interp::convert_m(block_pointer block,       //!< pointer to a block of RS27
       					       'm',
       					       block->m_modes[6]);
 	  } else {
-	      // the code was used in its very remap procedure -
-	      // the 'recursion case'; record the fact
-	      CONTROLLING_BLOCK(*settings).builtin_used = !remapped_in_block;
 	      CHP(convert_tool_change(settings));
 	  }
       	  break;
@@ -4164,7 +4161,6 @@ int Interp::convert_m(block_pointer block,       //!< pointer to a block of RS27
 	      return convert_remapped_code(block, settings, STEP_M_6,'m',
 					   block->m_modes[6]);
 	  } else {
-	      CONTROLLING_BLOCK(*settings).builtin_used = !remapped_in_block;
 	      toolno = round_to_int(block->q_number);
 	      // now also accept M61 Q0 - unload tool
 	      CHKS((toolno < 0), (_("Need non-negative Q-word to specify tool number with M61")));
@@ -4206,7 +4202,8 @@ int Interp::convert_m(block_pointer block,       //!< pointer to a block of RS27
     }
   }
 
- if (is_user_defined_m_code(block, settings, 7) && ONCE_M(7)) {
+ if (is_user_defined_m_code(block, settings, 7) &&
+     STEP_REMAPPED_IN_BLOCK(block, STEP_M_7) && ONCE_M(7)) {
     return convert_remapped_code(block, settings, STEP_M_7, 'm',
 				   block->m_modes[7]);
  } else if ((block->m_modes[7] == 3)  && ONCE_M(7)) {
@@ -4333,7 +4330,8 @@ int Interp::convert_m(block_pointer block,       //!< pointer to a block of RS27
       settings->rotary_modulo_literal = 1;
   }
 
-if (is_user_defined_m_code(block, settings, 9) && ONCE_M(9)) {
+if (is_user_defined_m_code(block, settings, 9) &&
+    STEP_REMAPPED_IN_BLOCK(block, STEP_M_9) && ONCE_M(9)) {
      return convert_remapped_code(block, settings, STEP_M_9, 'm',
 				   block->m_modes[9]);
  } else if ((block->m_modes[9] == 48)  && ONCE_M(9)){
@@ -4426,7 +4424,8 @@ if ((block->m_modes[9] == 53)  && ONCE_M(9)){
     }
   }
 
-if (is_user_defined_m_code(block, settings, 10) && ONCE_M(10)) {
+if (is_user_defined_m_code(block, settings, 10) &&
+    STEP_REMAPPED_IN_BLOCK(block, STEP_M_10) && ONCE_M(10)) {
     return convert_remapped_code(block,settings,STEP_M_10,'m',
 				   block->m_modes[10]);
 
