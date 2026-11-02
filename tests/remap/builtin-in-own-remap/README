@@ -1,0 +1,3 @@
+A built-in code used inside its own remap runs the built-in, also when
+the REMAP line puts the code in another modal group. Another remapped
+code inside a remap still runs its remap.

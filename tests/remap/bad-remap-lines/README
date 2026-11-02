@@ -1,0 +1,2 @@
+REMAP lines that can never work stop the interpreter at startup, with
+the INI line in the message.

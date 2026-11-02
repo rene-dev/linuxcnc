@@ -1,0 +1,7 @@
+o<m0> sub
+(debug, m0 remap)
+M0
+(the M1 remap is not running, so this runs it)
+M1
+o<m0> endsub
+m2
