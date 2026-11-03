@@ -51,23 +51,20 @@ remap_pointer Interp::remapping(char letter, int number)
 // Built-in codes that can also be remapped. Used inside its own remap,
 // such a code runs the built-in, so the remap can wrap it. Any other
 // remappable code is one the interpreter doesn't know.
-static const remap_key remappable_builtins[] = {
-    {'T', 0}, {'S', 0}, {'F', 0},
-    {'M', 0}, {'M', 1}, {'M', 60},                  // group 4, stopping
-    {'M', 62}, {'M', 63}, {'M', 64}, {'M', 65},     // group 5, I/O
-    {'M', 66}, {'M', 67}, {'M', 68},
-    {'M', 6}, {'M', 61},                            // group 6, tool change
-    {'M', 7}, {'M', 8}, {'M', 9},                   // group 8, coolant
-    {'G', G_68_2}, {'G', G_68_4}, {'G', G_69},      // tilted work plane
+static constexpr remap_key remappable_builtins[] = {
+    "T", "S", "F",
+    "M0", "M1", "M60",                      // group 4, stopping
+    "M62", "M63", "M64", "M65",             // group 5, I/O
+    "M66", "M67", "M68",
+    "M6", "M61",                            // group 6, tool change
+    "M7", "M8", "M9",                       // group 8, coolant
+    "G68.2", "G68.4", "G69",                // tilted work plane
 };
 
 static bool is_remappable_builtin(char letter, int number)
 {
-    for (const remap_key &k : remappable_builtins) {
-        if (k.letter == letter && k.number == number)
-            return true;
-    }
-    return false;
+    return std::ranges::find(remappable_builtins, remap_key(letter, number))
+           != std::end(remappable_builtins);
 }
 
 bool Interp::is_m_code_remappable(int m_code)
@@ -413,10 +410,7 @@ int Interp::parse_remap(const char *inistring, int lineno)
     const char *code;
     remap r;
     bool errored = false;
-    int g1 = 0, g2 = 0;
-    int mcode = -1;
-    int gcode = -1;
-    remap_key key;
+    std::optional<remap_key> key;
 
     memset((void *)&r, 0, sizeof(remap));
     r.modal_group = -1; // mark as unset, required param for m/g
@@ -556,31 +550,26 @@ int Interp::parse_remap(const char *inistring, int lineno)
 	goto fail;
     }
 
-    key.letter = toupper(*code);
-    switch (key.letter) {
+    key = remap_key::parse(code);
+    if (!key) {
+	Error("code '%s' : expected T, S, F, M<number> or G<number>[.<digit>] : %d:REMAP = %s",
+	      code, lineno, inistring);
+	goto fail;
+    }
+
+    switch (key->letter) {
 
     case 'T':
     case 'S':
     case 'F':
-	if (strlen(code) > 1) {
-	    Error("%d: %c remap - only single letter code allowed", lineno, *code);
-	    goto fail;
-	}
 	if (r.modal_group != -1) {
 	    Error("%d: %c remap - modal group setting ignored - fixed sequencing", lineno, *code);
 	    goto fail;
 	}
-	key.number = 0;
 	break;
 
-    case 'M': {
-	int len = 0;
-	if (sscanf(code + 1, "%d%n", &mcode, &len) != 1 || code[1 + len] != '\0') {
-	    Error("parsing M-code: expecting integer like 'M420', got '%s' : %d:REMAP = %s",
-		  code,lineno,inistring);
-	    goto fail;
-	}
-	if (!is_m_code_remappable(mcode)) {
+    case 'M':
+	if (!is_m_code_remappable(key->number)) {
 	    Error("code '%s' can't be remapped : %d:REMAP = %s",
 		  code,lineno,inistring);
 	    goto fail;
@@ -595,29 +584,15 @@ int Interp::parse_remap(const char *inistring, int lineno)
 		  code,lineno,inistring);
 	    goto fail;
 	}
-	key.number = mcode;
 	break;
-    }
-    case 'G': {
-	int len = 0;
-	// code may be G88.1 or so - normalize to use 'G881' instead
-	// (multiply by 10, no dots)
-	if (sscanf(code + 1, "%d.%1d%n", &g1, &g2, &len) == 2) {
-	    gcode = g1 * 10 + g2;
-	} else if (sscanf(code + 1, "%d%n", &gcode, &len) == 1) {
-	    gcode *= 10;
-	}
-	if (gcode < 0 || code[1 + len] != '\0') {
-	    Error("code '%s' : can\'t parse G-code : %d:REMAP = %s",
-		  code, lineno, inistring);
-	    goto fail;
-	}
-	if (!is_g_code_remappable(gcode)) {
+
+    case 'G':
+	if (!is_g_code_remappable(key->number)) {
 	    Error("code '%s' can't be remapped : %d:REMAP = %s",
 		  code,lineno,inistring);
 	    goto fail;
 	}
-	r.motion_code = gcode;
+	r.motion_code = key->number;
 	if (r.modal_group == -1) {
 	    Error("warning: code '%s' : no modalgroup=<int> given, using default group %d : %d:REMAP = %s",
 		  code, GCODE_DEFAULT_MODAL_GROUP, lineno, inistring);
@@ -628,22 +603,16 @@ int Interp::parse_remap(const char *inistring, int lineno)
 		  code, lineno, inistring);
 	    goto fail;
 	}
-	key.number = gcode;
 	break;
-    }
-    default:
-	Error("code '%s' can't be remapped, only T, S, F, M and G codes can : %d:REMAP = %s",
-	      code,lineno,inistring);
-	goto fail;
     }
 
     // M6 and M06 are the same code
-    if (_setup.remaps.count(key)) {
+    if (_setup.remaps.count(*key)) {
 	Error("code '%s' already remapped : %d:REMAP = %s",
 	      code,lineno,inistring);
 	goto fail;
     }
-    _setup.remaps[key] = r;
+    _setup.remaps[*key] = r;
     return INTERP_OK;
 
  fail:

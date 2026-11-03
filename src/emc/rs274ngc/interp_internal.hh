@@ -22,6 +22,9 @@
 #include <map>
 #include <vector>
 #include <bitset>
+#include <compare>
+#include <optional>
+#include <string_view>
 #include "nml_intf/canon.hh"
 #include <emcpos.h>
 #include "libintl.h"
@@ -446,12 +449,61 @@ struct nocase_cmp
 
 // a remap is found by its letter (upper case) and number: the M-code,
 // the G-code times ten (G88.1 is 881), or 0 for T, S and F
+// A remappable code: T, S and F have number 0, M has the M number,
+// G has the G number times ten (G88.1 is 881).
 struct remap_key {
-    char letter;
-    int number;
-    bool operator<(const remap_key &o) const {
-        return letter != o.letter ? letter < o.letter : number < o.number;
+    char letter = 0;
+    int number = 0;
+
+    constexpr remap_key() = default;
+    constexpr remap_key(char l, int n) : letter(l), number(n) {}
+    // From a literal like "M62" or "G68.2"; a bad literal doesn't compile.
+    consteval remap_key(const char *code) : remap_key(parse(code).value()) {}
+
+    // Parse a code as written in a REMAP line, e.g. "T", "m06", "G88.1".
+    static constexpr std::optional<remap_key> parse(std::string_view code)
+    {
+        if (code.empty())
+            return {};
+        char letter = code[0];
+        if (letter >= 'a' && letter <= 'z')
+            letter -= 'a' - 'A';
+        code.remove_prefix(1);
+
+        if (letter == 'T' || letter == 'S' || letter == 'F') {
+            if (!code.empty())
+                return {};
+            return remap_key(letter, 0);
+        }
+        if (letter != 'M' && letter != 'G')
+            return {};
+
+        // at most four digits, then for G an optional '.' and one digit
+        int number = 0;
+        size_t i = 0;
+        for (; i < code.size() && code[i] >= '0' && code[i] <= '9'; i++) {
+            if (i == 4)
+                return {};
+            number = number * 10 + (code[i] - '0');
+        }
+        if (i == 0)
+            return {};
+        if (letter == 'M') {
+            if (i != code.size())
+                return {};
+            return remap_key(letter, number);
+        }
+
+        number *= 10;
+        if (i < code.size()) {
+            if (code.size() != i + 2 || code[i] != '.' || code[i + 1] < '0' || code[i + 1] > '9')
+                return {};
+            number += code[i + 1] - '0';
+        }
+        return remap_key(letter, number);
     }
+
+    auto operator<=>(const remap_key &) const = default;
 };
 typedef std::map<remap_key, remap> remap_map;
 

@@ -8,16 +8,16 @@ invalid REMAP in INI line 4: M123 modalgroup=10 ngc=handler
 code 'G1' can't be remapped : 4:REMAP = G1 modalgroup=1 ngc=handler
 invalid REMAP in INI line 4: G1 modalgroup=1 ngc=handler
 == M6x modalgroup=6 ngc=handler
-parsing M-code: expecting integer like 'M420', got 'M6x' : 4:REMAP = M6x modalgroup=6 ngc=handler
+code 'M6x' : expected T, S, F, M<number> or G<number>[.<digit>] : 4:REMAP = M6x modalgroup=6 ngc=handler
 invalid REMAP in INI line 4: M6x modalgroup=6 ngc=handler
 == G88.12 modalgroup=1 ngc=handler
-code 'G88.12' : can't parse G-code : 4:REMAP = G88.12 modalgroup=1 ngc=handler
+code 'G88.12' : expected T, S, F, M<number> or G<number>[.<digit>] : 4:REMAP = G88.12 modalgroup=1 ngc=handler
 invalid REMAP in INI line 4: G88.12 modalgroup=1 ngc=handler
 == M400 modalgroup=10 ngc=handler prologue=foo
 unrecognized option 'prologue' in  4:REMAP = M400 modalgroup=10 ngc=handler prologue=foo
 invalid REMAP in INI line 4: M400 modalgroup=10 ngc=handler prologue=foo
 == X1 ngc=handler
-code 'X1' can't be remapped, only T, S, F, M and G codes can : 4:REMAP = X1 ngc=handler
+code 'X1' : expected T, S, F, M<number> or G<number>[.<digit>] : 4:REMAP = X1 ngc=handler
 invalid REMAP in INI line 4: X1 ngc=handler
 == T modalgroup=6 ngc=handler
 4: T remap - modal group setting ignored - fixed sequencing
