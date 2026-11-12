@@ -85,6 +85,7 @@ fpu_control_t __fpu_control = _FPU_IEEE & ~(_FPU_MASK_IM | _FPU_MASK_ZM | _FPU_M
 #include "timeutil.hh"
 #include "task.hh"		// emcTaskCommand etc
 #include "taskclass.hh"
+#include "taskhal.hh"
 #include "motion/motion.h"             // EMCMOT_ORIENT_*
 #include "ini/inihal.hh"
 
@@ -3361,6 +3362,12 @@ constexpr auto RETRY_TIME = 10s;     // wait for subsystems to come up
 	log_error("can't read motion status\n");
 	return -1;
     }
+
+    // needs the axis mask and spindle count from the motion status
+    if (emcTaskHalInit(joints, *emcStatus)) {
+        log_error("{}: emcTaskHalInit failed\n", __PRETTY_FUNCTION__);
+        return -1;
+    }
     // now the interpreter
 
     if (0 != emcTaskPlanInit()) {
@@ -3392,6 +3399,7 @@ static int emctask_shutdown(void)
 	emcTaskPlanExit();
 	emcMotionHalt();
     }
+    emcTaskHalExit();
     // delete the timer
     if (NULL != timer) {
 	delete timer;
@@ -3765,6 +3773,8 @@ int main(int argc, char *argv[])
 
 	// update task-specific status
 	emcTaskUpdate(&emcStatus->task);
+	emcTaskHalUpdate(*emcStatus);
+	emcTaskHalCheckInputs(*emcStatus);
 
 	// handle RCS_STAT_MSG base class members explicitly, since this
 	// is not an NML_MODULE and they won't be set automatically
