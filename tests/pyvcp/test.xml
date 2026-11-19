@@ -14,4 +14,10 @@
 	<scale halpin="scale-a-out"/>						# scale-a-out-(f|i)
 	<scale halpin="scale-b-out" param_pin="1"/>				# scale-b-out-(f|i)	scale.2.param_pin
 	<scale halpin="scale-c-out" param_pin="1" halparam="scale-c-in"/>	# scale-c-out-(f|i)	scale-c-in
+
+	<table>								# a labelframe in a table
+		<tablerow/>
+		<label text="before"/>
+		<labelframe text="frame"><led halpin="table-frame-led"/></labelframe>
+	</table>
 </pyvcp>

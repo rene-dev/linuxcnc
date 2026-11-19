@@ -955,7 +955,12 @@ class pyvcp_labelframe(LabelFrame):
     """
     def __init__(self,master,pycomp,**kw):
         LabelFrame.__init__(self,master,**kw)
-        self.pack(expand=1,fill=BOTH)
+        # The parent places the frame. Packing it here as well keeps
+        # expand=1 in an hbox, which packs without expand, but a table
+        # grids its children and Tk cannot mix pack and grid in one
+        # frame, so leave the frame alone there.
+        if not isinstance(master, pyvcp_table):
+            self.pack(expand=1,fill=BOTH)
     def update(self,pycomp):
         pass
     def add(self, container, widget):

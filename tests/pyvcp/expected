@@ -23,3 +23,4 @@ mypanel real  OUT 0 mypanel.spinbox-c-out
 mypanel real  OUT 0 mypanel.spinbox-d-out
 mypanel real  OUT 0 mypanel.spinbox.0
 mypanel real  IN 0 mypanel.spinbox.2.param_pin
+mypanel bool  IN FALSE mypanel.table-frame-led
