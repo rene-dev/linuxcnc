@@ -20,5 +20,7 @@ pyvcp - Virtual Control Panel for LinuxCNC
 
 == SEE ALSO
 
+*pyvcp-gtk*(1) shows the same panel files with GTK.
+
 _Python Virtual Control Panel_ in the LinuxCNC documentation for a
 description of the xml syntax, along with examples.

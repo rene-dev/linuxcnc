@@ -1,0 +1,50 @@
+<pyvcp>
+  <tabs>
+    <names>["Indicators", "Controls", "Table"]</names>
+    <vbox>
+      <hbox>
+        <meter><halpin>"m"</halpin><text>"Spindle"</text><subtext>"RPM"</subtext><min_>0</min_><max_>3000</max_><majorscale>500</majorscale><minorscale>100</minorscale><region1>(2000,2500,"orange")</region1><region2>(2500,3000,"red")</region2><size>220</size></meter>
+        <vbox>
+          <bar><halpin>"b"</halpin><min_>0</min_><max_>150</max_><range1>(0,100,"green")</range1><range2>(100,130,"orange")</range2><range3>(130,150,"red")</range3></bar>
+          <hbox><led><halpin>"l1"</halpin></led><led><halpin>"l2"</halpin><size>30</size><on_color>"yellow"</on_color></led><rectled><halpin>"r1"</halpin></rectled><led><halpin>"ld"</halpin><disable_pin>1</disable_pin></led></hbox>
+          <number><halpin>"n"</halpin><format>"+4.3f"</format><font>("Helvetica", 18, "bold")</font><fg>"blue"</fg></number>
+          <s32><halpin>"s"</halpin></s32>
+          <u32><halpin>"u"</halpin><bg>"yellow"</bg></u32>
+          <timer><halpin>"t"</halpin></timer>
+          <multilabel><halpin>"ml"</halpin><legends>["Off","Low","High"]</legends></multilabel>
+          <label><text>"plain label"</text><relief>RIDGE</relief></label>
+        </vbox>
+      </hbox>
+    </vbox>
+    <vbox>
+      <hbox>
+        <dial><halpin>"d"</halpin><text>"Feed"</text><initval>1.5</initval><resolution>0.1</resolution><min_>0</min_><max_>10</max_><dialcolor>"lightblue"</dialcolor></dial>
+        <jogwheel><halpin>"j"</halpin><text>"Jog"</text><clear_pin>1</clear_pin><scale_pin>1</scale_pin><size>200</size></jogwheel>
+      </hbox>
+      <hbox>
+        <button><halpin>"btn"</halpin><text>"Push"</text><disable_pin>True</disable_pin></button>
+        <checkbutton><halpin>"cb"</halpin><text>"Check"</text><initval>1</initval></checkbutton>
+        <radiobutton><halpin>"rb"</halpin><choices>["a","b","c"]</choices><initval>1</initval><orient>HORIZONTAL</orient></radiobutton>
+      </hbox>
+      <hbox>
+        <scale><halpin>"sc"</halpin><orient>HORIZONTAL</orient><resolution>0.5</resolution><min_>-5</min_><max_>5</max_><initval>2</initval><length>200</length></scale>
+        <scale><halpin>"scv"</halpin><min_>0</min_><max_>10</max_><param_pin>1</param_pin></scale>
+        <spinbox><halpin>"sp"</halpin><min_>0</min_><max_>10</max_><resolution>0.25</resolution><format>"2.2f"</format><initval>3</initval><reset_button>1</reset_button></spinbox>
+      </hbox>
+    </vbox>
+    <table flexible_columns="[2]">
+      <tablesticky sticky="nsew"/>
+      <tablerow/><label text="A1"/><label text="B1"/><label text="C1"/>
+      <tablerow/><tablespan columns="2"/><button text="spans two" halpin="tb"/><label text="C2"/>
+      <tablerow/><label text="A3"/><labelframe text="frame"><led halpin="tl"/></labelframe>
+    </table>
+  </tabs>
+  <labelframe text="frame"><led halpin="lf"/></labelframe>
+  <hbox>
+    <led/><rectled/><led disable_pin="1"/><number/><s32/><u32/><sint/><uint/><bar/><meter/>
+    <label disable_pin="1"/><label text="x"/><multilabel legends='["a","b"]'/><timer/>
+    <button/><checkbutton/><radiobutton choices='["x","y"]'/>
+    <scale/><scale param_pin="1"/><spinbox/><spinbox param_pin="1"/><dial/><dial param_pin="1"/><jogwheel/><jogwheel clear_pin="1" scale_pin="1"/>
+    <include src="include.xml" prefix="inc"/>
+  </hbox>
+</pyvcp>

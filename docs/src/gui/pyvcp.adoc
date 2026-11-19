@@ -231,6 +231,44 @@ waitusr panelname
 This tells HAL to wait for component 'panelname' to close before continuing HAL commands.
 This is usually set as the last command so that HAL shuts down when the panel is closed.
 
+[[sec:pyvcp:gtk]]
+== GTK
+
+The same panel file can be shown with GTK 3 instead of Tk, by running
+`pyvcp-gtk` in place of `pyvcp`:
+
+[source,hal]
+----
+loadusr -Wn mypanel pyvcp-gtk -c mypanel mypanel.xml
+----
+
+`pyvcp-gtk` creates the same HAL pins as `pyvcp`, with the same names,
+types and automatic numbering, so the rest of the HAL file stays as it is.
+The widgets are the GladeVCP HAL widgets, and the panel follows the GTK
+theme of the desktop.
+
+Like GladeVCP, `pyvcp-gtk -x {XID}` embeds the panel in a tab of AXIS,
+GMOCCAPY or Gscreen:
+
+[source,ini]
+----
+[DISPLAY]
+EMBED_TAB_NAME = Panel
+EMBED_TAB_COMMAND = pyvcp-gtk -c mypanel -x {XID} mypanel.xml
+----
+
+Differences from the Tk version:
+
+* Tk-only options (`relief` on widgets, `cursor`, `padx`, `highlightthickness`, ...) are ignored.
+  `text`, `font`, `fg`/`foreground`, `bg`/`background`, `width` and `anchor` are applied.
+  `relief` and `bd` on `<hbox>` and `<vbox>` draw a frame.
+* `<axisoptions>` and `<option>` set Tk options and have no effect.
+* `<image>` supports images loaded from a file (`file="..."`).
+* The widgets look like their GladeVCP counterparts: the meter, bar, dial and jog wheel
+  are drawn differently, and `<rectled>` keeps the shape of a GladeVCP bar LED.
+* In a `<table>`, `uniform_rows` and `uniform_columns` only take effect when all
+  rows or all columns share the same group.
+
 [[sec:pyvcp:widgets]]
 == Widgets
 
