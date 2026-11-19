@@ -329,7 +329,8 @@ class HAL_LED(Gtk.DrawingArea, _HalSensitiveBase):
         elif state == "blink":
             self._blink_color = color
 
-        if state == 'on' and getattr(self, 'off_color') == 'dark':
+        # off_color is not set yet while GObject sets construct properties
+        if state == 'on' and getattr(self, 'off_color', None) == 'dark':
             self.set_color('off', 'dark')
 
     # This allows setting the diameter of the LED

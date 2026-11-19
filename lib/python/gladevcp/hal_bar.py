@@ -202,7 +202,9 @@ class HAL_Bar(Gtk.DrawingArea, _HalWidgetBase):
 
         if name in ['force_width', 'force_height']:
             #print "Forcing size request %s" % name
-            self.set_size_request(self.force_width, self.force_height)
+            # the other one is not set yet while GObject sets construct properties
+            self.set_size_request(getattr(self, 'force_width', -1),
+                                  getattr(self, 'force_height', -1))
 
         self.queue_draw()
         return True
